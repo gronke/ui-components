@@ -10,4 +10,5 @@ rust-version.workspace = true
 
 [dependencies]
 ui_components.workspace = true
+uic_core.workspace = true
 uic_tui.workspace = true

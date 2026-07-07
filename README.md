@@ -1,14 +1,55 @@
 # ui-components
 
-This project aims to assemble custom web components from Rust code.
+This project assembles custom web components from Rust code.
 
-One Rust definition per component — properties, events, a lit-flavored template (inline or `.mhtml`), co-located `.scss` — is rendered to two targets:
+One Rust definition per component — reactive properties, a lit-flavored template (inline or `.mhtml`), co-located `.scss`, named behavior hooks — renders to two targets:
 
 - Browser: generated TypeScript web components (LitElement variant: plain class, `static properties`, light DOM, no decorators), vendored, compiled and served by [web_modules](https://github.com/gronke/web_modules).
-- Terminal: a TUI renderer interpreting the same template IR with ratatui, laid out by taffy (CSS flexbox/grid over terminal cells) and rat-widget input primitives.
+- Terminal: a runtime interpreting the same template IR with ratatui, laid out by taffy (real CSS flexbox/block over terminal cells) and rat-widget input primitives.
 
-Component registration mirrors `customElements.define` through the `inventory` crate.
-The pilot component is `<input-date>`; plan and milestones live in [issue #1](https://github.com/schuhkarton/ui-components/issues/1).
+Component registration mirrors `customElements.define` through the `inventory` crate; properties follow the catalog's `LitNotify` vocabulary (`notify` → `<name>-changed` events).
+Design decisions live in [docs/adr](docs/adr); the plan and milestones in [issue #1](https://github.com/schuhkarton/ui-components/issues/1).
+
+## Defining a component
+
+```rust
+#[derive(CustomElement, Default)]
+#[custom_element(
+    tag = "input-date",
+    template_file = "date.mhtml",
+    scss_file = "date.scss",
+    web_impl_file = "date.impl.ts"
+)]
+pub struct InputDate {
+    /// Committed value, `YYYY-MM-DD` or empty.
+    #[property(notify)]
+    pub value: String,
+    #[property]
+    pub label: Option<String>,
+    #[property(reflect)]
+    pub disabled: bool,
+    // …
+}
+
+impl InputDateLogic for InputDate {
+    fn on_change(&mut self, ctx: &mut Ctx, event: &UiEvent) { /* chrono validation */ }
+    fn placeholder_text(&self, store: &PropertyStore) -> Value { /* … */ }
+}
+```
+
+The template references properties, computed getters and handlers by name; richer expressions are rejected at compile time (see ADR 0001).
+Browser-side behavior lives in the co-located `date.impl.ts` under the same names (see ADR 0002).
+
+The same `<input-date>` renders as a Lit element with Bootstrap chrome in the browser, and as this frame in a terminal:
+
+```
+Date of purchase
+┌──────────────────────────────────────────┐
+│2026-07-07                                │
+└──────────────────────────────────────────┘
+
+Format: YYYY-MM-DD
+```
 
 ## Workspace
 
@@ -17,7 +58,7 @@ The pilot component is `<input-date>`; plan and milestones live in [issue #1](ht
 | `crates/uic_template` | Lit-flavored template string parser and IR, shared by the derive macro, codegen and TUI |
 | `crates/uic_core` | Component model: `ComponentDef`, `PropertyMeta`, `Behavior`, notify semantics, custom-element registry |
 | `crates/uic_macros` | `#[derive(CustomElement)]` |
-| `crates/uic_codegen_web` | Emits the TypeScript/SCSS web components for `web_modules` builds |
+| `crates/uic_codegen_web` | Emits the TypeScript/SCSS/manifest web components for `web_modules` builds |
 | `crates/uic_tui` | Terminal runtime (ratatui + taffy + rat-widget) |
 | `crates/ui_components` | The component catalog |
 | `apps/web-demo` | Browser demo served via axum/`web_modules::Frontend` |
@@ -26,10 +67,13 @@ The pilot component is `<input-date>`; plan and milestones live in [issue #1](ht
 ## Development
 
 ```sh
-cargo build -p uic_web_demo   # bakes the frontend (vendors npm deps at build time)
-cargo run -p uic_web_demo     # serves http://127.0.0.1:8080 with live reload
-cargo run -p uic_tui_demo     # terminal demo
+cargo run -p uic_web_demo             # http://127.0.0.1:8080, live reload for web/
+cargo run -p uic_tui_demo             # terminal demo (Enter commits, Esc quits)
+cargo run -p uic_tui --example screen # print one rendered terminal frame
 ```
+
+`web-demo/build.rs` regenerates the TypeScript from the Rust catalog on every build; the generated tree (including `custom-elements.json`) lands in `$OUT_DIR/gen_web`.
+Refresh the codegen snapshot after intentional output changes with `UPDATE_EXPECTED=1 cargo test -p uic_codegen_web`.
 
 QA before committing:
 

@@ -22,3 +22,6 @@ include_dir.workspace = true
 [build-dependencies]
 # Build-time baking needs the compilers + Tera — no axum/tokio.
 web_modules = { version = "0.5.1", default-features = false, features = ["typescript", "scss", "tera"] }
+# The component catalog and its TypeScript generator run inside this script.
+ui_components.workspace = true
+uic_codegen_web.workspace = true

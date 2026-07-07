@@ -13,7 +13,24 @@
 <body class="py-5 bg-body-tertiary">
 <main class="container">
 <h1 class="h4 mb-4">ui-components web demo</h1>
-<hello-uic who="ui-components"></hello-uic>
+<input-date
+  label="Date of purchase"
+  hint="Format: YYYY-MM-DD"
+  value="2026-07-07"
+  min="2020-01-01"
+  max="2030-12-31"
+></input-date>
+<h2 class="h6 mt-5">value-changed events</h2>
+<pre id="events" class="border bg-body p-2 small" data-qa="events"></pre>
 </main>
+<script type="module">
+// LitNotify events do not bubble; listen on the element itself.
+const log = document.getElementById('events');
+window.__events = [];
+document.querySelector('input-date').addEventListener('value-changed', (e) => {
+  window.__events.push(e.detail);
+  log.textContent += JSON.stringify(e.detail) + '\n';
+});
+</script>
 </body>
 </html>

@@ -8,5 +8,15 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+chrono = "0.4"
+crossterm = "0.29"
+rat-widget = "=3.2.1"
+ratatui = "0.30"
+taffy = "0.12"
+thiserror = "2"
 uic_core.workspace = true
 uic_template.workspace = true
+unicode-width = "0.2"
+
+[dev-dependencies]
+ui_components.workspace = true

@@ -11,3 +11,10 @@ rust-version.workspace = true
 uic_core.workspace = true
 uic_template.workspace = true
 thiserror.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# Registers <input-date> in the test binary's registry.
+ui_components.workspace = true
+# oxc smoke test: the emitted TypeScript must transpile.
+web_modules = { version = "0.5.1", default-features = false, features = ["typescript"] }

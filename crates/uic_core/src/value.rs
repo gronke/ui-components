@@ -140,6 +140,10 @@ impl PropertyStore {
             .unwrap_or_else(|| panic!("unknown property '{rust_name}'"))
     }
 
+    pub fn has(&self, rust_name: &str) -> bool {
+        self.entries.iter().any(|(name, _)| *name == rust_name)
+    }
+
     /// Writes a value, returning the previous one when it actually changed.
     pub fn set(&mut self, rust_name: &str, value: impl Into<Value>) -> Option<Value> {
         let value = value.into();
@@ -161,7 +165,7 @@ impl PropertyStore {
 
 /// The batch of properties changed during one update cycle, with the value
 /// each had before its first change (mirrors Lit's `changedProperties`).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Changed {
     entries: Vec<(&'static str, Value)>,
 }

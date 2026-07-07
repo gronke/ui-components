@@ -1,0 +1,46 @@
+name: Cache Warmup
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  warmup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        with:
+          components: rustfmt clippy
+
+      # Same cache family as the PR QA job. Branch caches are not shared
+      # between PRs; caches saved from main are — this is what keeps PR runs
+      # warm.
+      - name: Rust cache
+        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        with:
+          prefix: qa-1
+          cache-target: "true"
+          lockfiles: "**/Cargo.toml"
+
+      # The exact PR QA surface with tests built but not executed: warms the
+      # clippy check artifacts, the dependency tree, the build scripts (incl.
+      # the web-demo npm vendoring) and the test binaries — and doubles as a
+      # post-merge verification of main.
+      - name: Lint and warm build
+        uses: gronke/rust-ci/.github/actions/lint-and-test@main
+        with:
+          test-args: --no-run
