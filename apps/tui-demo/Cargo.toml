@@ -1,0 +1,13 @@
+[package]
+name = "uic_tui_demo"
+description = "Terminal demo: ui-components rendered by uic_tui"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ui_components.workspace = true
+uic_tui.workspace = true

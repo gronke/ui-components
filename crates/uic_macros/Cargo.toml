@@ -1,0 +1,17 @@
+[package]
+name = "uic_macros"
+description = "Derive macros for ui-components custom elements"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+uic_template.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

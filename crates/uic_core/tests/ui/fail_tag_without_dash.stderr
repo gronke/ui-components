@@ -1,0 +1,5 @@
+error: custom-element tags are lowercase and contain a dash, e.g. "input-date"
+ --> tests/ui/fail_tag_without_dash.rs:4:24
+  |
+4 | #[custom_element(tag = "box", template = "<p>x</p>")]
+  |                        ^^^^^

@@ -1,0 +1,15 @@
+{
+  "name": "uic-web-demo-frontend",
+  "private": true,
+  "description": "Browser dependencies for the demo, vended at build time by web_modules (see ../build.rs). devDependencies are tooling and are NOT vended.",
+  "dependencies": {
+    "@lit/reactive-element": "^2",
+    "bootstrap": "^5",
+    "lit": "^3",
+    "lit-element": "^4",
+    "lit-html": "^3"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

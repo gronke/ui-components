@@ -1,0 +1,17 @@
+[package]
+name = "uic_core"
+description = "Component model for ui-components: definitions, properties, behavior, registry"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uic_template.workspace = true
+uic_macros.workspace = true
+inventory.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+trybuild.workspace = true

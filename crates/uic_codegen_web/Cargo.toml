@@ -1,0 +1,13 @@
+[package]
+name = "uic_codegen_web"
+description = "Emits TypeScript/SCSS web components (Lit variant) from ui-components definitions"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uic_core.workspace = true
+uic_template.workspace = true
+thiserror.workspace = true

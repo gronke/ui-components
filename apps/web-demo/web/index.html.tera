@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ui-components · web demo</title>
+<link rel="stylesheet" href="/web_modules/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="/elements.css">
+<link rel="stylesheet" href="/styles.css">
+{{ importmap | safe }}
+<script type="module" src="/app.js"></script>
+</head>
+<body class="py-5 bg-body-tertiary">
+<main class="container">
+<h1 class="h4 mb-4">ui-components web demo</h1>
+<hello-uic who="ui-components"></hello-uic>
+</main>
+</body>
+</html>

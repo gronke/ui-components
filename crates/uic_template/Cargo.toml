@@ -1,0 +1,11 @@
+[package]
+name = "uic_template"
+description = "Lit-flavored template string parser and IR for ui-components"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true

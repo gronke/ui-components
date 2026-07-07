@@ -1,0 +1,5 @@
+error: #[custom_element(tag = "…")] is required
+ --> tests/ui/fail_missing_tag.rs:5:8
+  |
+5 | struct XNoTag {}
+  |        ^^^^^^

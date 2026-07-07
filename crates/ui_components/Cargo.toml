@@ -1,0 +1,12 @@
+[package]
+name = "ui_components"
+description = "The component catalog: one Rust definition per custom element"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uic_core.workspace = true
+chrono.workspace = true

@@ -1,0 +1,5 @@
+error: unsupported property type; use String, bool, a number type, or Option of one of those
+ --> tests/ui/fail_unsupported_type.rs:7:12
+  |
+7 |     items: Vec<String>,
+  |            ^^^^^^^^^^^

@@ -1,0 +1,5 @@
+error: use either template = "…" or template_file = "…", not both
+ --> tests/ui/fail_both_templates.rs:5:8
+  |
+5 | struct XTwo {}
+  |        ^^^^

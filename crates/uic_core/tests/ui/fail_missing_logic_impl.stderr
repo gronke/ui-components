@@ -1,0 +1,17 @@
+error[E0277]: the trait bound `XBtn: XBtnLogic` is not satisfied
+ --> tests/ui/fail_missing_logic_impl.rs:3:10
+  |
+3 | #[derive(CustomElement, Default)]
+  |          ^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `XBtnLogic` is not implemented for `XBtn`
+ --> tests/ui/fail_missing_logic_impl.rs:5:1
+  |
+5 | struct XBtn {}
+  | ^^^^^^^^^^^
+help: this trait has no implementations, consider adding one
+ --> tests/ui/fail_missing_logic_impl.rs:3:10
+  |
+3 | #[derive(CustomElement, Default)]
+  |          ^^^^^^^^^^^^^
+  = note: this error originates in the derive macro `CustomElement` (in Nightly builds, run with -Z macro-backtrace for more info)

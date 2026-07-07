@@ -1,0 +1,24 @@
+[package]
+name = "uic_web_demo"
+description = "Browser demo: generated ui-components served via web_modules"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[dependencies]
+# `dev` pulls the axum integration (Frontend factory + serve) and the dev server.
+# Declared directly (not via workspace.dependencies) because the two dependency
+# kinds need different feature sets.
+web_modules = { version = "0.5.1", features = ["dev"] }
+tokio.workspace = true
+# include_dir's macro must be used from a direct dependency; same 0.7 line as
+# web_modules, so the `Dir` types unify.
+include_dir.workspace = true
+
+[build-dependencies]
+# Build-time baking needs the compilers + Tera — no axum/tokio.
+web_modules = { version = "0.5.1", default-features = false, features = ["typescript", "scss", "tera"] }
