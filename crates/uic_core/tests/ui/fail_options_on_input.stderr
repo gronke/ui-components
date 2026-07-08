@@ -1,0 +1,5 @@
+error: '.options' bindings belong on <select> elements or custom elements, not <input>
+ --> tests/ui/fail_options_on_input.rs:6:16
+  |
+6 |     template = "<input .options=${options} />"
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -4,8 +4,8 @@
 //! components (see web_modules' lit-element example and the Schuhkarton
 //! catalog), with delegating members into the co-located impl partial.
 
-use uic_core::{ComponentDef, DefaultValue, JsType, Notify, PropertyMeta};
-use uic_template::{AttrPart, Attribute, Expr, Node};
+use uic_core::{ComponentDef, CustomElementRegistry, DefaultValue, JsType, Notify, PropertyMeta};
+use uic_template::{AttrPart, Attribute, Element, Expr, Node};
 
 use crate::camel_case;
 
@@ -38,6 +38,10 @@ export function notifyProperties(
     el.dispatchEvent(new CustomEvent(type, { detail: { property, value, oldValue } }));
   }
 }
+
+// One entry of a select option list (ADR 0006): `value` commits, `short` is
+// the closed-layer text, `label` the open-list text; both fall back to value.
+export type SelectOption = { value: string; short?: string; label?: string };
 "#;
 
 pub fn emit_component(def: &'static ComponentDef) -> String {
@@ -50,6 +54,12 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
         .properties
         .iter()
         .any(|p| !matches!(p.notify, Notify::No));
+    let has_zoned = def.properties.iter().any(|p| p.js_type == JsType::Zoned);
+    let has_options = def.properties.iter().any(|p| p.js_type == JsType::Options);
+    // Optional lifecycle hook: wired when the impl partial exports it.
+    let has_will_update = def
+        .web_impl
+        .is_some_and(|source| crate::exported_names(source).contains("willUpdate"));
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -62,14 +72,33 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
         "LitElement, html"
     };
     out.push_str(&format!("import {{ {lit_imports} }} from 'lit';\n"));
+    if has_zoned {
+        // Type-only: erased from the runtime JS; the impl partial carries
+        // the real temporal-polyfill import.
+        out.push_str("import type { Temporal } from 'temporal-polyfill';\n");
+    }
+    if has_options {
+        out.push_str("import type { SelectOption } from './uic-runtime.js';\n");
+    }
     out.push('\n');
     if has_notify {
         out.push_str("import { notifyProperties } from './uic-runtime.js';\n");
     }
-    if has_impl {
+    if has_impl || has_will_update {
         out.push_str(&format!("import * as impl from './{tag}.impl.js';\n"));
     }
-    if has_notify || has_impl {
+    // Registered nested elements define themselves on import, so a consumer
+    // loading this module gets its children too (unregistered custom tags
+    // are the consumer's own).
+    let child_tags: Vec<&str> = template
+        .custom_tags()
+        .into_iter()
+        .filter(|child| *child != tag && CustomElementRegistry::get(child).is_some())
+        .collect();
+    for child in &child_tags {
+        out.push_str(&format!("import './{child}.js';\n"));
+    }
+    if has_notify || has_impl || has_will_update || !child_tags.is_empty() {
         out.push('\n');
     }
 
@@ -110,6 +139,16 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
         def.style_id
     ));
 
+    if has_will_update {
+        out.push_str(
+            "  // Optional lifecycle hook, present in the impl partial.\n\
+             \x20 willUpdate(changed: Map<PropertyKey, unknown>): void {\n\
+             \x20   super.willUpdate(changed);\n\
+             \x20   impl.willUpdate(this, changed);\n\
+             \x20 }\n\n",
+        );
+    }
+
     if has_notify {
         out.push_str(&format!(
             "  // LitNotify port: fires the *-changed events after each update.\n\
@@ -149,14 +188,14 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
 }
 
 fn property_options(prop: &PropertyMeta) -> String {
-    let mut options = vec![format!(
-        "type: {}",
-        match prop.js_type {
-            JsType::String => "String",
-            JsType::Number => "Number",
-            JsType::Boolean => "Boolean",
-        }
-    )];
+    // Object-valued properties: no converter runs (attribute: false) and the
+    // default `!==` hasChanged applies — reference semantics like the catalog.
+    let mut options = match prop.js_type {
+        JsType::Zoned | JsType::Options => vec!["attribute: false".to_string()],
+        JsType::String => vec!["type: String".to_string()],
+        JsType::Number => vec!["type: Number".to_string()],
+        JsType::Boolean => vec!["type: Boolean".to_string()],
+    };
     // Lit's default attribute is the lowercased property name; only spell
     // out deviations (the dash-case of multi-word properties).
     if let Some(attribute) = prop.attribute {
@@ -180,12 +219,16 @@ fn field_declaration(prop: &PropertyMeta) -> String {
         JsType::String => "string",
         JsType::Number => "number",
         JsType::Boolean => "boolean",
+        JsType::Zoned => "Temporal.ZonedDateTime | null",
+        JsType::Options => "SelectOption[]",
     };
     let initializer = match prop.default {
         DefaultValue::Undefined => return format!("{}?: {ts_type};", prop.js_name),
         DefaultValue::Str(s) => format!("'{}'", escape_single_quoted(s)),
         DefaultValue::Num(n) => n.to_string(),
         DefaultValue::Bool(b) => b.to_string(),
+        // A bare `[]` would infer `never[]`; spell the element type.
+        DefaultValue::EmptyOptions => return format!("{}: {ts_type} = [];", prop.js_name),
     };
     if prop.optional {
         // Optional with a default: nullable field, initialized.
@@ -244,14 +287,32 @@ fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {
                 out.push_str("` : nothing}");
             }
             Node::Element(el) => {
+                let select_options = if el.tag == "select" {
+                    el.attrs.iter().find_map(|attr| match attr {
+                        Attribute::Prop { name, expr } if name == "options" => Some(expr),
+                        _ => None,
+                    })
+                } else {
+                    None
+                };
                 out.push('<');
                 out.push_str(&el.tag);
                 for attr in &el.attrs {
+                    // Native selects have no options property; the binding
+                    // becomes the <option> children below (ADR 0006).
+                    if select_options.is_some()
+                        && matches!(attr, Attribute::Prop { name, .. } if name == "options")
+                    {
+                        continue;
+                    }
                     out.push(' ');
                     emit_attr(attr, def, out);
                 }
                 out.push('>');
-                if !is_void(&el.tag) {
+                if let Some(options_expr) = select_options {
+                    emit_select_options(el, options_expr, def, out);
+                    out.push_str("</select>");
+                } else if !is_void(&el.tag) {
                     emit_nodes(&el.children, def, out);
                     out.push_str("</");
                     out.push_str(&el.tag);
@@ -260,6 +321,48 @@ fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {
             }
         }
     }
+}
+
+/// Expands a `<select .options=${…}>` binding into its `<option>` children
+/// (ADR 0006). The closed front layer (class `input-front`) prefers the
+/// compact `short` label; `?selected` compares against the select's own
+/// `.value` binding (its computed already renders null as `""`), keeping
+/// the first render correct before Lit assigns the value property.
+fn emit_select_options(el: &Element, options_expr: &Expr, def: &ComponentDef, out: &mut String) {
+    let label = if has_class_token(el, "input-front") {
+        "option.short || option.label || option.value"
+    } else {
+        "option.label || option.value"
+    };
+    let selected = el
+        .attrs
+        .iter()
+        .find_map(|attr| match attr {
+            Attribute::Prop { name, expr } if name == "value" => Some(expr),
+            _ => None,
+        })
+        .map(|expr| format!(" ?selected=${{{} === option.value}}", expr_js(expr, def)))
+        .unwrap_or_default();
+    out.push_str(&format!(
+        "${{{}.map((option) => html`<option value=${{option.value}}{selected}>\
+         ${{{label}}}</option>`)}}",
+        expr_js(options_expr, def)
+    ));
+}
+
+/// Whether the element's class attribute contains the token in a static part.
+fn has_class_token(el: &Element, token: &str) -> bool {
+    el.attrs.iter().any(|attr| {
+        match attr {
+        Attribute::Static { name, value } if name == "class" => {
+            value.split_whitespace().any(|t| t == token)
+        }
+        Attribute::Attr { name, parts } if name == "class" => parts.iter().any(|part| {
+            matches!(part, AttrPart::Static(text) if text.split_whitespace().any(|t| t == token))
+        }),
+        _ => false,
+    }
+    })
 }
 
 fn emit_attr(attr: &Attribute, def: &ComponentDef, out: &mut String) {

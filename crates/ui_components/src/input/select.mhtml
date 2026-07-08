@@ -1,0 +1,14 @@
+<div class="position-relative form-select border-input flex-grow-1 flex-shrink-1 ${embedded_class}">
+  <select class="input-front ${front_class}"
+    tabindex="-1"
+    ?disabled=${disabled}
+    .value=${form_value}
+    .options=${select_options}></select>
+  <select class="input-back"
+    data-tui="select"
+    data-qa="select-input"
+    ?disabled=${disabled}
+    .value=${form_value}
+    .options=${select_options}
+    @change=${on_change}></select>
+</div>

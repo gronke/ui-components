@@ -6,3 +6,14 @@
   placeholder=${placeholder_text}
   ?disabled=${disabled}
   @change=${on_change} />
+<template if=${show_timezone}>
+  <!-- The disabled binding keeps focus out of the unrendered branch. -->
+  <input-timezone data-qa="timezone-input"
+    class="flex-shrink-0 w-auto"
+    embedded
+    seamless
+    ?disabled=${!show_timezone}
+    .value=${timezone}
+    .default=${timezone_default}
+    @value-changed=${on_timezone_changed}></input-timezone>
+</template>

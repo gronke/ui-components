@@ -60,6 +60,10 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
         }
     };
 
+    if let Err(msg) = validate_options_bindings(&parsed.roots) {
+        return Err(syn::Error::new(template.span, msg));
+    }
+
     // Split referenced names: declared properties stay properties, the rest
     // become computed getters on the Logic trait.
     let prop_names: Vec<&str> = props.iter().map(|p| p.rust_name.as_str()).collect();
@@ -377,6 +381,40 @@ impl ElementArgs {
     }
 }
 
+/// `.options` bindings carry option lists (ADR 0006): they belong on
+/// `<select>` elements — whose children then come from the data — or on
+/// custom elements, which receive the list as a property.
+fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String> {
+    use uic_template::{Attribute, Node};
+    for node in nodes {
+        match node {
+            Node::Element(el) => {
+                let has_options = el
+                    .attrs
+                    .iter()
+                    .any(|attr| matches!(attr, Attribute::Prop { name, .. } if name == "options"));
+                if has_options && el.tag != "select" && !el.is_custom() {
+                    return Err(format!(
+                        "'.options' bindings belong on <select> elements or custom elements, \
+                         not <{}>",
+                        el.tag
+                    ));
+                }
+                if has_options && el.tag == "select" && !el.children.is_empty() {
+                    return Err(
+                        "a <select> with '.options' takes no children; the option list is data"
+                            .to_string(),
+                    );
+                }
+                validate_options_bindings(&el.children)?;
+            }
+            Node::If { then, .. } => validate_options_bindings(then)?,
+            Node::Text(_) | Node::TextHole(_) => {}
+        }
+    }
+    Ok(())
+}
+
 /// Whether any element in the tree carries a `data-tui` marker.
 fn chrome_has_data_tui(nodes: &[uic_template::Node]) -> bool {
     use uic_template::{Attribute, Node};
@@ -453,6 +491,8 @@ enum JsTypeArg {
     String,
     Number,
     Boolean,
+    Zoned,
+    Options,
 }
 
 enum NotifyArg {
@@ -486,11 +526,19 @@ impl Prop {
     fn meta_tokens(&self) -> TokenStream {
         let rust_name = &self.rust_name;
         let js_name = &self.js_name;
-        let attribute = &self.attribute;
+        // Object-valued properties are property-only: no observed attribute.
+        let attribute = if matches!(self.js_type, JsTypeArg::Zoned | JsTypeArg::Options) {
+            quote!(::core::option::Option::None)
+        } else {
+            let attribute = &self.attribute;
+            quote!(::core::option::Option::Some(#attribute))
+        };
         let js_type = match self.js_type {
             JsTypeArg::String => quote!(::uic_core::JsType::String),
             JsTypeArg::Number => quote!(::uic_core::JsType::Number),
             JsTypeArg::Boolean => quote!(::uic_core::JsType::Boolean),
+            JsTypeArg::Zoned => quote!(::uic_core::JsType::Zoned),
+            JsTypeArg::Options => quote!(::uic_core::JsType::Options),
         };
         let reflect = self.reflect;
         let notify = match &self.notify {
@@ -507,6 +555,9 @@ impl Prop {
                 JsTypeArg::String => quote!(::uic_core::DefaultValue::Str("")),
                 JsTypeArg::Number => quote!(::uic_core::DefaultValue::Num(0.0f64)),
                 JsTypeArg::Boolean => quote!(::uic_core::DefaultValue::Bool(false)),
+                // Unreachable: Zoned properties must be Option<Zoned>.
+                JsTypeArg::Zoned => quote!(::uic_core::DefaultValue::Undefined),
+                JsTypeArg::Options => quote!(::uic_core::DefaultValue::EmptyOptions),
             },
         };
         let optional = self.optional;
@@ -515,7 +566,7 @@ impl Prop {
             ::uic_core::PropertyMeta {
                 rust_name: #rust_name,
                 js_name: #js_name,
-                attribute: ::core::option::Option::Some(#attribute),
+                attribute: #attribute,
                 js_type: #js_type,
                 optional: #optional,
                 reflect: #reflect,
@@ -585,10 +636,54 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
         let (js_type, optional) = js_type_of(&field.ty).ok_or_else(|| {
             syn::Error::new_spanned(
                 &field.ty,
-                "unsupported property type; use String, bool, a number type, \
-                 or Option of one of those",
+                "unsupported property type; use String, bool, a number type, Zoned, \
+                 Vec<SelectOption>, or Option of one of those",
             )
         })?;
+        if matches!(js_type, JsTypeArg::Zoned) {
+            if !optional {
+                return Err(syn::Error::new_spanned(
+                    &field.ty,
+                    "Zoned properties must be Option<Zoned>; \
+                     there is no non-null default for an object value",
+                ));
+            }
+            if reflect || attribute.is_some() {
+                return Err(syn::Error::new_spanned(
+                    property_attr,
+                    "Zoned properties are property-only; \
+                     no attribute serialization exists (drop reflect/attribute)",
+                ));
+            }
+            if let Some(lit) = &default_lit {
+                return Err(syn::Error::new_spanned(
+                    lit,
+                    "Zoned properties cannot take a default; they start undefined",
+                ));
+            }
+        }
+        if matches!(js_type, JsTypeArg::Options) {
+            if optional {
+                return Err(syn::Error::new_spanned(
+                    &field.ty,
+                    "Options properties are plain Vec<SelectOption>; \
+                     the empty state is the empty list, not None",
+                ));
+            }
+            if reflect || attribute.is_some() {
+                return Err(syn::Error::new_spanned(
+                    property_attr,
+                    "Options properties are property-only; \
+                     no attribute serialization exists (drop reflect/attribute)",
+                ));
+            }
+            if let Some(lit) = &default_lit {
+                return Err(syn::Error::new_spanned(
+                    lit,
+                    "Options properties cannot take a default; they start empty",
+                ));
+            }
+        }
         let default = default_lit
             .map(|lit| default_arg(&lit, &js_type))
             .transpose()?;
@@ -624,6 +719,8 @@ fn default_arg(lit: &Lit, js_type: &JsTypeArg) -> syn::Result<DefaultArg> {
                     JsTypeArg::String => "String expects a string literal",
                     JsTypeArg::Number => "Number expects a number literal",
                     JsTypeArg::Boolean => "Boolean expects true or false",
+                    JsTypeArg::Zoned => "Zoned takes no default",
+                    JsTypeArg::Options => "Options takes no default",
                 }
             ),
         )),
@@ -650,11 +747,25 @@ fn js_type_of(ty: &Type) -> Option<(JsTypeArg, bool)> {
         }
         return Some((js_type, true));
     }
+    if name == "Vec" {
+        let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+            return None;
+        };
+        let inner = args.args.iter().find_map(|arg| match arg {
+            syn::GenericArgument::Type(Type::Path(path)) => path.path.segments.last(),
+            _ => None,
+        })?;
+        if inner.ident == "SelectOption" {
+            return Some((JsTypeArg::Options, false));
+        }
+        return None;
+    }
     let js_type = match name.as_str() {
         "String" => JsTypeArg::String,
         "bool" => JsTypeArg::Boolean,
         "f64" | "f32" | "i64" | "i32" | "i16" | "i8" | "u64" | "u32" | "u16" | "u8" | "usize"
         | "isize" => JsTypeArg::Number,
+        "Zoned" => JsTypeArg::Zoned,
         _ => return None,
     };
     Some((js_type, false))

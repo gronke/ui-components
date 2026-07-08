@@ -1,3 +1,97 @@
+// Catalog-parity styles for the shared input contract, ported from the
+// Schuhkarton catalog (elements/input/input.scss).
+// The [error]/[suggested]/[seamless] selectors key off the reflected contract
+// properties injected by #[input_shared].
+// The .state-icon block is inert until a chrome renders one; it ships as part
+// of the catalog contract.
 .el-input-default {
   display: block;
+
+  &.form-control {
+    .form-control {
+      border: none !important;
+    }
+  }
+
+  input,
+  textarea,
+  select {
+    font-family: var(--bs-font-monospace) !important;
+  }
+
+  // Suggested state: accent outline when suggestions/hints are available.
+  &[suggested] .form-control,
+  &[suggested] input,
+  &[suggested] textarea,
+  &[suggested] select {
+    border-color: var(--bs-primary) !important;
+
+    &:focus {
+      box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+    }
+  }
+
+  // Seamless mode: borderless and flush for embedding in card headers etc.
+  &[seamless] {
+    .form-control,
+    .input-group,
+    .input-group-text,
+    input,
+    textarea,
+    select {
+      border: none !important;
+      box-shadow: none !important;
+      outline: none !important;
+      background: transparent !important;
+    }
+
+    .form-control:focus,
+    input:focus,
+    textarea:focus {
+      box-shadow: none !important;
+    }
+
+    .selection {
+      border: none !important;
+      background: transparent !important;
+    }
+  }
+
+  // Error state: red outline for invalid input (overrides suggested).
+  &[error] .form-control,
+  &[error] input,
+  &[error] textarea,
+  &[error] select {
+    border-color: var(--bs-danger) !important;
+
+    &:focus {
+      box-shadow: 0 0 0 0.2rem rgba(var(--bs-danger-rgb), 0.25);
+    }
+  }
+
+  // State icon with CSS tooltip (hover on desktop, tap/focus on mobile).
+  .state-icon {
+    cursor: help;
+    position: relative;
+
+    &:hover::after,
+    &:focus::after {
+      content: attr(title);
+      position: absolute;
+      right: 0;
+      top: 100%;
+      z-index: 10;
+      margin-top: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+      font-style: normal;
+      max-width: 300px;
+      white-space: normal;
+      background: var(--bs-dark);
+      color: var(--bs-white);
+      border-radius: var(--bs-border-radius);
+      box-shadow: var(--bs-box-shadow-sm);
+      pointer-events: none;
+    }
+  }
 }

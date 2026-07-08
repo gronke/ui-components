@@ -9,7 +9,9 @@ mod behavior;
 mod meta;
 mod notify;
 mod registry;
+mod select;
 mod value;
+mod zoned;
 
 pub use behavior::{Behavior, Ctx, NotifyEvent, UiEvent};
 pub use meta::{
@@ -17,7 +19,9 @@ pub use meta::{
 };
 pub use notify::notify_events;
 pub use registry::{CustomElementRegistry, Registration, RegistryError};
+pub use select::SelectOption;
 pub use value::{attribute_to_value, Changed, PropertyStore, Value};
+pub use zoned::Zoned;
 
 /// The derive macro that turns a struct into a registered custom element.
 pub use uic_macros::CustomElement;

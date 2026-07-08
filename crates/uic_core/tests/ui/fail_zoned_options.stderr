@@ -1,0 +1,17 @@
+error: Zoned properties are property-only; no attribute serialization exists (drop reflect/attribute)
+ --> tests/ui/fail_zoned_options.rs:6:5
+  |
+6 |     #[property(reflect)]
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+error: Zoned properties are property-only; no attribute serialization exists (drop reflect/attribute)
+  --> tests/ui/fail_zoned_options.rs:13:5
+   |
+13 |     #[property(attribute = "date")]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Zoned properties cannot take a default; they start undefined
+  --> tests/ui/fail_zoned_options.rs:20:26
+   |
+20 |     #[property(default = "2026-07-07")]
+   |                          ^^^^^^^^^^^^

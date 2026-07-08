@@ -19,6 +19,9 @@ export class InputText extends LitElement {
     disabled: { type: Boolean, reflect: true },
     name: { type: String },
     required: { type: Boolean, reflect: true },
+    error: { type: Boolean, reflect: true },
+    suggested: { type: Boolean, reflect: true },
+    seamless: { type: Boolean, reflect: true },
   };
 
   value: string | null = '';
@@ -32,6 +35,9 @@ export class InputText extends LitElement {
   disabled = false;
   name?: string;
   required = false;
+  error = false;
+  suggested = false;
+  seamless = false;
 
   // Light DOM so the global stylesheets (Bootstrap, elements.css) apply.
   createRenderRoot(): this {

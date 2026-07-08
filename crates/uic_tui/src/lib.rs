@@ -143,14 +143,19 @@ impl<B: Backend> App<B> {
         Ok(())
     }
 
-    /// Routes one terminal event: quit keys, focus/commit keys, everything
-    /// else to the focused widget.
+    /// Routes one terminal event: an open calendar first (it is modal), then
+    /// quit and focus/commit keys, everything else to the focused widget.
     pub fn handle_event(&mut self, event: &Event) -> Control {
         let Some(root) = &mut self.root else {
             return Control::Continue;
         };
         if let Event::Key(key) = event {
             if key.kind == KeyEventKind::Press {
+                // The calendar sees the key first: Esc closes it instead of
+                // quitting; Tab closes it and falls through to the commit.
+                if root.popup_open() && root.handle_popup_event(event) {
+                    return Control::Continue;
+                }
                 match key.code {
                     KeyCode::Esc => return Control::Quit,
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -162,23 +167,26 @@ impl<B: Backend> App<B> {
                         return Control::Continue;
                     }
                     KeyCode::Enter => {
-                        root.commit_focused();
+                        // A textarea takes the newline; it commits on focus
+                        // leave (Tab), like `@change` on blur in the browser.
+                        if root.focused_multiline() {
+                            root.handle_focused(event);
+                        } else {
+                            root.commit_focused();
+                        }
+                        return Control::Continue;
+                    }
+                    KeyCode::F(4) | KeyCode::Down
+                        if root.focused_date_enabled() || root.focused_select_enabled() =>
+                    {
+                        root.open_popup();
                         return Control::Continue;
                     }
                     _ => {}
                 }
             }
         }
-        let focused = root.focused;
-        let enabled = root
-            .slots
-            .get(focused)
-            .is_some_and(|slot| !slot.is_disabled(&root.store, root.behavior.as_ref()));
-        if enabled {
-            if let Some(slot) = root.slots.get_mut(focused) {
-                slot.state.handle(true, event);
-            }
-        }
+        root.handle_focused(event);
         Control::Continue
     }
 }

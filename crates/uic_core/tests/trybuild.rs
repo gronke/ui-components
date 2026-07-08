@@ -11,6 +11,12 @@ fn ui() {
     t.compile_fail("tests/ui/fail_missing_tag.rs");
     t.compile_fail("tests/ui/fail_both_templates.rs");
     t.compile_fail("tests/ui/fail_unsupported_type.rs");
+    t.compile_fail("tests/ui/fail_zoned_not_optional.rs");
+    t.compile_fail("tests/ui/fail_zoned_options.rs");
+    t.compile_fail("tests/ui/fail_options_optional.rs");
+    t.compile_fail("tests/ui/fail_options_attribute.rs");
+    t.compile_fail("tests/ui/fail_options_on_input.rs");
+    t.compile_fail("tests/ui/fail_select_options_with_children.rs");
     t.compile_fail("tests/ui/fail_tag_without_dash.rs");
     t.compile_fail("tests/ui/fail_default_type_mismatch.rs");
     t.compile_fail("tests/ui/fail_wraps_no_slot.rs");

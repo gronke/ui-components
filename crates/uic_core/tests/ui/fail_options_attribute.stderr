@@ -1,0 +1,17 @@
+error: Options properties are property-only; no attribute serialization exists (drop reflect/attribute)
+ --> tests/ui/fail_options_attribute.rs:6:5
+  |
+6 |     #[property(reflect)]
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+error: Options properties are property-only; no attribute serialization exists (drop reflect/attribute)
+  --> tests/ui/fail_options_attribute.rs:13:5
+   |
+13 |     #[property(attribute = "options")]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Options properties cannot take a default; they start empty
+  --> tests/ui/fail_options_attribute.rs:20:26
+   |
+20 |     #[property(default = "a,b")]
+   |                          ^^^^^

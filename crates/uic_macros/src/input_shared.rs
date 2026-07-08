@@ -17,6 +17,9 @@ const CONTRACT_FIELDS: &[&str] = &[
     "disabled",
     "name",
     "required",
+    "error",
+    "suggested",
+    "seamless",
 ];
 
 pub fn expand(mut item: ItemStruct) -> syn::Result<TokenStream> {
@@ -54,6 +57,15 @@ pub fn expand(mut item: ItemStruct) -> syn::Result<TokenStream> {
         pub name: ::core::option::Option<::std::string::String>,
         #[property(reflect)]
         pub required: bool,
+        /// Invalid-input state; styles the input with the danger outline.
+        #[property(reflect)]
+        pub error: bool,
+        /// Suggested state; styles the input with the accent outline.
+        #[property(reflect)]
+        pub suggested: bool,
+        /// Borderless flush rendering for embedding in card headers etc.
+        #[property(reflect)]
+        pub seamless: bool,
     });
     fields.named.extend(injected.named);
 

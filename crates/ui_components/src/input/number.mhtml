@@ -1,0 +1,15 @@
+<input
+  type="text"
+  lang="en-150"
+  inputmode=${input_mode}
+  class="form-control text-end flex-grow-1"
+  data-tui="number-input"
+  data-qa="number-input"
+  .value=${display_value}
+  placeholder=${placeholder}
+  ?disabled=${disabled}
+  @change=${on_change}
+>
+<template if=${unit}>
+  <span class="input-group-text text-secondary" data-qa="unit">${unit}</span>
+</template>

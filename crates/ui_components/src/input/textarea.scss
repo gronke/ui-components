@@ -1,0 +1,10 @@
+// Catalog-parity .el-input-textarea rules: CSS-driven auto-grow up to
+// --textarea-max-lines; the [seamless] state lives in the shared sheet.
+.el-input-textarea {
+  textarea.form-control {
+    field-sizing: content;
+    min-height: 3em;
+    max-height: calc(var(--textarea-max-lines, 10) * 1.5em);
+    resize: vertical;
+  }
+}

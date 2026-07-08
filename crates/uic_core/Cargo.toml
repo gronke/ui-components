@@ -12,7 +12,11 @@ uic_template.workspace = true
 uic_macros.workspace = true
 inventory.workspace = true
 thiserror.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true
 uic_template.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true

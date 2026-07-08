@@ -1,0 +1,28 @@
+// Catalog parity: the select renders two layers — a visible, inert front
+// select showing the compact labels, over the interactive, invisible back
+// select listing the full labels.
+.el-input-select {
+  .input-target {
+    position: relative;
+    border: inherit;
+  }
+
+  .input-front {
+    display: block;
+    pointer-events: none;
+    background-color: transparent;
+    appearance: none;
+    border: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  .input-back {
+    position: absolute;
+    opacity: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
+}

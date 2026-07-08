@@ -1,0 +1,11 @@
+<textarea
+  class="form-control text-start w-100"
+  data-tui="text-area"
+  data-qa="textarea-input"
+  style="--textarea-max-lines: ${max_lines}"
+  .value=${value}
+  placeholder=${placeholder}
+  autocomplete=${autocomplete}
+  ?disabled=${disabled}
+  @change=${on_change}
+></textarea>

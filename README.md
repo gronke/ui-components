@@ -40,6 +40,11 @@ impl InputDateLogic for InputDate {
 The template references properties, computed getters and handlers by name; richer expressions are rejected at compile time (see ADR 0001).
 Browser-side behavior lives in the co-located `date.impl.ts` under the same names (see ADR 0002).
 
+Templates can nest registered custom elements (`<input-date …>` inside another component's template).
+In the terminal, children mount recursively: `.prop=${…}` and `?attr=${…}` bindings sync down on parent updates, `@value-changed=${handler}` bindings route child notify events into the parent behavior, and Tab traverses parent and child widgets in template order.
+
+Select options are data, not template structure (ADR 0006): a `Vec<SelectOption>` property or computed binds as `<select .options=${…}>`, which the web generator expands into the `<option>` children and the terminal feeds to its dropdown widget — `<input-select>` is the generic element.
+
 The same `<input-date>` renders as a Lit element with Bootstrap chrome in the browser, and as this frame in a terminal:
 
 ```
@@ -68,7 +73,7 @@ Format: YYYY-MM-DD
 
 ```sh
 cargo run -p uic_web_demo             # http://127.0.0.1:8080, live reload for web/
-cargo run -p uic_tui_demo             # terminal demo (Enter commits, Esc quits)
+cargo run -p uic_tui_demo             # terminal demo (Enter commits, F4/Down opens a date's calendar or a select's list, Esc quits)
 cargo run -p uic_tui_demo input-text  # any registered tag
 cargo run -p uic_tui --example screen # print one rendered terminal frame
 cargo run -p uic_dist                 # npm package tree in dist/npm (ADR 0004)

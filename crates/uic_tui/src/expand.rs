@@ -1,8 +1,22 @@
 //! Template expansion: resolves the static template IR against the current
 //! property state into a render tree for one frame.
+//!
+//! Nested registered custom elements expand inline: the child's template is
+//! resolved against the child instance's own store and behavior, and its
+//! widget leaves carry the child-index path back to their owning instance.
 
-use uic_core::{Behavior, PropertyStore, Value};
+use uic_core::{Behavior, CustomElementRegistry, PropertyStore, Value};
 use uic_template::{AttrPart, Attribute, Expr, Node, Template};
+
+use crate::instance::ElementInstance;
+
+/// A widget leaf's owner: the child-binding path from the rendering instance
+/// down to the owning instance, and the slot index there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SlotRef {
+    pub path: Vec<usize>,
+    pub slot: usize,
+}
 
 /// A resolved node: holes evaluated, false conditionals dropped, whitespace
 /// collapsed.
@@ -10,8 +24,11 @@ use uic_template::{AttrPart, Attribute, Expr, Node, Template};
 pub(crate) enum RNode {
     Element {
         classes: Vec<String>,
-        /// Index into the instance's widget slots for interactive leaves.
-        slot: Option<usize>,
+        /// The owning widget slot for interactive leaves.
+        slot: Option<SlotRef>,
+        /// Layout height (cells) of a widget leaf; multi-line widgets grow
+        /// with their content.
+        widget_height: u16,
         children: Vec<RNode>,
     },
     Text(String),
@@ -32,21 +49,25 @@ pub(crate) fn resolve_expr(expr: &Expr, store: &PropertyStore, behavior: &dyn Be
     }
 }
 
-pub(crate) fn expand(
-    template: &Template,
-    store: &PropertyStore,
-    behavior: &dyn Behavior,
-) -> Vec<RNode> {
-    let mut slot_counter = 0;
-    expand_nodes(&template.roots, store, behavior, &mut slot_counter)
+pub(crate) fn expand(template: &Template, instance: &ElementInstance) -> Vec<RNode> {
+    let mut counters = Counters::default();
+    expand_nodes(&template.roots, instance, &mut counters, &[])
+}
+
+#[derive(Default)]
+struct Counters {
+    slot: usize,
+    child: usize,
 }
 
 fn expand_nodes(
     nodes: &[Node],
-    store: &PropertyStore,
-    behavior: &dyn Behavior,
-    slot_counter: &mut usize,
+    instance: &ElementInstance,
+    counters: &mut Counters,
+    path: &[usize],
 ) -> Vec<RNode> {
+    let store = &instance.store;
+    let behavior = instance.behavior.as_ref();
     let mut out = Vec::new();
     for node in nodes {
         match node {
@@ -64,26 +85,58 @@ fn expand_nodes(
             }
             Node::If { cond, then } => {
                 if resolve_expr(cond, store, behavior).truthy() {
-                    out.extend(expand_nodes(then, store, behavior, slot_counter));
+                    out.extend(expand_nodes(then, instance, counters, path));
                 } else {
-                    // Slot indices are assigned by template order over ALL
-                    // branches; keep counting through the skipped subtree.
-                    *slot_counter += count_slots(then);
+                    // Slot and child indices are assigned by template order
+                    // over ALL branches; keep counting through the skipped
+                    // subtree.
+                    counters.slot += count_slots(then);
+                    counters.child += count_children(then);
                 }
             }
             Node::Element(el) => {
-                let slot = if widget_kind(el).is_some() {
-                    let index = *slot_counter;
-                    *slot_counter += 1;
-                    Some(index)
+                if widget_kind(el).is_some() {
+                    let slot = SlotRef {
+                        path: path.to_vec(),
+                        slot: counters.slot,
+                    };
+                    let widget_height = widget_height(instance, counters.slot);
+                    counters.slot += 1;
+                    out.push(RNode::Element {
+                        classes: resolve_classes(el, store, behavior),
+                        slot: Some(slot),
+                        widget_height,
+                        children: expand_nodes(&el.children, instance, counters, path),
+                    });
+                } else if is_registered_child(el) {
+                    let index = counters.child;
+                    counters.child += 1;
+                    let child = &instance.children[index].instance;
+                    let mut child_path = path.to_vec();
+                    child_path.push(index);
+                    let mut child_counters = Counters::default();
+                    let children = expand_nodes(
+                        &child.def.template().roots,
+                        child,
+                        &mut child_counters,
+                        &child_path,
+                    );
+                    out.push(RNode::Element {
+                        // The custom tag's own classes resolve against the
+                        // PARENT state; the subtree against the child's.
+                        classes: resolve_classes(el, store, behavior),
+                        slot: None,
+                        widget_height: 1,
+                        children,
+                    });
                 } else {
-                    None
-                };
-                out.push(RNode::Element {
-                    classes: resolve_classes(el, store, behavior),
-                    slot,
-                    children: expand_nodes(&el.children, store, behavior, slot_counter),
-                });
+                    out.push(RNode::Element {
+                        classes: resolve_classes(el, store, behavior),
+                        slot: None,
+                        widget_height: 1,
+                        children: expand_nodes(&el.children, instance, counters, path),
+                    });
+                }
             }
         }
     }
@@ -98,7 +151,35 @@ pub(crate) fn widget_kind(el: &uic_template::Element) -> Option<&str> {
     })
 }
 
-/// Widget slots in template order, across all conditional branches.
+/// Layout height of a widget leaf: single-line widgets are one cell; a
+/// textarea grows with its content between 3 lines and the component's
+/// `max_lines` property (10 when absent).
+fn widget_height(instance: &ElementInstance, slot: usize) -> u16 {
+    use crate::instance::WidgetState;
+    match instance.slots.get(slot).map(|s| &s.state) {
+        Some(WidgetState::TextArea(state)) => {
+            let max_lines = match instance.store.has("max_lines") {
+                true => match instance.store.get("max_lines") {
+                    Value::Num(n) if *n >= 1.0 => *n as u16,
+                    _ => 10,
+                },
+                false => 10,
+            };
+            let lines = (state.len_lines() as u16).max(1);
+            lines.clamp(3, max_lines.max(3))
+        }
+        _ => 1,
+    }
+}
+
+/// A custom tag that mounted as a child instance (unregistered custom tags
+/// stay plain blocks). Must mirror the discovery predicate in `instance.rs`.
+fn is_registered_child(el: &uic_template::Element) -> bool {
+    el.is_custom() && CustomElementRegistry::get(&el.tag).is_some()
+}
+
+/// Widget slots in template order, across all conditional branches; does not
+/// descend into registered children (their slots belong to the child).
 pub(crate) fn count_slots(nodes: &[Node]) -> usize {
     let mut count = 0;
     for node in nodes {
@@ -106,10 +187,31 @@ pub(crate) fn count_slots(nodes: &[Node]) -> usize {
             Node::Element(el) => {
                 if widget_kind(el).is_some() {
                     count += 1;
+                    count += count_slots(&el.children);
+                } else if !is_registered_child(el) {
+                    count += count_slots(&el.children);
                 }
-                count += count_slots(&el.children);
             }
             Node::If { then, .. } => count += count_slots(then),
+            Node::Text(_) | Node::TextHole(_) => {}
+        }
+    }
+    count
+}
+
+/// Registered custom children in template order, across all branches.
+pub(crate) fn count_children(nodes: &[Node]) -> usize {
+    let mut count = 0;
+    for node in nodes {
+        match node {
+            Node::Element(el) => {
+                if is_registered_child(el) {
+                    count += 1;
+                } else {
+                    count += count_children(&el.children);
+                }
+            }
+            Node::If { then, .. } => count += count_children(then),
             Node::Text(_) | Node::TextHole(_) => {}
         }
     }
@@ -140,7 +242,18 @@ fn resolve_classes(
             _ => {}
         }
     }
-    resolved.split_whitespace().map(str::to_string).collect()
+    let mut classes: Vec<String> = resolved.split_whitespace().map(str::to_string).collect();
+    // A seamless input renders borderless: the chrome's input-group keeps
+    // its flex layout but drops the border block (the browser reaches the
+    // same through the [seamless] stylesheet rules).
+    if store.has("seamless") && store.get("seamless").truthy() {
+        for class in &mut classes {
+            if class == "input-group" {
+                *class = "d-flex".to_string();
+            }
+        }
+    }
+    classes
 }
 
 fn collapse_whitespace(text: &str) -> String {

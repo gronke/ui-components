@@ -1,0 +1,5 @@
+error: Options properties are plain Vec<SelectOption>; the empty state is the empty list, not None
+ --> tests/ui/fail_options_optional.rs:7:14
+  |
+7 |     options: Option<Vec<SelectOption>>,
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^

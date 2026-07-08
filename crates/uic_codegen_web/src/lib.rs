@@ -63,7 +63,7 @@ impl WebCodegen {
 
         let mut scss_names = Vec::new();
         let mut shared_scss: Vec<(&'static str, &'static str, &'static str)> = Vec::new();
-        let mut any_notify = false;
+        let mut any_runtime = false;
         for def in &defs {
             check_impl_exports(def)?;
             let class = ts::emit_component(def);
@@ -91,10 +91,12 @@ impl WebCodegen {
                 fs::write(components.join(format!("_{}.scss", def.tag_name)), scss)?;
                 scss_names.push(def.tag_name);
             }
-            any_notify |= def
+            // The runtime module carries the notify helper and the
+            // SelectOption type; either use pulls it in.
+            any_runtime |= def
                 .properties
                 .iter()
-                .any(|p| !matches!(p.notify, Notify::No));
+                .any(|p| !matches!(p.notify, Notify::No) || p.js_type == uic_core::JsType::Options);
         }
 
         // Shared stylesheets come first, so component styles can override.
@@ -105,7 +107,7 @@ impl WebCodegen {
         }
         use_names.extend(scss_names);
 
-        if any_notify {
+        if any_runtime {
             fs::write(components.join("uic-runtime.ts"), ts::RUNTIME_TS)?;
         }
         if !use_names.is_empty() {
@@ -198,7 +200,7 @@ fn required_impl_exports(def: &ComponentDef) -> BTreeSet<String> {
 }
 
 /// `export function <name>` / `export const <name>` names in a TS source.
-fn exported_names(source: &str) -> BTreeSet<String> {
+pub(crate) fn exported_names(source: &str) -> BTreeSet<String> {
     let mut names = BTreeSet::new();
     for line in source.lines() {
         let line = line.trim_start();

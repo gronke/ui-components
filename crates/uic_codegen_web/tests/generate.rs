@@ -16,7 +16,17 @@ fn generate(test: &str) -> PathBuf {
         .manifest(true)
         .run()
         .expect("codegen succeeds");
-    assert_eq!(root.components, vec!["input-date", "input-text"]);
+    assert_eq!(
+        root.components,
+        vec![
+            "input-date",
+            "input-number",
+            "input-select",
+            "input-text",
+            "input-textarea",
+            "input-timezone"
+        ]
+    );
     assert_eq!(root.module_path("input-date"), "components/input-date.js");
     root.root
 }
@@ -51,8 +61,19 @@ fn emits_the_full_generated_root() {
         "components/input-date.ts",
         "components/input-date.impl.ts",
         "components/_input-date.scss",
+        "components/input-number.ts",
+        "components/input-number.impl.ts",
+        "components/_input-number.scss",
+        "components/input-select.ts",
+        "components/input-select.impl.ts",
+        "components/_input-select.scss",
         "components/input-text.ts",
         "components/input-text.impl.ts",
+        "components/input-textarea.ts",
+        "components/input-textarea.impl.ts",
+        "components/_input-textarea.scss",
+        "components/input-timezone.ts",
+        "components/input-timezone.impl.ts",
         "components/_input-default.scss",
         "components/uic-runtime.ts",
         "elements.scss",
@@ -95,11 +116,43 @@ fn generated_text_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_number_class_matches_the_snapshot() {
+    let root = generate("snapshot-number");
+    let generated = fs::read_to_string(root.join("components/input-number.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-number.ts");
+}
+
+#[test]
+fn generated_textarea_class_matches_the_snapshot() {
+    let root = generate("snapshot-textarea");
+    let generated = fs::read_to_string(root.join("components/input-textarea.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-textarea.ts");
+}
+
+#[test]
+fn generated_select_class_matches_the_snapshot() {
+    let root = generate("snapshot-select");
+    let generated = fs::read_to_string(root.join("components/input-select.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-select.ts");
+}
+
+#[test]
+fn generated_timezone_class_matches_the_snapshot() {
+    let root = generate("snapshot-timezone");
+    let generated = fs::read_to_string(root.join("components/input-timezone.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-timezone.ts");
+}
+
+#[test]
 fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
     for file in [
         "components/input-date.ts",
+        "components/input-number.ts",
+        "components/input-select.ts",
         "components/input-text.ts",
+        "components/input-textarea.ts",
+        "components/input-timezone.ts",
         "components/uic-runtime.ts",
     ] {
         let source = fs::read_to_string(root.join(file)).unwrap();
@@ -120,6 +173,40 @@ fn manifest_describes_the_component() {
     let declaration = &module["declarations"][0];
     assert_eq!(declaration["tagName"], "input-date");
     let events = declaration["events"].as_array().unwrap();
-    assert_eq!(events.len(), 1);
-    assert_eq!(events[0]["name"], "value-changed");
+    let names: Vec<_> = events.iter().map(|e| e["name"].as_str().unwrap()).collect();
+    assert_eq!(
+        names,
+        vec!["value-changed", "date-changed", "timezone-changed"]
+    );
+
+    // The Zoned property is typed and property-only in the manifest.
+    let members = declaration["members"].as_array().unwrap();
+    let date = members
+        .iter()
+        .find(|m| m["name"] == "date")
+        .expect("date member");
+    assert_eq!(date["type"]["text"], "Temporal.ZonedDateTime | null");
+    let attributes = declaration["attributes"].as_array().unwrap();
+    assert!(
+        attributes.iter().all(|a| a["fieldName"] != "date"),
+        "no attribute for the date property"
+    );
+
+    // The Options property is typed and property-only as well.
+    let select = &manifest["modules"][2];
+    assert_eq!(select["path"], "components/input-select.ts");
+    let declaration = &select["declarations"][0];
+    assert_eq!(declaration["tagName"], "input-select");
+    let members = declaration["members"].as_array().unwrap();
+    let options = members
+        .iter()
+        .find(|m| m["name"] == "options")
+        .expect("options member");
+    assert_eq!(options["type"]["text"], "SelectOption[]");
+    assert_eq!(options["default"], "[]");
+    let attributes = declaration["attributes"].as_array().unwrap();
+    assert!(
+        attributes.iter().all(|a| a["fieldName"] != "options"),
+        "no attribute for the options property"
+    );
 }

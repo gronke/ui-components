@@ -1,0 +1,27 @@
+// Catalog-parity subset of the .el-input-number rules; the spinner
+// suppression is moot for the type=text input and stays out.
+.el-input-number {
+  input[type="text"].form-control {
+    box-sizing: content-box;
+  }
+
+  .unit {
+    width: var(--input-unit-width, auto);
+  }
+
+  .input-group {
+    flex-wrap: nowrap;
+  }
+
+  input[placeholder-position="left"]::placeholder {
+    text-align: left;
+  }
+
+  input[placeholder-position="right"]::placeholder {
+    text-align: right;
+  }
+
+  input[placeholder-position="center"]::placeholder {
+    text-align: center;
+  }
+}

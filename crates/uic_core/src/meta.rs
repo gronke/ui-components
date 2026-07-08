@@ -15,6 +15,12 @@ pub enum JsType {
     String,
     Number,
     Boolean,
+    /// `Temporal.ZonedDateTime | null` — object-valued, property-only
+    /// (no attribute, no reflection); Rust side is `Option<Zoned>`.
+    Zoned,
+    /// `SelectOption[]` — object-valued, property-only; Rust side is
+    /// `Vec<SelectOption>` and starts empty (ADR 0006).
+    Options,
 }
 
 /// Notify behavior of a property, mirroring the catalog's `LitNotify` option.
@@ -35,6 +41,8 @@ pub enum DefaultValue {
     Str(&'static str),
     Num(f64),
     Bool(bool),
+    /// Option lists always start empty (`[]`), never undefined.
+    EmptyOptions,
 }
 
 impl DefaultValue {
@@ -44,6 +52,7 @@ impl DefaultValue {
             DefaultValue::Str(s) => Value::Str(s.to_string()),
             DefaultValue::Num(n) => Value::Num(n),
             DefaultValue::Bool(b) => Value::Bool(b),
+            DefaultValue::EmptyOptions => Value::Options(Vec::new()),
         }
     }
 }
@@ -175,6 +184,12 @@ impl ComponentDef {
         self.properties
             .iter()
             .find(|p| p.attribute == Some(attribute))
+    }
+
+    /// Lookup by the JavaScript property name — template bindings on nested
+    /// custom elements (`.value=${…}`) are JS-facing.
+    pub fn property_by_js_name(&self, js_name: &str) -> Option<&'static PropertyMeta> {
+        self.properties.iter().find(|p| p.js_name == js_name)
     }
 }
 

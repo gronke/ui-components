@@ -1,0 +1,267 @@
+//! TestBackend tests for nested custom elements: a parent component hosting
+//! `<input-date>` and `<input-text>` children through template bindings.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crossterm::event::{Event, KeyCode, KeyEvent};
+use ratatui::backend::TestBackend;
+use ratatui::Terminal;
+use uic_core::{Ctx, CustomElement, NotifyEvent, PropertyStore, UiEvent, Value};
+use uic_tui::App;
+
+/// A composite element: bound date child, free-standing text child, computed
+/// summary line.
+#[derive(CustomElement, Default)]
+#[custom_element(
+    tag = "demo-form",
+    template = "<div>\
+                <input-date label=\"Date\" .value=${date_value} ?disabled=${lock_date} \
+                @value-changed=${on_date}></input-date>\
+                <input-text label=\"Note\" @value-changed=${on_note}></input-text>\
+                <p>${summary}</p>\
+                </div>"
+)]
+struct DemoForm {
+    /// Mirrors the nested date input's committed value.
+    #[property(notify)]
+    date_value: String,
+    #[property]
+    note: Option<String>,
+    #[property(reflect)]
+    lock_date: bool,
+}
+
+impl DemoFormLogic for DemoForm {
+    fn summary(&self, store: &PropertyStore) -> Value {
+        let date = store.get("date_value").display_text();
+        let note = store.get("note").display_text();
+        format!("summary: [{date}] [{note}]").into()
+    }
+
+    fn on_date(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        ctx.set("date_value", event.target_value.clone().unwrap_or_default());
+    }
+
+    fn on_note(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        ctx.set("note", event.target_value.clone().unwrap_or_default());
+    }
+}
+
+fn app() -> App<TestBackend> {
+    ui_components::link();
+    let terminal = Terminal::new(TestBackend::new(60, 24)).expect("test terminal");
+    App::from_terminal(terminal)
+}
+
+fn screen(app: &mut App<TestBackend>) -> String {
+    app.draw().expect("draw");
+    let buffer = app.terminal().backend().buffer();
+    let area = buffer.area;
+    (0..area.height)
+        .map(|y| {
+            (0..area.width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn key(app: &mut App<TestBackend>, code: KeyCode) {
+    app.handle_event(&Event::Key(KeyEvent::from(code)));
+}
+
+fn type_str(app: &mut App<TestBackend>, text: &str) {
+    for ch in text.chars() {
+        key(app, KeyCode::Char(ch));
+    }
+}
+
+fn probe(app: &mut App<TestBackend>, event: &str) -> Rc<RefCell<Vec<NotifyEvent>>> {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let sink = events.clone();
+    app.root_mut()
+        .expect("mounted")
+        .on(event, move |ev| sink.borrow_mut().push(ev.clone()));
+    events
+}
+
+#[test]
+fn children_render_with_their_chrome_and_bound_state() {
+    let mut app = app();
+    let el = app.mount("demo-form").expect("mount");
+    el.set_attr("date-value", "2026-07-07");
+
+    let screen = screen(&mut app);
+    assert!(screen.contains("Date"), "child date label:\n{screen}");
+    assert!(screen.contains("Note"), "child text label:\n{screen}");
+    assert!(
+        screen.contains("2026-07-07"),
+        "bound value synced into the child widget:\n{screen}"
+    );
+    assert!(
+        screen.contains("summary: [2026-07-07] []"),
+        "computed summary from the parent state:\n{screen}"
+    );
+}
+
+#[test]
+fn child_commit_routes_to_the_parent_handler() {
+    let mut app = app();
+    app.mount("demo-form").expect("mount");
+    let events = probe(&mut app, "date-value-changed");
+
+    // Focus starts on the nested date widget (template order).
+    type_str(&mut app, "2026-08-01");
+    key(&mut app, KeyCode::Enter);
+
+    let screen = screen(&mut app);
+    assert!(
+        screen.contains("summary: [2026-08-01] []"),
+        "parent state updated by the routed child event:\n{screen}"
+    );
+    let events = events.borrow();
+    assert_eq!(events.len(), 1, "single parent notify (no write-back echo)");
+    assert_eq!(events[0].value, Value::Str("2026-08-01".into()));
+}
+
+#[test]
+fn tab_traverses_into_the_next_child() {
+    let mut app = app();
+    app.mount("demo-form").expect("mount");
+
+    key(&mut app, KeyCode::Tab); // date → text
+    type_str(&mut app, "  a note  ");
+    key(&mut app, KeyCode::Enter);
+
+    let screen = screen(&mut app);
+    assert!(
+        screen.contains("summary: [] [a note]"),
+        "text child committed (trimmed) into the parent:\n{screen}"
+    );
+}
+
+#[test]
+fn disabled_child_is_skipped_by_focus_and_input() {
+    let mut app = app();
+    let el = app.mount("demo-form").expect("mount");
+    el.set_attr("lock-date", "");
+
+    // The date widget (flat index 0) is disabled through the bool binding:
+    // typing has no effect, and Tab skips back around to the text child.
+    type_str(&mut app, "2026-08-01");
+    key(&mut app, KeyCode::Enter);
+    let screen_before = screen(&mut app);
+    assert!(
+        screen_before.contains("summary: [] []"),
+        "no commit from the locked date child:\n{screen_before}"
+    );
+
+    key(&mut app, KeyCode::Tab);
+    type_str(&mut app, "note");
+    key(&mut app, KeyCode::Enter);
+    let screen_after = screen(&mut app);
+    assert!(
+        screen_after.contains("summary: [] [note]"),
+        "focus reached the text child:\n{screen_after}"
+    );
+}
+
+#[test]
+fn parent_writes_sync_down_without_echo_loops() {
+    let mut app = app();
+    app.mount("demo-form").expect("mount");
+    let events = probe(&mut app, "date-value-changed");
+    app.root_mut()
+        .expect("mounted")
+        .set_attr("date-value", "2026-09-09");
+
+    let screen = screen(&mut app);
+    assert!(
+        screen.contains("2026-09-09"),
+        "child widget follows the parent write:\n{screen}"
+    );
+    assert_eq!(events.borrow().len(), 1, "one event for the external write");
+}
+
+#[test]
+fn nested_date_slot_opens_its_calendar() {
+    let mut app = app();
+    let el = app.mount("demo-form").expect("mount");
+    el.set_attr("date-value", "2026-07-07");
+
+    screen(&mut app);
+    key(&mut app, KeyCode::F(4));
+    let after = screen(&mut app);
+    assert!(
+        after.contains("July 2026"),
+        "calendar anchored at the nested slot:\n{after}"
+    );
+}
+
+#[test]
+fn show_timezone_embeds_the_select_inside_the_date() {
+    let mut app = app();
+    let el = app.mount("input-date").expect("mount");
+    el.set_attr("show-timezone", "");
+    el.set_attr("default-timezone", "Europe/Berlin");
+    let events = probe(&mut app, "timezone-changed");
+
+    // The embedded select renders next to the date input inside ONE border
+    // block (seamless suppresses the child's own), showing the default row's
+    // label while no timezone is picked. The placeholder suffix is browser
+    // behavior (the terminal date widget renders its mask instead).
+    let closed = screen(&mut app);
+    assert!(closed.contains("▼"), "embedded select marker:\n{closed}");
+    assert!(
+        closed.contains("Europe/B"),
+        "default label in the closed line:\n{closed}"
+    );
+    assert_eq!(
+        closed.matches('┌').count(),
+        1,
+        "one border block, the child is seamless:\n{closed}"
+    );
+
+    // Tab reaches the embedded select; its popup routes through the child
+    // path (rows clip to the narrow anchor); Enter commits and the event
+    // routes up as timezone-changed.
+    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::F(4));
+    let open = screen(&mut app);
+    assert!(
+        open.contains("UTC") && open.contains("Africa/Abi"),
+        "zone list through the nested path:\n{open}"
+    );
+    key(&mut app, KeyCode::Home);
+    key(&mut app, KeyCode::Down);
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    assert_eq!(events.len(), 1, "routed timezone-changed");
+    assert_eq!(events[0].value, Value::Str("UTC".into()));
+}
+
+#[test]
+fn hidden_timezone_branch_keeps_indices_and_focus_stable() {
+    let mut app = app();
+    let el = app.mount("input-date").expect("mount");
+    el.set_attr("value", "2026-07-07");
+    let events = probe(&mut app, "timezone-changed");
+
+    // With the branch off, the child is not rendered and focus stays on the
+    // date slot: Tab wraps back to it, F4 opens the calendar (slot 0).
+    let closed = screen(&mut app);
+    assert!(!closed.contains("▼"), "no select rendered:\n{closed}");
+    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::F(4));
+    let after = screen(&mut app);
+    assert!(
+        after.contains("July 2026"),
+        "calendar still owns the focused slot:\n{after}"
+    );
+    assert!(events.borrow().is_empty());
+}

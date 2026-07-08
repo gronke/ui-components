@@ -79,12 +79,12 @@ fn build(tree: &mut TaffyTree<Measured>, rnode: &RNode) -> NodeId {
         RNode::Element {
             classes,
             slot,
+            widget_height,
             children,
-            ..
         } => {
             if slot.is_some() {
                 return tree
-                    .new_leaf_with_context(widget_style(classes), Measured::Widget)
+                    .new_leaf_with_context(widget_style(classes, *widget_height), Measured::Widget)
                     .expect("taffy widget leaf");
             }
             let child_ids: Vec<NodeId> = children.iter().map(|child| build(tree, child)).collect();
@@ -132,15 +132,16 @@ fn container_style(classes: &[String]) -> Style {
     style
 }
 
-fn widget_style(classes: &[String]) -> Style {
+fn widget_style(classes: &[String], height: u16) -> Style {
+    let height = height.max(1) as f32;
     let mut style = Style {
         size: Size {
             width: auto(),
-            height: length(1.0),
+            height: length(height),
         },
         min_size: Size {
             width: length(12.0),
-            height: length(1.0),
+            height: length(height),
         },
         ..Default::default()
     };

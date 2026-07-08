@@ -1,0 +1,5 @@
+error: Zoned properties must be Option<Zoned>; there is no non-null default for an object value
+ --> tests/ui/fail_zoned_not_optional.rs:9:11
+  |
+9 |     date: Zoned,
+  |           ^^^^^

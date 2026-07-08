@@ -3,7 +3,7 @@
 
 use uic_core::{
     attribute_to_value, notify_events, Changed, Ctx, CustomElement, CustomElementRegistry, JsType,
-    PropertyStore, UiEvent, Value,
+    PropertyStore, UiEvent, Value, Zoned,
 };
 
 /// Exercises every derive feature in one component.
@@ -70,6 +70,50 @@ impl TestWrappedLogic for TestWrapped {
     fn status_note(&self, _store: &PropertyStore) -> Value {
         "ready".into()
     }
+}
+
+/// An object-valued (Zoned) property next to a plain one.
+#[derive(CustomElement, Default)]
+#[custom_element(tag = "test-zoned", template = "<span>${value}</span>")]
+struct TestZoned {
+    #[property(notify)]
+    value: String,
+    /// The zoned timestamp mirroring `value`.
+    #[property(notify)]
+    date: Option<Zoned>,
+}
+
+impl TestZonedLogic for TestZoned {}
+
+#[test]
+fn zoned_property_is_property_only_and_notifies_by_js_name() {
+    let def = TestZoned::definition();
+    let date = def.property("date").expect("date property");
+    assert_eq!(date.js_type, JsType::Zoned);
+    assert_eq!(date.attribute, None, "no observed attribute");
+    assert!(date.optional);
+    assert!(!date.reflect);
+    assert_eq!(date.notify_event_name().as_deref(), Some("date-changed"));
+
+    // The store starts undefined and reports real changes only.
+    let mut store = PropertyStore::new(def.properties);
+    assert_eq!(store.get("date"), &Value::Undefined);
+    let zoned = Zoned::new(
+        chrono::TimeZone::with_ymd_and_hms(&chrono_tz::Europe::Berlin, 2026, 7, 7, 0, 0, 0)
+            .unwrap(),
+    );
+    assert!(store.set("date", zoned.clone()).is_some());
+    assert!(store.set("date", zoned.clone()).is_none(), "same value");
+
+    // The notify pass carries the object value.
+    let mut changed = Changed::default();
+    changed.record("date", Value::Null);
+    store.set("date", Value::Null);
+    store.set("date", zoned.clone());
+    let events = notify_events(def, &changed, &store);
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].event_name, "date-changed");
+    assert_eq!(events[0].value, Value::Zoned(zoned));
 }
 
 #[test]

@@ -1,7 +1,24 @@
+// Catalog-parity subset of the Schuhkarton .el-input-date rules.
+// The hide-time/hide-seconds/compact width variants and the timezone-select
+// margin hack stay out until the element grows those attributes.
 .el-input-date {
-  display: block;
+  width: fit-content;
+  --explicit-input-width: 100%;
 
   input[type="text"].form-control {
-    min-width: 12ch;
+    box-sizing: content-box;
+    min-width: 10ch;
+    --explicit-input-width: 10ch;
+  }
+
+  .input-group > *:not(:last-child) {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+
+  .input-group > *:not(:last-child) .form-select,
+  .input-group > *:not(:last-child) .form-control {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
   }
 }

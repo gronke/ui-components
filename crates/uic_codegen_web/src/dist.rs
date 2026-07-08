@@ -20,6 +20,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use serde_json::json;
+use uic_core::{CustomElementRegistry, JsType};
 
 use crate::{CodegenError, WebCodegen};
 
@@ -137,6 +138,16 @@ impl DistBuild {
         );
         exports.insert("./package.json".into(), json!("./package.json"));
 
+        // Impl partials of Zoned-property components import temporal-polyfill.
+        let mut peer = serde_json::Map::new();
+        peer.insert("lit".into(), json!("^3"));
+        let any_zoned = CustomElementRegistry::iter()
+            .flat_map(|def| def.properties.iter())
+            .any(|p| p.js_type == JsType::Zoned);
+        if any_zoned {
+            peer.insert("temporal-polyfill".into(), json!("^0.3"));
+        }
+
         let mut package = json!({
             "name": self.package_name,
             "version": self.version,
@@ -148,7 +159,7 @@ impl DistBuild {
             "sideEffects": true,
             "customElements": "custom-elements.json",
             "exports": exports,
-            "peerDependencies": { "lit": "^3" },
+            "peerDependencies": peer,
             // Scoped packages default to restricted on the public registry.
             "publishConfig": { "access": "public" },
         });

@@ -10,6 +10,9 @@ pub struct UiEvent {
     pub name: String,
     /// The committed value of the event target, when the widget has one.
     pub target_value: Option<String>,
+    /// The notify payload when the event is a child element's `*-changed`
+    /// (the browser's `event.detail.value`).
+    pub detail: Option<Value>,
 }
 
 impl UiEvent {
@@ -17,6 +20,17 @@ impl UiEvent {
         UiEvent {
             name: "change".to_string(),
             target_value: Some(target_value.into()),
+            detail: None,
+        }
+    }
+
+    /// A child element's notify event as seen by a parent template binding
+    /// (`@value-changed=${handler}` on a nested custom element).
+    pub fn notify(event: &NotifyEvent) -> Self {
+        UiEvent {
+            name: event.event_name.clone(),
+            target_value: Some(event.value.display_text()),
+            detail: Some(event.value.clone()),
         }
     }
 }

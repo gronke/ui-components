@@ -1,0 +1,5 @@
+error: a <select> with '.options' takes no children; the option list is data
+ --> tests/ui/fail_select_options_with_children.rs:6:16
+  |
+6 |     template = "<select .options=${options}><option>static</option></select>"
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

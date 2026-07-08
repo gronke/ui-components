@@ -37,6 +37,7 @@ quote = "1"
 syn = { version = "2", features = ["full"] }
 trybuild = "1"
 chrono = "0.4"
+chrono-tz = "0.10"
 genco = "0.19"
 dprint-plugin-typescript = "0.96"
 serde = { version = "1", features = ["derive"] }
@@ -46,3 +47,8 @@ taffy = "0.12"
 rat-widget = "=3.2.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 include_dir = "0.7"
+
+# 0.5.1 plus the dev-server fix rendering live .tera with the embedded
+# fallback's import map; drop the pin with the next web_modules release.
+[patch.crates-io]
+web_modules = { git = "https://github.com/gronke/web_modules", rev = "2f9e4d90ba0fc12411cd7698a52d7df5de86908e" }

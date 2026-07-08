@@ -5,6 +5,8 @@
 //! class in the browser.
 
 use crate::meta::{JsType, PropertyMeta};
+use crate::select::SelectOption;
+use crate::zoned::Zoned;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -13,17 +15,24 @@ pub enum Value {
     Str(String),
     Num(f64),
     Bool(bool),
+    /// An object-valued zoned timestamp (`Temporal.ZonedDateTime` analog).
+    Zoned(Zoned),
+    /// An object-valued select option list (`SelectOption[]` analog).
+    Options(Vec<SelectOption>),
 }
 
 impl Value {
     /// JavaScript truthiness: `""`, `0`, `NaN`, `false`, `null` and
-    /// `undefined` are false.
+    /// `undefined` are false; objects are always true.
     pub fn truthy(&self) -> bool {
         match self {
             Value::Undefined | Value::Null => false,
             Value::Str(s) => !s.is_empty(),
             Value::Num(n) => *n != 0.0 && !n.is_nan(),
             Value::Bool(b) => *b,
+            Value::Zoned(_) => true,
+            // Arrays are objects: truthy even when empty.
+            Value::Options(_) => true,
         }
     }
 
@@ -34,14 +43,33 @@ impl Value {
         }
     }
 
+    pub fn as_zoned(&self) -> Option<&Zoned> {
+        match self {
+            Value::Zoned(z) => Some(z),
+            _ => None,
+        }
+    }
+
+    pub fn as_options(&self) -> Option<&[SelectOption]> {
+        match self {
+            Value::Options(options) => Some(options),
+            _ => None,
+        }
+    }
+
     /// Text rendering for text and attribute positions.
     /// `undefined`/`null` render empty, like lit-html child parts.
+    /// A zoned timestamp renders Temporal-style ISO.
     pub fn display_text(&self) -> String {
         match self {
             Value::Undefined | Value::Null => String::new(),
             Value::Str(s) => s.clone(),
             Value::Num(n) => format_number(*n),
             Value::Bool(b) => b.to_string(),
+            Value::Zoned(z) => z.iso(),
+            // Option lists never legitimately reach text position (the
+            // derive restricts `.options` bindings); render nothing.
+            Value::Options(_) => String::new(),
         }
     }
 }
@@ -79,6 +107,18 @@ impl From<f64> for Value {
     }
 }
 
+impl From<Zoned> for Value {
+    fn from(z: Zoned) -> Self {
+        Value::Zoned(z)
+    }
+}
+
+impl From<Vec<SelectOption>> for Value {
+    fn from(options: Vec<SelectOption>) -> Self {
+        Value::Options(options)
+    }
+}
+
 impl From<i64> for Value {
     fn from(n: i64) -> Self {
         Value::Num(n as f64)
@@ -111,6 +151,9 @@ pub fn attribute_to_value(js_type: JsType, raw: Option<&str>) -> Value {
                 Value::Num(trimmed.parse().unwrap_or(f64::NAN))
             }
         }
+        // Zoned and Options properties are property-only (the derive rejects
+        // attribute options), so no attribute ever maps to them.
+        (JsType::Zoned, Some(_)) | (JsType::Options, Some(_)) => Value::Null,
     }
 }
 
