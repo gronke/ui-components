@@ -1,0 +1,5 @@
+error: #[input_shared] must sit above #[derive(CustomElement)] on the same struct
+ --> tests/ui/fail_input_shared_below_derive.rs:6:8
+  |
+6 | struct XBelow {}
+  |        ^^^^^^

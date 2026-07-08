@@ -148,6 +148,7 @@ fn widget_style(classes: &[String]) -> Style {
         match class.as_str() {
             "flex-grow-1" => style.flex_grow = 1.0,
             "flex-shrink-0" => style.flex_shrink = 0.0,
+            "w-100" => style.size.width = percent(1.0),
             _ => {}
         }
     }

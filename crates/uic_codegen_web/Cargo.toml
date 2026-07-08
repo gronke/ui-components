@@ -7,14 +7,23 @@ license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+# The npm-distributable build: compiled ESM + .d.ts + css via web_modules.
+dist = ["dep:web_modules"]
+
 [dependencies]
 uic_core.workspace = true
 uic_template.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true
+web_modules = { version = "0.5.1", default-features = false, features = ["typescript", "dts", "scss"], optional = true }
 
 [dev-dependencies]
-# Registers <input-date> in the test binary's registry.
+# Registers <input-date>/<input-text> in the test binary's registry.
 ui_components.workspace = true
 # oxc smoke test: the emitted TypeScript must transpile.
 web_modules = { version = "0.5.1", default-features = false, features = ["typescript"] }
+
+[[test]]
+name = "dist"
+required-features = ["dist"]

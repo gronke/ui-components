@@ -14,8 +14,13 @@
 //! └── custom-elements.json         optional Custom Elements Manifest
 //! ```
 
+#[cfg(feature = "dist")]
+mod dist;
 mod manifest;
 mod ts;
+
+#[cfg(feature = "dist")]
+pub use dist::{DistBuild, DistRoot};
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -56,7 +61,8 @@ impl WebCodegen {
         }
         fs::create_dir_all(&components)?;
 
-        let mut scss_tags = Vec::new();
+        let mut scss_names = Vec::new();
+        let mut shared_scss: Vec<(&'static str, &'static str, &'static str)> = Vec::new();
         let mut any_notify = false;
         for def in &defs {
             check_impl_exports(def)?;
@@ -68,9 +74,22 @@ impl WebCodegen {
                     web_impl,
                 )?;
             }
+            if let (Some(id), Some(scss)) = (def.shared_style_id, def.shared_scss) {
+                match shared_scss.iter().find(|(known, _, _)| *known == id) {
+                    None => shared_scss.push((id, scss, def.tag_name)),
+                    Some((_, known, first)) if *known != scss => {
+                        return Err(CodegenError::SharedScssConflict {
+                            id,
+                            first,
+                            second: def.tag_name,
+                        });
+                    }
+                    Some(_) => {}
+                }
+            }
             if let Some(scss) = def.scss {
                 fs::write(components.join(format!("_{}.scss", def.tag_name)), scss)?;
-                scss_tags.push(def.tag_name);
+                scss_names.push(def.tag_name);
             }
             any_notify |= def
                 .properties
@@ -78,11 +97,19 @@ impl WebCodegen {
                 .any(|p| !matches!(p.notify, Notify::No));
         }
 
+        // Shared stylesheets come first, so component styles can override.
+        let mut use_names: Vec<&str> = Vec::new();
+        for (id, scss, _) in &shared_scss {
+            fs::write(components.join(format!("_{id}.scss")), scss)?;
+            use_names.push(id);
+        }
+        use_names.extend(scss_names);
+
         if any_notify {
             fs::write(components.join("uic-runtime.ts"), ts::RUNTIME_TS)?;
         }
-        if !scss_tags.is_empty() {
-            fs::write(self.out.join("elements.scss"), elements_scss(&scss_tags))?;
+        if !use_names.is_empty() {
+            fs::write(self.out.join("elements.scss"), elements_scss(&use_names))?;
         }
         if self.manifest {
             fs::write(
@@ -127,6 +154,18 @@ pub enum CodegenError {
          expected `export function <name>(…)` for every handler and computed property"
     )]
     MissingImplExports { tag: &'static str, missing: String },
+    #[error(
+        "shared style '{id}' has differing shared_scss sources: <{first}> and <{second}> \
+         must include the same file"
+    )]
+    SharedScssConflict {
+        id: &'static str,
+        first: &'static str,
+        second: &'static str,
+    },
+    #[cfg(feature = "dist")]
+    #[error("dist: {0}")]
+    Dist(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

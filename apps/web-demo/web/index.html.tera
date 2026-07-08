@@ -19,18 +19,28 @@
   value="2026-07-07"
   min="2020-01-01"
   max="2030-12-31"
+  class="mb-4 d-block"
 ></input-date>
+<input-text
+  label="Note"
+  hint="Trimmed on commit; empty becomes null"
+  placeholder="free text"
+  allow-null
+></input-text>
 <h2 class="h6 mt-5">value-changed events</h2>
 <pre id="events" class="border bg-body p-2 small" data-qa="events"></pre>
 </main>
 <script type="module">
-// LitNotify events do not bubble; listen on the element itself.
+// LitNotify events do not bubble; listen on each element itself.
 const log = document.getElementById('events');
 window.__events = [];
-document.querySelector('input-date').addEventListener('value-changed', (e) => {
-  window.__events.push(e.detail);
-  log.textContent += JSON.stringify(e.detail) + '\n';
-});
+for (const el of document.querySelectorAll('input-date, input-text')) {
+  el.addEventListener('value-changed', (e) => {
+    const entry = { tag: el.tagName.toLowerCase(), ...e.detail };
+    window.__events.push(entry);
+    log.textContent += JSON.stringify(entry) + '\n';
+  });
+}
 </script>
 </body>
 </html>

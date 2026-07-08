@@ -1,0 +1,5 @@
+error: chrome template chrome_two_slots.mhtml: chrome template contains more than one <slot/>
+ --> tests/ui/fail_wraps_two_slots.rs:7:18
+  |
+7 |     wraps_file = "chrome_two_slots.mhtml"
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^

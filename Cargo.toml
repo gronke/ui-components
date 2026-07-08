@@ -9,6 +9,7 @@ members = [
     "crates/ui_components",
     "apps/web-demo",
     "apps/tui-demo",
+    "apps/dist",
 ]
 
 [workspace.package]

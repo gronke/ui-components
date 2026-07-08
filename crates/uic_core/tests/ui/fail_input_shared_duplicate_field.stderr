@@ -1,0 +1,5 @@
+error: field `label` is provided by #[input_shared]
+ --> tests/ui/fail_input_shared_duplicate_field.rs:8:5
+  |
+8 |     label: Option<String>,
+  |     ^^^^^

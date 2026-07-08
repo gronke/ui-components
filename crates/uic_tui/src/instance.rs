@@ -2,7 +2,9 @@
 //! notify emitter — the DOM-element analog of the terminal runtime.
 
 use chrono::NaiveDate;
+use crossterm::event::Event;
 use rat_widget::date_input::DateInputState;
+use rat_widget::text_input::TextInputState;
 use uic_core::{
     attribute_to_value, notify_events, Behavior, Changed, ComponentDef, Ctx, CustomElementRegistry,
     NotifyEvent, PropertyStore, UiEvent, Value,
@@ -14,10 +16,79 @@ use crate::Error;
 
 type Listener = Box<dyn FnMut(&NotifyEvent)>;
 
+/// The persistent terminal widget behind a `data-tui` leaf.
+pub(crate) enum WidgetState {
+    Date(DateInputState),
+    Text(TextInputState),
+}
+
+impl WidgetState {
+    pub(crate) fn set_focus(&mut self, focused: bool) {
+        match self {
+            WidgetState::Date(state) => state.widget.focus.set(focused),
+            WidgetState::Text(state) => state.focus.set(focused),
+        }
+    }
+
+    /// The value a commit hands to the change handler. The masked date input
+    /// passes the normalized date (or the digit-bearing raw text); the plain
+    /// text input passes its raw text — trimming and validation are the
+    /// component's job, like in the browser.
+    fn committed_text(&self) -> String {
+        match self {
+            WidgetState::Date(state) => match state.value() {
+                Ok(date) => date.format("%Y-%m-%d").to_string(),
+                Err(_) => {
+                    let raw = state.widget.text();
+                    if raw.chars().any(|c| c.is_ascii_digit()) {
+                        raw.split_whitespace().collect::<Vec<_>>().join("")
+                    } else {
+                        String::new()
+                    }
+                }
+            },
+            WidgetState::Text(state) => state.text().to_string(),
+        }
+    }
+
+    /// Pushes a property value into the widget.
+    fn sync(&mut self, value: &Value) {
+        match self {
+            WidgetState::Date(state) => match value {
+                Value::Str(text) if !text.is_empty() => {
+                    match NaiveDate::parse_from_str(text, "%Y-%m-%d") {
+                        Ok(date) => state.set_value(date),
+                        Err(_) => state.widget.set_text(text.clone()),
+                    }
+                }
+                _ => state.clear(),
+            },
+            WidgetState::Text(state) => match value {
+                Value::Str(text) if !text.is_empty() => state.set_text(text.clone()),
+                _ => {
+                    state.clear();
+                }
+            },
+        }
+    }
+
+    /// Forwards a terminal event to the widget's own handling.
+    pub(crate) fn handle(&mut self, focused: bool, event: &Event) {
+        match self {
+            WidgetState::Date(state) => {
+                let _ = rat_widget::date_input::handle_events(state, focused, event);
+            }
+            WidgetState::Text(state) => {
+                let _ = rat_widget::text_input::handle_events(state, focused, event);
+            }
+        }
+    }
+}
+
 /// One interactive leaf of the template (`data-tui="…"`), with its persistent
 /// widget state and the bindings wired in the template.
 pub(crate) struct Slot {
-    pub state: DateInputState,
+    pub state: WidgetState,
     pub value_prop: Option<String>,
     pub change_handler: Option<String>,
     pub disabled: Option<Expr>,
@@ -28,23 +99,6 @@ impl Slot {
         self.disabled
             .as_ref()
             .is_some_and(|expr| resolve_expr(expr, store, behavior).truthy())
-    }
-
-    /// The value a commit hands to the change handler: the normalized date
-    /// when the mask parses, otherwise the raw text (the component's own
-    /// validation produces the error message, like in the browser).
-    fn committed_text(&self) -> String {
-        match self.state.value() {
-            Ok(date) => date.format("%Y-%m-%d").to_string(),
-            Err(_) => {
-                let raw = self.state.widget.text();
-                if raw.chars().any(|c| c.is_ascii_digit()) {
-                    raw.split_whitespace().collect::<Vec<_>>().join("")
-                } else {
-                    String::new()
-                }
-            }
-        }
     }
 }
 
@@ -112,7 +166,7 @@ impl ElementInstance {
         let Some(handler) = slot.change_handler.clone() else {
             return;
         };
-        let event = UiEvent::change(slot.committed_text());
+        let event = UiEvent::change(slot.state.committed_text());
         self.update_cycle(|behavior, ctx| behavior.handle(ctx, &handler, &event));
     }
 
@@ -161,13 +215,7 @@ impl ElementInstance {
                     continue;
                 }
             }
-            match self.store.get(prop) {
-                Value::Str(s) if !s.is_empty() => match NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-                    Ok(date) => slot.state.set_value(date),
-                    Err(_) => slot.state.widget.set_text(s.clone()),
-                },
-                _ => slot.state.clear(),
-            }
+            slot.state.sync(self.store.get(prop));
         }
     }
 
@@ -212,12 +260,15 @@ fn collect_slots(nodes: &[Node], slots: &mut Vec<Slot>) -> Result<(), Error> {
 }
 
 fn new_slot(kind: &str, el: &uic_template::Element) -> Result<Slot, Error> {
-    if kind != "date-input" {
-        return Err(Error::UnknownWidget(kind.to_string()));
-    }
-    let state = DateInputState::new()
-        .with_pattern("%Y-%m-%d")
-        .map_err(|err| Error::Pattern(err.to_string()))?;
+    let state = match kind {
+        "date-input" => WidgetState::Date(
+            DateInputState::new()
+                .with_pattern("%Y-%m-%d")
+                .map_err(|err| Error::Pattern(err.to_string()))?,
+        ),
+        "text-input" => WidgetState::Text(TextInputState::new()),
+        _ => return Err(Error::UnknownWidget(kind.to_string())),
+    };
     let mut slot = Slot {
         state,
         value_prop: None,

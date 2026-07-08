@@ -1,0 +1,20 @@
+<template if=${label}>
+  <label class="form-label flex-grow-0 flex-shrink-0">${label}</label>
+</template>
+<div class="input-target p-0 position-relative d-flex flex-grow-1 flex-shrink-0">
+  <div class="input-group w-100 flex-nowrap">
+    <slot></slot>
+  </div>
+</div>
+<template if=${error_message}>
+  <div class="text-start fst-italic text-small mt-1">
+    <div class="text-danger">${error_message}</div>
+  </div>
+</template>
+<template if=${!error_message}>
+  <template if=${hint}>
+    <div class="text-start fst-italic text-small mt-1">
+      <div class="text-muted small">${hint}</div>
+    </div>
+  </template>
+</template>

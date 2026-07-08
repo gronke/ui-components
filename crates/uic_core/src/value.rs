@@ -255,6 +255,7 @@ mod tests {
             js_name: "value",
             attribute: Some("value"),
             js_type: JsType::String,
+            optional: false,
             reflect: false,
             notify: crate::meta::Notify::Auto,
             default: crate::meta::DefaultValue::Str(""),

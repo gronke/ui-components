@@ -3,6 +3,7 @@
 //! rat-widget input leaves.
 
 use rat_widget::date_input::DateInput;
+use rat_widget::text_input::TextInput;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
@@ -10,7 +11,7 @@ use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
 
 use crate::expand::{expand, RNode};
-use crate::instance::ElementInstance;
+use crate::instance::{ElementInstance, WidgetState};
 use crate::layout;
 
 /// Text styling inherited down the element tree.
@@ -108,10 +109,22 @@ fn paint_widget(frame: &mut Frame, rect: Rect, instance: &mut ElementInstance, i
     let Some(slot) = instance.slots.get_mut(index) else {
         return;
     };
-    slot.state.widget.focus.set(focused && !disabled);
-    let mut widget = DateInput::new();
-    if disabled {
-        widget = widget.style(Style::new().dim());
+    slot.state.set_focus(focused && !disabled);
+    let dim = disabled.then(|| Style::new().dim());
+    match &mut slot.state {
+        WidgetState::Date(state) => {
+            let mut widget = DateInput::new();
+            if let Some(style) = dim {
+                widget = widget.style(style);
+            }
+            frame.render_stateful_widget(widget, rect, state);
+        }
+        WidgetState::Text(state) => {
+            let mut widget = TextInput::new();
+            if let Some(style) = dim {
+                widget = widget.style(style);
+            }
+            frame.render_stateful_widget(widget, rect, state);
+        }
     }
-    frame.render_stateful_widget(widget, rect, &mut slot.state);
 }

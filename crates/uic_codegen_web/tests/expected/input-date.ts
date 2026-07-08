@@ -9,23 +9,27 @@ export class InputDate extends LitElement {
 
   static properties = {
     value: { type: String, notify: true },
+    min: { type: String },
+    max: { type: String },
+    placeholder: { type: String },
     label: { type: String },
     hint: { type: String },
     errorMessage: { type: String, attribute: 'error-message' },
     disabled: { type: Boolean, reflect: true },
-    min: { type: String },
-    max: { type: String },
-    placeholder: { type: String },
+    name: { type: String },
+    required: { type: Boolean, reflect: true },
   };
 
   value = '';
+  min?: string;
+  max?: string;
+  placeholder?: string;
   label?: string;
   hint?: string;
   errorMessage?: string;
   disabled = false;
-  min?: string;
-  max?: string;
-  placeholder?: string;
+  name?: string;
+  required = false;
 
   // Light DOM so the global stylesheets (Bootstrap, elements.css) apply.
   createRenderRoot(): this {
@@ -35,7 +39,7 @@ export class InputDate extends LitElement {
   // ExternalStyles pattern: external stylesheets target .el-input-date.
   connectedCallback(): void {
     super.connectedCallback();
-    this.classList.add('el-input-date');
+    this.classList.add('el-input-default', 'el-input-date');
   }
 
   // LitNotify port: fires the *-changed events after each update.
@@ -59,6 +63,7 @@ export class InputDate extends LitElement {
 <div class="input-target p-0 position-relative d-flex flex-grow-1 flex-shrink-0">
   <div class="input-group w-100 flex-nowrap">
     <input type="text" class="form-control text-center flex-grow-1" data-tui="date-input" data-qa="date-input" .value=${this.value} placeholder=${this.placeholderText} ?disabled=${this.disabled} @change=${this.onChange}>
+
   </div>
 </div>
 ${this.errorMessage ? html`

@@ -1,0 +1,7 @@
+<template if=${label}>
+  <label>${label}</label>
+</template>
+<slot></slot>
+<template if=${hint}>
+  <p>${hint}</p>
+</template>

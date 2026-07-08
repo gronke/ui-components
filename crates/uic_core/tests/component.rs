@@ -24,6 +24,9 @@ struct TestBox {
     disabled: bool,
     #[property(attribute = "max-len", notify = "max-len-picked")]
     max_len: f64,
+    /// Keyword field: maps to the JS name `type` via unraw.
+    #[property(reflect, default = "text")]
+    r#type: String,
 }
 
 impl TestBoxLogic for TestBox {
@@ -44,6 +47,61 @@ impl TestBoxLogic for TestBox {
     }
 }
 
+/// Wrapped by the chrome fixture; proves splice + merged validation.
+#[derive(CustomElement, Default)]
+#[custom_element(
+    tag = "test-wrapped",
+    template = "<input data-tui=\"date-input\" .value=${value} @change=${on_change}>",
+    wraps_file = "fixtures/chrome.mhtml",
+    shared_style = "input-default"
+)]
+struct TestWrapped {
+    #[property(notify)]
+    value: String,
+    #[property]
+    label: Option<String>,
+}
+
+impl TestWrappedLogic for TestWrapped {
+    fn on_change(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        ctx.set("value", event.target_value.clone().unwrap_or_default());
+    }
+
+    fn status_note(&self, _store: &PropertyStore) -> Value {
+        "ready".into()
+    }
+}
+
+#[test]
+fn wrapped_component_merges_chrome_and_inner_template() {
+    let def = TestWrapped::definition();
+    assert!(def.wraps_src.is_some());
+    assert_eq!(def.shared_style_id, Some("input-default"));
+    assert!(def.shared_scss.is_none());
+    // The chrome's undeclared ident became a computed property; the chrome's
+    // `label` resolved against the declared field.
+    assert_eq!(def.computed, &["status_note"]);
+    let handlers: Vec<_> = def.handlers.iter().map(|h| h.name).collect();
+    assert_eq!(handlers, vec!["on_change"]);
+
+    // The runtime template is the merged tree: the slot is gone, the inner
+    // input sits inside the chrome's wrap div.
+    let template = def.template();
+    assert!(template.custom_tags().is_empty());
+    let wrap = template
+        .roots
+        .iter()
+        .find_map(|node| match node {
+            uic_template::Node::Element(el) if el.tag == "div" => Some(el),
+            _ => None,
+        })
+        .expect("chrome wrap div");
+    assert!(wrap
+        .children
+        .iter()
+        .any(|node| matches!(node, uic_template::Node::Element(el) if el.tag == "input")));
+}
+
 #[test]
 fn definition_metadata() {
     let def = TestBox::definition();
@@ -53,7 +111,7 @@ fn definition_metadata() {
     assert_eq!(def.style_id, "test-box");
     assert!(def.scss.is_none());
     assert!(def.web_impl.is_none());
-    assert_eq!(def.properties.len(), 4);
+    assert_eq!(def.properties.len(), 5);
 
     let value = def.property("value").expect("value property");
     assert_eq!(value.js_name, "value");
@@ -75,6 +133,14 @@ fn definition_metadata() {
     let disabled = def.property("disabled").expect("disabled property");
     assert!(disabled.reflect);
     assert_eq!(disabled.notify_event_name(), None);
+
+    // r#type unraws to plain `type` everywhere, with the custom default.
+    let ty = def.property("type").expect("type property");
+    assert_eq!(ty.js_name, "type");
+    assert_eq!(ty.attribute, Some("type"));
+    assert!(ty.reflect);
+    assert!(!ty.optional);
+    assert_eq!(ty.default, uic_core::DefaultValue::Str("text"));
 
     assert_eq!(def.computed, &["placeholder_text"]);
     let handlers: Vec<_> = def.handlers.iter().map(|h| h.name).collect();
@@ -148,6 +214,13 @@ fn computed_dispatch() {
         Value::Str("off".into())
     );
     assert_eq!(behavior.compute(&store, "nope"), Value::Undefined);
+}
+
+#[test]
+fn custom_defaults_seed_the_store() {
+    let def = TestBox::definition();
+    let store = PropertyStore::new(def.properties);
+    assert_eq!(store.get("type"), &Value::Str("text".into()));
 }
 
 #[test]

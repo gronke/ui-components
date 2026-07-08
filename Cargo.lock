@@ -1900,6 +1900,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxc_isolated_declarations"
+version = "0.138.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aae5a9969ac4b34e977492f25d6f471ffb07c42813078410218162c8bed43a53"
+dependencies = [
+ "bitflags 2.13.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_diagnostics",
+ "oxc_ecmascript",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
+ "rustc-hash",
+]
+
+[[package]]
 name = "oxc_parser"
 version = "0.138.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3593,6 +3611,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "uic_dist"
+version = "0.1.0"
+dependencies = [
+ "ui_components",
+ "uic_codegen_web",
+]
+
+[[package]]
 name = "uic_macros"
 version = "0.1.0"
 dependencies = [
@@ -3885,6 +3911,7 @@ dependencies = [
  "oxc_ast",
  "oxc_ast_visit",
  "oxc_codegen",
+ "oxc_isolated_declarations",
  "oxc_parser",
  "oxc_semantic",
  "oxc_span",

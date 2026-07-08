@@ -142,6 +142,50 @@ fn disabled_widget_ignores_input() {
 }
 
 #[test]
+fn text_input_renders_chrome_and_commits_trimmed() {
+    let mut app = app();
+    let el = app.mount("input-text").expect("mount");
+    el.set_attr("label", "Note");
+    el.set_attr("hint", "Free text");
+    let events = events_probe(&mut app);
+
+    let before = screen(&mut app);
+    assert!(before.contains("Note"), "chrome label:\n{before}");
+    assert!(before.contains("Free text"), "chrome hint:\n{before}");
+
+    type_str(&mut app, "  hello  ");
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    assert_eq!(events.len(), 1, "one value-changed event");
+    assert_eq!(events[0].value, Value::Str("hello".into()));
+}
+
+#[test]
+fn text_input_allow_null_commits_null_for_empty() {
+    let mut app = app();
+    let el = app.mount("input-text").expect("mount");
+    el.set_attr("allow-null", "");
+    let events = events_probe(&mut app);
+
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].value, Value::Null);
+    assert_eq!(events[0].old_value, Value::Str(String::new()));
+}
+
+#[test]
+fn text_input_value_attribute_syncs_into_the_widget() {
+    let mut app = app();
+    let el = app.mount("input-text").expect("mount");
+    el.set_attr("value", "prefilled");
+    let screen = screen(&mut app);
+    assert!(screen.contains("prefilled"), "synced value:\n{screen}");
+}
+
+#[test]
 fn esc_quits() {
     let mut app = app();
     app.mount("input-date").expect("mount");

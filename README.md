@@ -13,6 +13,7 @@ Design decisions live in [docs/adr](docs/adr); the plan and milestones in [issue
 ## Defining a component
 
 ```rust
+#[input_shared]
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-date",
@@ -25,9 +26,7 @@ pub struct InputDate {
     #[property(notify)]
     pub value: String,
     #[property]
-    pub label: Option<String>,
-    #[property(reflect)]
-    pub disabled: bool,
+    pub min: Option<String>,
     // …
 }
 
@@ -37,6 +36,7 @@ impl InputDateLogic for InputDate {
 }
 ```
 
+`#[input_shared]` injects the shared input contract (label, hint, error_message, disabled, name, required) and wraps the component's template in the shared chrome (`input/_shared/chrome.mhtml`, spliced at its `<slot/>`) — see ADR 0003.
 The template references properties, computed getters and handlers by name; richer expressions are rejected at compile time (see ADR 0001).
 Browser-side behavior lives in the co-located `date.impl.ts` under the same names (see ADR 0002).
 
@@ -69,8 +69,14 @@ Format: YYYY-MM-DD
 ```sh
 cargo run -p uic_web_demo             # http://127.0.0.1:8080, live reload for web/
 cargo run -p uic_tui_demo             # terminal demo (Enter commits, Esc quits)
+cargo run -p uic_tui_demo input-text  # any registered tag
 cargo run -p uic_tui --example screen # print one rendered terminal frame
+cargo run -p uic_dist                 # npm package tree in dist/npm (ADR 0004)
 ```
+
+The dist tree is plain lit ESM + `.d.ts` + `elements.css` + `custom-elements.json` with `lit` as peer dependency — usable from any bundler or import map without Rust.
+
+Releases: bump `workspace.package.version`, merge, tag `vX.Y.Z` — the release workflow rebuilds the tree, checks the tag against the package version and rehearses `npm publish --dry-run` (ADR 0004; the real publish is gated until the registry decision).
 
 `web-demo/build.rs` regenerates the TypeScript from the Rust catalog on every build; the generated tree (including `custom-elements.json`) lands in `$OUT_DIR/gen_web`.
 Refresh the codegen snapshot after intentional output changes with `UPDATE_EXPECTED=1 cargo test -p uic_codegen_web`.

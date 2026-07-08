@@ -16,7 +16,7 @@ fn generate(test: &str) -> PathBuf {
         .manifest(true)
         .run()
         .expect("codegen succeeds");
-    assert_eq!(root.components, vec!["input-date"]);
+    assert_eq!(root.components, vec!["input-date", "input-text"]);
     assert_eq!(root.module_path("input-date"), "components/input-date.js");
     root.root
 }
@@ -51,6 +51,9 @@ fn emits_the_full_generated_root() {
         "components/input-date.ts",
         "components/input-date.impl.ts",
         "components/_input-date.scss",
+        "components/input-text.ts",
+        "components/input-text.impl.ts",
+        "components/_input-default.scss",
         "components/uic-runtime.ts",
         "elements.scss",
         "custom-elements.json",
@@ -60,6 +63,14 @@ fn emits_the_full_generated_root() {
 
     let elements = fs::read_to_string(root.join("elements.scss")).unwrap();
     assert!(elements.contains("@use \"components/input-date\";"));
+    // Shared stylesheets come first, so component styles can override.
+    let shared = elements
+        .find("components/input-default")
+        .expect("shared @use");
+    let component = elements
+        .find("components/input-date")
+        .expect("component @use");
+    assert!(shared < component);
 
     // The impl partial is copied verbatim from the component module.
     let copied = fs::read_to_string(root.join("components/input-date.impl.ts")).unwrap();
@@ -77,9 +88,20 @@ fn generated_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_text_class_matches_the_snapshot() {
+    let root = generate("snapshot-text");
+    let generated = fs::read_to_string(root.join("components/input-text.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-text.ts");
+}
+
+#[test]
 fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
-    for file in ["components/input-date.ts", "components/uic-runtime.ts"] {
+    for file in [
+        "components/input-date.ts",
+        "components/input-text.ts",
+        "components/uic-runtime.ts",
+    ] {
         let source = fs::read_to_string(root.join(file)).unwrap();
         let js = web_modules::typescript::compile_str(&source, Path::new(file))
             .unwrap_or_else(|err| panic!("{file} does not transpile: {err}"));

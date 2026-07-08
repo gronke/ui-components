@@ -22,6 +22,9 @@ pub use value::{attribute_to_value, Changed, PropertyStore, Value};
 /// The derive macro that turns a struct into a registered custom element.
 pub use uic_macros::CustomElement;
 
+/// The shared input contract: injected properties + chrome, see `uic_macros`.
+pub use uic_macros::input_shared;
+
 /// Re-exported for the derive-generated code.
 #[doc(hidden)]
 pub use inventory;

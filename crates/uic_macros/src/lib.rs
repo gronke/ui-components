@@ -16,6 +16,7 @@
 //! plain missing-trait-method error.
 
 mod component;
+mod input_shared;
 
 use proc_macro::TokenStream;
 
@@ -24,6 +25,34 @@ pub fn derive_custom_element(input: TokenStream) -> TokenStream {
     let source_file = proc_macro::Span::call_site().local_file();
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     component::expand(input, source_file.as_deref())
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}
+
+/// The shared input contract: injects the label/hint/error_message/disabled/
+/// name/required properties and wires the shared chrome template and
+/// stylesheet (`_shared/chrome.mhtml`, `_shared/input-default.scss`, resolved
+/// next to the component's module). Place above `#[derive(CustomElement)]`.
+#[proc_macro_attribute]
+pub fn input_shared(args: TokenStream, input: TokenStream) -> TokenStream {
+    let item = syn::parse_macro_input!(input as syn::ItemStruct);
+    if !args.is_empty() {
+        return syn::Error::new_spanned(
+            proc_macro2::TokenStream::from(args),
+            "#[input_shared] takes no arguments",
+        )
+        .to_compile_error()
+        .into();
+    }
+    if !input_shared::has_custom_element_derive(&item) {
+        return syn::Error::new_spanned(
+            &item.ident,
+            "#[input_shared] must sit above #[derive(CustomElement)] on the same struct",
+        )
+        .to_compile_error()
+        .into();
+    }
+    input_shared::expand(item)
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }

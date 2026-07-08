@@ -58,6 +58,8 @@ pub struct PropertyMeta {
     /// Observed attribute name, `None` for property-only.
     pub attribute: Option<&'static str>,
     pub js_type: JsType,
+    /// Declared as `Option<…>` in Rust: the JS field admits null/undefined.
+    pub optional: bool,
     /// Reflect property changes back to the attribute.
     pub reflect: bool,
     pub notify: Notify,
@@ -115,6 +117,13 @@ pub struct ComponentDef {
     pub computed: &'static [&'static str],
     /// Template source, embedded via `include_str!` for file templates.
     pub template_src: &'static str,
+    /// Chrome template that wraps this component's template at its `<slot/>`.
+    pub wraps_src: Option<&'static str>,
+    /// Additional shared `ExternalStyles` identifier (host also gets class
+    /// `el-<shared_style_id>`), e.g. `input-default` for the input contract.
+    pub shared_style_id: Option<&'static str>,
+    /// Stylesheet backing `shared_style_id`, emitted once per identifier.
+    pub shared_scss: Option<&'static str>,
     /// Co-located component stylesheet (`include_str!` of the `.scss`).
     pub scss: Option<&'static str>,
     /// Co-located web behavior partial (`include_str!` of the `.impl.ts`).
@@ -128,15 +137,30 @@ pub struct ComponentDef {
 }
 
 impl ComponentDef {
-    /// The parsed template.
+    /// The parsed template, spliced into its chrome when `wraps_src` is set.
     ///
-    /// Parsing is lazy and infallible here: the derive macro already parsed
-    /// and validated the identical source at compile time.
+    /// Parsing is lazy and infallible here: the derive macro already parsed,
+    /// spliced and validated the identical sources at compile time.
     pub fn template(&'static self) -> &'static Template {
         self.template_cache.get_or_init(|| {
-            uic_template::parse(self.template_src).unwrap_or_else(|err| {
+            let inner = uic_template::parse(self.template_src).unwrap_or_else(|err| {
                 panic!(
                     "template of <{}> ({}) no longer parses: {err}",
+                    self.tag_name, self.module_path
+                )
+            });
+            let Some(wraps_src) = self.wraps_src else {
+                return inner;
+            };
+            let chrome = uic_template::parse(wraps_src).unwrap_or_else(|err| {
+                panic!(
+                    "chrome template of <{}> ({}) no longer parses: {err}",
+                    self.tag_name, self.module_path
+                )
+            });
+            uic_template::splice(&chrome, &inner).unwrap_or_else(|err| {
+                panic!(
+                    "chrome template of <{}> ({}) no longer splices: {err}",
                     self.tag_name, self.module_path
                 )
             })
@@ -169,6 +193,7 @@ mod tests {
             js_name,
             attribute,
             js_type: JsType::String,
+            optional: false,
             reflect: false,
             notify,
             default: DefaultValue::Undefined,

@@ -1,3 +1,4 @@
-// Components come from the generated root; the import resolves in the merged
+// Components come from the generated root; the imports resolve in the merged
 // output tree (`web/` + generated components side by side).
 import './components/input-date.js';
+import './components/input-text.js';

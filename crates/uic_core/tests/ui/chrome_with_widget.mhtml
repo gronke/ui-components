@@ -1,0 +1,2 @@
+<input data-tui="date-input">
+<slot></slot>

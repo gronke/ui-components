@@ -10,13 +10,11 @@ The Schuhkarton frontend's element catalog (`packages/frontend/web/src/elements/
 - `LitNotify` semantics: `notify` properties fire `<attribute || property>-changed` events with `{ property, value, oldValue }`.
 - `static properties` + `customElements.define` (no decorators) in the generated classes.
 
-## Composition plan (deferred until a second component exists)
+## Composition (implemented with the input-text port)
 
-`<input-date>` v1 inlines the shared `InputDefault` contract (label, hint, error_message, disabled) in its own struct and template.
-For the catalog at scale, two mechanisms are planned:
-
-1. `#[input_shared]` — an attribute macro running before the derive that injects the shared contract fields into the struct.
-2. A chrome template partial: the shared label/input-group/message markup as a template whose slot is spliced with the component's own `renderInput`-equivalent at IR level.
+1. `#[input_shared]` — an attribute macro above the derive that injects the contract properties (label, hint, error_message, disabled, name, required) and wires the shared chrome and stylesheet by appending a second `#[custom_element(...)]` attribute.
+2. The chrome template partial `input/_shared/chrome.mhtml`: the label/input-group/message markup with a `<slot/>` where the component's own input goes; `uic_template::splice` merges the trees at compile time (validation) and runtime.
+3. The shared stylesheet `input/_shared/input-default.scss` backs the stacked `el-input-default` host class, emitted once per style id.
 
 Generated classes stay flat (no reproduction of the catalog's 4-level JS mixin hierarchy); the hierarchy is an authoring device, and Rust is the authoring layer here.
 

@@ -176,7 +176,7 @@ impl<B: Backend> App<B> {
             .is_some_and(|slot| !slot.is_disabled(&root.store, root.behavior.as_ref()));
         if enabled {
             if let Some(slot) = root.slots.get_mut(focused) {
-                let _ = rat_widget::date_input::handle_events(&mut slot.state, true, event);
+                slot.state.handle(true, event);
             }
         }
         Control::Continue

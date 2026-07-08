@@ -2,8 +2,9 @@
 //! chrome (label, input group, hint/error line below).
 
 use chrono::NaiveDate;
-use uic_core::{Ctx, CustomElement, PropertyStore, UiEvent, Value};
+use uic_core::{input_shared, Ctx, CustomElement, PropertyStore, UiEvent, Value};
 
+#[input_shared]
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-date",
@@ -15,17 +16,6 @@ pub struct InputDate {
     /// Committed value, `YYYY-MM-DD` or empty.
     #[property(notify)]
     pub value: String,
-    /// Label rendered above the input.
-    #[property]
-    pub label: Option<String>,
-    /// Hint rendered below the input while there is no error.
-    #[property]
-    pub hint: Option<String>,
-    /// Validation error rendered below the input.
-    #[property]
-    pub error_message: Option<String>,
-    #[property(reflect)]
-    pub disabled: bool,
     /// Earliest accepted date, `YYYY-MM-DD`.
     #[property]
     pub min: Option<String>,

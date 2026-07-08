@@ -4,6 +4,7 @@ use std::path::Path;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::ext::IdentExt;
 use syn::{Data, DeriveInput, Expr, ExprLit, Fields, Lit, LitStr, Meta, Type};
 
 pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<TokenStream> {
@@ -21,7 +22,7 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
     let props = parse_properties(&input)?;
     let template = load_template(&args, source_file)?;
 
-    let parsed = uic_template::parse(&template.content).map_err(|err| {
+    let inner = uic_template::parse(&template.content).map_err(|err| {
         syn::Error::new(
             template.span,
             match &args.template_file {
@@ -30,6 +31,34 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
             },
         )
     })?;
+
+    // Splice the chrome around the component's template; all validation below
+    // runs on the merged tree, exactly what both render targets execute.
+    let parsed = match &args.wraps_file {
+        None => inner,
+        Some(wraps_file) => {
+            let chrome_content = read_relative(wraps_file, source_file, "wraps_file")?;
+            let chrome = uic_template::parse(&chrome_content).map_err(|err| {
+                syn::Error::new(
+                    wraps_file.span(),
+                    format!("chrome template {}: {err}", wraps_file.value()),
+                )
+            })?;
+            if chrome_has_data_tui(&chrome.roots) {
+                return Err(syn::Error::new(
+                    wraps_file.span(),
+                    "chrome template must not contain data-tui widgets; \
+                     they belong to the wrapped component",
+                ));
+            }
+            uic_template::splice(&chrome, &inner).map_err(|err| {
+                syn::Error::new(
+                    wraps_file.span(),
+                    format!("chrome template {}: {err}", wraps_file.value()),
+                )
+            })?
+        }
+    };
 
     // Split referenced names: declared properties stay properties, the rest
     // become computed getters on the Logic trait.
@@ -85,6 +114,15 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
 
     let scss = optional_include(&args.scss_file, source_file, "scss_file")?;
     let web_impl = optional_include(&args.web_impl_file, source_file, "web_impl_file")?;
+    let wraps_src = optional_include(&args.wraps_file, source_file, "wraps_file")?;
+    let shared_scss = optional_include(&args.shared_scss, source_file, "shared_scss")?;
+    let shared_style_id = match &args.shared_style {
+        Some(id) => {
+            let id = id.value();
+            quote!(::core::option::Option::Some(#id))
+        }
+        None => quote!(::core::option::Option::None),
+    };
 
     let handler_names = &handlers;
     let computed_names = &computed;
@@ -114,6 +152,9 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
                     handlers: HANDLERS,
                     computed: COMPUTED,
                     template_src: #template_src,
+                    wraps_src: #wraps_src,
+                    shared_style_id: #shared_style_id,
+                    shared_scss: #shared_scss,
                     scss: #scss,
                     web_impl: #web_impl,
                     module_path: ::core::module_path!(),
@@ -216,7 +257,8 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
     })
 }
 
-/// The `#[custom_element(...)]` options.
+/// The `#[custom_element(...)]` options, folded over every such attribute
+/// (`#[input_shared]` appends its own `#[custom_element(...)]`).
 struct ElementArgs {
     tag: String,
     style: Option<String>,
@@ -224,6 +266,9 @@ struct ElementArgs {
     template_file: Option<LitStr>,
     scss_file: Option<LitStr>,
     web_impl_file: Option<LitStr>,
+    wraps_file: Option<LitStr>,
+    shared_style: Option<LitStr>,
+    shared_scss: Option<LitStr>,
 }
 
 impl ElementArgs {
@@ -234,6 +279,9 @@ impl ElementArgs {
         let mut template_file = None;
         let mut scss_file = None;
         let mut web_impl_file = None;
+        let mut wraps_file = None;
+        let mut shared_style = None;
+        let mut shared_scss = None;
 
         for attr in &input.attrs {
             if !attr.path().is_ident("custom_element") {
@@ -241,6 +289,9 @@ impl ElementArgs {
             }
             attr.parse_nested_meta(|meta| {
                 let set = |slot: &mut Option<LitStr>| -> syn::Result<()> {
+                    if slot.is_some() {
+                        return Err(meta.error("custom_element option set twice"));
+                    }
                     *slot = Some(meta.value()?.parse()?);
                     Ok(())
                 };
@@ -256,10 +307,17 @@ impl ElementArgs {
                     set(&mut scss_file)
                 } else if meta.path.is_ident("web_impl_file") {
                     set(&mut web_impl_file)
+                } else if meta.path.is_ident("wraps_file") {
+                    set(&mut wraps_file)
+                } else if meta.path.is_ident("shared_style") {
+                    set(&mut shared_style)
+                } else if meta.path.is_ident("shared_scss") {
+                    set(&mut shared_scss)
                 } else {
                     Err(meta.error(
                         "unknown custom_element option; expected tag, style, template, \
-                         template_file, scss_file or web_impl_file",
+                         template_file, scss_file, web_impl_file, wraps_file, \
+                         shared_style or shared_scss",
                     ))
                 }
             })?;
@@ -298,6 +356,12 @@ impl ElementArgs {
                 "#[custom_element] requires template = \"…\" or template_file = \"…\"",
             ));
         }
+        if let (Some(scss), None) = (&shared_scss, &shared_style) {
+            return Err(syn::Error::new(
+                scss.span(),
+                "shared_scss requires shared_style = \"…\" naming the style it backs",
+            ));
+        }
 
         Ok(ElementArgs {
             tag: tag_value,
@@ -306,8 +370,26 @@ impl ElementArgs {
             template_file,
             scss_file,
             web_impl_file,
+            wraps_file,
+            shared_style,
+            shared_scss,
         })
     }
+}
+
+/// Whether any element in the tree carries a `data-tui` marker.
+fn chrome_has_data_tui(nodes: &[uic_template::Node]) -> bool {
+    use uic_template::{Attribute, Node};
+    nodes.iter().any(|node| match node {
+        Node::Element(el) => {
+            el.attrs
+                .iter()
+                .any(|attr| matches!(attr, Attribute::Static { name, .. } if name == "data-tui"))
+                || chrome_has_data_tui(&el.children)
+        }
+        Node::If { then, .. } => chrome_has_data_tui(then),
+        Node::Text(_) | Node::TextHole(_) => false,
+    })
 }
 
 struct LoadedTemplate {
@@ -379,6 +461,13 @@ enum NotifyArg {
     Named(String),
 }
 
+/// A validated `default = …` literal.
+enum DefaultArg {
+    Str(String),
+    Num(f64),
+    Bool(bool),
+}
+
 /// One `#[property]` field.
 struct Prop {
     ident: syn::Ident,
@@ -389,6 +478,7 @@ struct Prop {
     optional: bool,
     reflect: bool,
     notify: NotifyArg,
+    default: Option<DefaultArg>,
     doc: String,
 }
 
@@ -408,15 +498,18 @@ impl Prop {
             NotifyArg::Auto => quote!(::uic_core::Notify::Auto),
             NotifyArg::Named(name) => quote!(::uic_core::Notify::Named(#name)),
         };
-        let default = if self.optional {
-            quote!(::uic_core::DefaultValue::Undefined)
-        } else {
-            match self.js_type {
+        let default = match (&self.default, self.optional) {
+            (Some(DefaultArg::Str(s)), _) => quote!(::uic_core::DefaultValue::Str(#s)),
+            (Some(DefaultArg::Num(n)), _) => quote!(::uic_core::DefaultValue::Num(#n)),
+            (Some(DefaultArg::Bool(b)), _) => quote!(::uic_core::DefaultValue::Bool(#b)),
+            (None, true) => quote!(::uic_core::DefaultValue::Undefined),
+            (None, false) => match self.js_type {
                 JsTypeArg::String => quote!(::uic_core::DefaultValue::Str("")),
                 JsTypeArg::Number => quote!(::uic_core::DefaultValue::Num(0.0f64)),
                 JsTypeArg::Boolean => quote!(::uic_core::DefaultValue::Bool(false)),
-            }
+            },
         };
+        let optional = self.optional;
         let doc = &self.doc;
         quote! {
             ::uic_core::PropertyMeta {
@@ -424,6 +517,7 @@ impl Prop {
                 js_name: #js_name,
                 attribute: ::core::option::Option::Some(#attribute),
                 js_type: #js_type,
+                optional: #optional,
                 reflect: #reflect,
                 notify: #notify,
                 default: #default,
@@ -457,6 +551,7 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
         let mut reflect = false;
         let mut notify = NotifyArg::No;
         let mut attribute: Option<String> = None;
+        let mut default_lit: Option<Lit> = None;
         if let Meta::List(_) = &property_attr.meta {
             property_attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("reflect") {
@@ -472,17 +567,21 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
                 } else if meta.path.is_ident("attribute") {
                     attribute = Some(meta.value()?.parse::<LitStr>()?.value());
                     Ok(())
+                } else if meta.path.is_ident("default") {
+                    default_lit = Some(meta.value()?.parse()?);
+                    Ok(())
                 } else {
                     Err(meta.error(
-                        "unknown property option; expected reflect, notify, notify = \"…\" \
-                         or attribute = \"…\"",
+                        "unknown property option; expected reflect, notify, notify = \"…\", \
+                         attribute = \"…\" or default = …",
                     ))
                 }
             })?;
         }
 
         let ident = field.ident.clone().expect("named field");
-        let rust_name = ident.to_string();
+        // `unraw` lets keyword fields like `r#type` map to the JS name `type`.
+        let rust_name = ident.unraw().to_string();
         let (js_type, optional) = js_type_of(&field.ty).ok_or_else(|| {
             syn::Error::new_spanned(
                 &field.ty,
@@ -490,6 +589,9 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
                  or Option of one of those",
             )
         })?;
+        let default = default_lit
+            .map(|lit| default_arg(&lit, &js_type))
+            .transpose()?;
 
         props.push(Prop {
             js_name: camel_case(&rust_name),
@@ -500,10 +602,32 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
             optional,
             reflect,
             notify,
+            default,
             doc: doc_of(&field.attrs),
         });
     }
     Ok(props)
+}
+
+/// Validates a `default = …` literal against the property's JS type.
+fn default_arg(lit: &Lit, js_type: &JsTypeArg) -> syn::Result<DefaultArg> {
+    match (js_type, lit) {
+        (JsTypeArg::String, Lit::Str(s)) => Ok(DefaultArg::Str(s.value())),
+        (JsTypeArg::Boolean, Lit::Bool(b)) => Ok(DefaultArg::Bool(b.value)),
+        (JsTypeArg::Number, Lit::Int(n)) => Ok(DefaultArg::Num(n.base10_parse()?)),
+        (JsTypeArg::Number, Lit::Float(n)) => Ok(DefaultArg::Num(n.base10_parse()?)),
+        (js_type, lit) => Err(syn::Error::new_spanned(
+            lit,
+            format!(
+                "default literal does not match the property type ({})",
+                match js_type {
+                    JsTypeArg::String => "String expects a string literal",
+                    JsTypeArg::Number => "Number expects a number literal",
+                    JsTypeArg::Boolean => "Boolean expects true or false",
+                }
+            ),
+        )),
+    }
 }
 
 fn js_type_of(ty: &Type) -> Option<(JsTypeArg, bool)> {

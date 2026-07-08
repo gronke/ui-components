@@ -1,0 +1,9 @@
+<input type=${type}
+  class="form-control text-start w-100"
+  data-tui="text-input"
+  data-qa="text-input"
+  .value=${value}
+  placeholder=${placeholder}
+  autocomplete=${autocomplete}
+  ?disabled=${disabled}
+  @change=${on_change} />

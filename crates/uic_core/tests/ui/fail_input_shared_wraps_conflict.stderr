@@ -1,0 +1,7 @@
+error: custom_element option set twice
+ --> tests/ui/fail_input_shared_wraps_conflict.rs:3:1
+  |
+3 | #[input_shared]
+  | ^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `input_shared` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,5 @@
+error: chrome template must not contain data-tui widgets; they belong to the wrapped component
+ --> tests/ui/fail_chrome_contains_data_tui.rs:7:18
+  |
+7 |     wraps_file = "chrome_with_widget.mhtml"
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^

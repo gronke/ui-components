@@ -1,0 +1,7 @@
+<template if=${label}>
+  <label>${label}</label>
+</template>
+<div class="wrap">
+  <slot></slot>
+</div>
+<p>${status_note}</p>

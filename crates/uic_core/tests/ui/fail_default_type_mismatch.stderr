@@ -1,0 +1,5 @@
+error: default literal does not match the property type (Number expects a number literal)
+ --> tests/ui/fail_default_type_mismatch.rs:6:26
+  |
+6 |     #[property(default = "x")]
+  |                          ^^^

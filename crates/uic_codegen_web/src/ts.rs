@@ -97,13 +97,17 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
          \x20   return this;\n\
          \x20 }\n\n",
     );
+    let host_classes = match def.shared_style_id {
+        Some(shared) => format!("'el-{shared}', 'el-{}'", def.style_id),
+        None => format!("'el-{}'", def.style_id),
+    };
     out.push_str(&format!(
         "  // ExternalStyles pattern: external stylesheets target .el-{}.\n\
          \x20 connectedCallback(): void {{\n\
          \x20   super.connectedCallback();\n\
-         \x20   this.classList.add('el-{}');\n\
+         \x20   this.classList.add({host_classes});\n\
          \x20 }}\n\n",
-        def.style_id, def.style_id
+        def.style_id
     ));
 
     if has_notify {
@@ -177,11 +181,17 @@ fn field_declaration(prop: &PropertyMeta) -> String {
         JsType::Number => "number",
         JsType::Boolean => "boolean",
     };
-    match prop.default {
-        DefaultValue::Undefined => format!("{}?: {ts_type};", prop.js_name),
-        DefaultValue::Str(s) => format!("{} = '{}';", prop.js_name, escape_single_quoted(s)),
-        DefaultValue::Num(n) => format!("{} = {n};", prop.js_name),
-        DefaultValue::Bool(b) => format!("{} = {b};", prop.js_name),
+    let initializer = match prop.default {
+        DefaultValue::Undefined => return format!("{}?: {ts_type};", prop.js_name),
+        DefaultValue::Str(s) => format!("'{}'", escape_single_quoted(s)),
+        DefaultValue::Num(n) => n.to_string(),
+        DefaultValue::Bool(b) => b.to_string(),
+    };
+    if prop.optional {
+        // Optional with a default: nullable field, initialized.
+        format!("{}: {ts_type} | null = {initializer};", prop.js_name)
+    } else {
+        format!("{} = {initializer};", prop.js_name)
     }
 }
 
