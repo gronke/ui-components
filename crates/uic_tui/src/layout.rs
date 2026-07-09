@@ -115,6 +115,15 @@ fn container_style(classes: &[String]) -> Style {
             "flex-shrink-0" => style.flex_shrink = 0.0,
             "flex-shrink-1" => style.flex_shrink = 1.0,
             "w-100" => style.size.width = percent(1.0_f32),
+            // Half a rem is under one cell, but a zero gap would fuse the
+            // items; one cell is the closest readable analog.
+            "gap-2" => {
+                style.gap = Size {
+                    width: length(1.0_f32),
+                    height: length(0.0_f32),
+                }
+            }
+            "align-self-center" => style.align_self = Some(AlignItems::CENTER),
             // Bootstrap's fractional-row spacers round down in cells: mt-1
             // is a quarter rem in the browser, less than any terminal row.
             "mt-1" => {}
@@ -123,12 +132,20 @@ fn container_style(classes: &[String]) -> Style {
         }
     }
     if classes.iter().any(|c| c == "input-group") {
-        // The input group draws a border block; reserve the cells.
+        // The input group draws a border block; reserve the cells, plus one
+        // cell of horizontal padding — the closest cells get to the
+        // form-control's side padding in the browser.
         style.border = taffy::geometry::Rect {
             left: length(1.0_f32),
             right: length(1.0_f32),
             top: length(1.0_f32),
             bottom: length(1.0_f32),
+        };
+        style.padding = taffy::geometry::Rect {
+            left: length(1.0_f32),
+            right: length(1.0_f32),
+            top: length(0.0_f32),
+            bottom: length(0.0_f32),
         };
     }
     style

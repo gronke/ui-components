@@ -56,10 +56,16 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
         .any(|p| !matches!(p.notify, Notify::No));
     let has_zoned = def.properties.iter().any(|p| p.js_type == JsType::Zoned);
     let has_options = def.properties.iter().any(|p| p.js_type == JsType::Options);
-    // Optional lifecycle hook: wired when the impl partial exports it.
+    // Optional lifecycle hooks: wired when the impl partial exports them.
     let has_will_update = def
         .web_impl
         .is_some_and(|source| crate::exported_names(source).contains("willUpdate"));
+    let has_updated = def
+        .web_impl
+        .is_some_and(|source| crate::exported_names(source).contains("updated"));
+    let has_connected = def
+        .web_impl
+        .is_some_and(|source| crate::exported_names(source).contains("connected"));
 
     let mut out = String::new();
     out.push_str(&format!(
@@ -84,7 +90,7 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
     if has_notify {
         out.push_str("import { notifyProperties } from './uic-runtime.js';\n");
     }
-    if has_impl || has_will_update {
+    if has_impl || has_will_update || has_updated || has_connected {
         out.push_str(&format!("import * as impl from './{tag}.impl.js';\n"));
     }
     // Registered nested elements define themselves on import, so a consumer
@@ -98,7 +104,13 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
     for child in &child_tags {
         out.push_str(&format!("import './{child}.js';\n"));
     }
-    if has_notify || has_impl || has_will_update || !child_tags.is_empty() {
+    if has_notify
+        || has_impl
+        || has_will_update
+        || has_updated
+        || has_connected
+        || !child_tags.is_empty()
+    {
         out.push('\n');
     }
 
@@ -130,11 +142,17 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
         Some(shared) => format!("'el-{shared}', 'el-{}'", def.style_id),
         None => format!("'el-{}'", def.style_id),
     };
+    let connected_call = if has_connected {
+        // Optional lifecycle hook, present in the impl partial.
+        "\n\x20   impl.connected(this);"
+    } else {
+        ""
+    };
     out.push_str(&format!(
         "  // ExternalStyles pattern: external stylesheets target .el-{}.\n\
          \x20 connectedCallback(): void {{\n\
          \x20   super.connectedCallback();\n\
-         \x20   this.classList.add({host_classes});\n\
+         \x20   this.classList.add({host_classes});{connected_call}\n\
          \x20 }}\n\n",
         def.style_id
     ));
@@ -145,6 +163,16 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
              \x20 willUpdate(changed: Map<PropertyKey, unknown>): void {\n\
              \x20   super.willUpdate(changed);\n\
              \x20   impl.willUpdate(this, changed);\n\
+             \x20 }\n\n",
+        );
+    }
+
+    if has_updated {
+        out.push_str(
+            "  // Optional lifecycle hook, present in the impl partial.\n\
+             \x20 updated(changed: Map<PropertyKey, unknown>): void {\n\
+             \x20   super.updated(changed);\n\
+             \x20   impl.updated(this, changed);\n\
              \x20 }\n\n",
         );
     }

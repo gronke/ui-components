@@ -548,12 +548,15 @@ fn the_number_rests_right_aligned_beside_its_unit() {
         .lines()
         .find(|l| l.contains("1234,50"))
         .expect("value row");
+    // One padding cell keeps the unit off the border, like the browser's
+    // form-control side padding.
     assert!(
-        row.trim_end().ends_with("1234,50 €│") || row.trim_end().ends_with("1234,50€│"),
-        "the value sits beside its unit at the right edge: {row:?}"
+        row.trim_end().ends_with("1234,50 € │") || row.trim_end().ends_with("1234,50€ │"),
+        "the value sits beside its unit, one padding cell from the edge: {row:?}"
     );
 
-    // Editing moves the text to the left, where the caret lives.
+    // Editing moves the text to the left, where the caret lives — one
+    // padding cell in from the border.
     key(&mut app, KeyCode::Char('9'));
     let editing = screen(&mut app);
     let row = editing
@@ -561,8 +564,8 @@ fn the_number_rests_right_aligned_beside_its_unit() {
         .find(|l| l.contains("234,50"))
         .expect("value row");
     assert!(
-        row.starts_with('│') && !row.starts_with("│ "),
-        "editing is left-aligned: {row:?}"
+        row.starts_with("│ ") && !row.starts_with("│  "),
+        "editing is left-aligned inside the padding: {row:?}"
     );
 }
 
@@ -588,4 +591,40 @@ fn the_textarea_starts_at_one_line_and_grows() {
     key(&mut app, KeyCode::Enter);
     type_str(&mut app, "three");
     assert_eq!(box_rows(&screen(&mut app)), 3, "the box grew with content");
+}
+
+#[test]
+fn shift_tab_walks_the_focus_backward_across_roots() {
+    let mut app = app();
+    app.mount("input-text").expect("mount");
+    app.root_mut().expect("root").set_attr("label", "First");
+    app.mount("input-number").expect("mount");
+    app.root_at_mut(1)
+        .expect("root")
+        .set_attr("label", "Second");
+
+    let focus_ring = ratatui::style::Color::LightBlue;
+    let idle = ratatui::style::Color::DarkGray;
+    let corner_colors = |app: &mut App<TestBackend>| -> Vec<ratatui::style::Color> {
+        app.draw().expect("draw");
+        let buffer = app.terminal().backend().buffer();
+        let area = buffer.area;
+        (0..area.height)
+            .flat_map(|y| (0..area.width).map(move |x| (x, y)))
+            .filter(|&(x, y)| buffer[(x, y)].symbol() == "┌")
+            .map(|(x, y)| buffer[(x, y)].fg)
+            .collect()
+    };
+
+    // Shift+Tab from the first root wraps backward to the last one, the
+    // reverse of Tab crossing element boundaries in a document.
+    assert_eq!(corner_colors(&mut app), [focus_ring, idle]);
+    key(&mut app, KeyCode::BackTab);
+    assert_eq!(corner_colors(&mut app), [idle, focus_ring]);
+    // And it exactly reverses a Tab.
+    key(&mut app, KeyCode::BackTab);
+    assert_eq!(corner_colors(&mut app), [focus_ring, idle]);
+    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::BackTab);
+    assert_eq!(corner_colors(&mut app), [focus_ring, idle]);
 }

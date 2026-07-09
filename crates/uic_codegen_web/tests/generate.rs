@@ -20,6 +20,7 @@ fn generate(test: &str) -> PathBuf {
         root.components,
         vec![
             "input-date",
+            "input-date-range",
             "input-number",
             "input-select",
             "input-text",
@@ -61,6 +62,8 @@ fn emits_the_full_generated_root() {
         "components/input-date.ts",
         "components/input-date.impl.ts",
         "components/_input-date.scss",
+        "components/input-date-range.ts",
+        "components/input-date-range.impl.ts",
         "components/input-number.ts",
         "components/input-number.impl.ts",
         "components/_input-number.scss",
@@ -109,6 +112,13 @@ fn generated_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_date_range_class_matches_the_snapshot() {
+    let root = generate("snapshot-date-range");
+    let generated = fs::read_to_string(root.join("components/input-date-range.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-date-range.ts");
+}
+
+#[test]
 fn generated_text_class_matches_the_snapshot() {
     let root = generate("snapshot-text");
     let generated = fs::read_to_string(root.join("components/input-text.ts")).unwrap();
@@ -148,6 +158,7 @@ fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
     for file in [
         "components/input-date.ts",
+        "components/input-date-range.ts",
         "components/input-number.ts",
         "components/input-select.ts",
         "components/input-text.ts",
@@ -193,7 +204,7 @@ fn manifest_describes_the_component() {
     );
 
     // The Options property is typed and property-only as well.
-    let select = &manifest["modules"][2];
+    let select = &manifest["modules"][3];
     assert_eq!(select["path"], "components/input-select.ts");
     let declaration = &select["declarations"][0];
     assert_eq!(declaration["tagName"], "input-select");

@@ -1,6 +1,7 @@
 // Components come from the generated root; the imports resolve in the merged
 // output tree (`web/` + generated components side by side).
 import './components/input-date.js';
+import './components/input-date-range.js';
 import './components/input-text.js';
 import './components/input-number.js';
 import './components/input-select.js';

@@ -35,6 +35,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             *status.borrow_mut() =
                 "Enter commits · F4/Down opens the calendar or zone list · Esc quits".into();
         }
+        "input-date-range" => {
+            element.set_attr("label", "Stay");
+            element.set_attr("hint", "The end never precedes the start");
+            element.set_attr("start", "2026-07-07");
+            element.set_attr("end", "2026-07-11");
+            *status.borrow_mut() =
+                "Enter commits an end · the other follows if the range inverts · Esc quits".into();
+        }
         "input-text" => {
             element.set_attr("label", "Note");
             element.set_attr("hint", "Trimmed on commit; empty becomes null");

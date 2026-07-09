@@ -65,4 +65,4 @@ jobs:
           lockfiles: "**/Cargo.toml"
 
       - name: Warm the wasm lint
-        run: cargo clippy -p uic_tui_web --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy -p uic_tui_web -p uic_dom --target wasm32-unknown-unknown -- -D warnings

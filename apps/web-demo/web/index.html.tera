@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="en">
+<!-- The stylesheet ships both theme variants; the site wears light and the
+     terminal pane wears dark for this preview — either side could flip. -->
+<html lang="en" data-bs-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,6 +20,8 @@
 <div class="d-flex flex-column flex-md-row align-items-md-start gap-5">
 <main class="flex-grow-1">
 <h1 class="h4 mb-4">ui-components web demo</h1>
+<!-- The date hugs its content by default (the catalog's fit-content);
+     the demo opts into the full column with w-100, like the terminal. -->
 <input-date
   label="Date of purchase"
   hint="Format: YYYY-MM-DD"
@@ -26,8 +30,15 @@
   max="2030-12-31"
   default-timezone="Europe/Berlin"
   show-timezone
-  class="mb-4 d-block"
+  class="mb-4 d-block w-100"
 ></input-date>
+<input-date-range
+  label="Stay"
+  hint="The end never precedes the start; both ends commit the interval"
+  start="2026-07-07"
+  end="2026-07-11"
+  class="mb-4 d-block"
+></input-date-range>
 <input-text
   label="Note"
   hint="Trimmed on commit; empty becomes null"
@@ -66,7 +77,10 @@
      reveals the pane once /tui (scripts/build-wasm.sh) is available. -->
 <aside id="tui-pane" class="flex-shrink-0 d-none" data-qa="tui-pane">
 <h2 class="h4 mb-4 text-body-secondary">the same page, in a terminal</h2>
-<div id="terminal" class="tui-screen"></div>
+<!-- The terminal wears its own Bootstrap theme: tui.js reads the custom
+     properties resolved on this element for the xterm palette, and the
+     stylesheet frame follows the same variables. -->
+<div id="terminal" class="tui-screen" data-bs-theme="dark"></div>
 <p class="text-body-secondary small mt-2 mb-0">Click a field or Tab around — Enter commits, F4 or a click opens pickers, Esc leaves.</p>
 </aside>
 </div>
@@ -89,12 +103,15 @@ select.options = [
   { value: 'America/New_York', short: 'New_York' },
   { value: 'Pacific/Auckland', short: 'Auckland' },
 ];
-// LitNotify events do not bubble; listen on each element itself.
+// LitNotify events do not bubble; listen on each element itself. The
+// nested filter keeps the log to page-level elements (composites carry
+// their own children in the light DOM), mirroring the terminal pane.
 // A ZonedDateTime detail serializes via its toJSON (ISO string).
 const log = document.getElementById('events');
 window.__events = [];
-for (const el of document.querySelectorAll('input-date, input-text, input-number, input-select, input-textarea, input-timezone')) {
-  for (const type of ['value-changed', 'date-changed', 'timezone-changed']) {
+const tags = 'input-date, input-date-range, input-text, input-number, input-select, input-textarea, input-timezone';
+for (const el of [...document.querySelectorAll(tags)].filter((el) => !el.parentElement?.closest(tags))) {
+  for (const type of ['value-changed', 'date-changed', 'timezone-changed', 'start-changed', 'end-changed']) {
     el.addEventListener(type, (e) => {
       const entry = { tag: el.tagName.toLowerCase(), type, ...e.detail };
       window.__events.push(entry);

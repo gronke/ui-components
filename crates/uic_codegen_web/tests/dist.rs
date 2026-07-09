@@ -16,6 +16,7 @@ fn dist() -> PathBuf {
         root.components,
         vec![
             "input-date",
+            "input-date-range",
             "input-number",
             "input-select",
             "input-text",
@@ -33,6 +34,9 @@ fn emits_the_npm_tree() {
         "components/input-date.js",
         "components/input-date.d.ts",
         "components/input-date.impl.js",
+        "components/input-date-range.js",
+        "components/input-date-range.d.ts",
+        "components/input-date-range.impl.js",
         "components/input-number.js",
         "components/input-number.d.ts",
         "components/input-number.impl.js",

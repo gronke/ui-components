@@ -238,6 +238,16 @@ impl<B: Backend> App<B> {
                         }
                         return Control::Continue;
                     }
+                    KeyCode::BackTab => {
+                        root.commit_focused();
+                        // Shift+Tab: the wrap hands focus to the preceding
+                        // root, entering it at its last widget.
+                        if root.focus_prev() {
+                            self.active = (self.active + self.roots.len() - 1) % self.roots.len();
+                            self.roots[self.active].focus_last();
+                        }
+                        return Control::Continue;
+                    }
                     KeyCode::Enter => {
                         // A textarea takes the newline; it commits on focus
                         // leave (Tab), like `@change` on blur in the browser.

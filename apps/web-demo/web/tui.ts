@@ -6,17 +6,17 @@ import { Terminal } from '@xterm/xterm';
 
 const COLS = 72;
 const ROWS = 44;
-const TAGS = 'input-date, input-text, input-number, input-select, input-textarea, input-timezone';
+const TAGS = 'input-date, input-date-range, input-text, input-number, input-select, input-textarea, input-timezone';
 
 // The terminal palette from Bootstrap's own variables: the runtime speaks
 // plain ANSI colors (a real terminal keeps the user's scheme), and this pane
-// maps those slots to the vendored stylesheet's dark-theme custom properties.
-function bootstrapTheme(): Record<string, string> {
-  const probe = document.createElement('div');
-  probe.dataset.bsTheme = 'dark';
-  document.body.append(probe);
-  const bs = (name: string) => getComputedStyle(probe).getPropertyValue(name).trim();
-  const theme = {
+// maps those slots to the stylesheet's custom properties AS RESOLVED ON THE
+// SCREEN ELEMENT — both theme variants are always on offer, and the screen
+// picks one by wearing data-bs-theme (dark here, while the site wears
+// light; flip either and its colors follow).
+function bootstrapTheme(screen: HTMLElement): Record<string, string> {
+  const bs = (name: string) => getComputedStyle(screen).getPropertyValue(name).trim();
+  return {
     background: bs('--bs-body-bg'),
     foreground: bs('--bs-body-color'),
     cursor: bs('--bs-body-color'),
@@ -32,8 +32,6 @@ function bootstrapTheme(): Record<string, string> {
     brightBlue: bs('--bs-primary-text-emphasis'),
     brightCyan: bs('--bs-info-text-emphasis'),
   };
-  probe.remove();
-  return theme;
 }
 
 async function boot(): Promise<void> {
@@ -60,7 +58,7 @@ async function boot(): Promise<void> {
     if (tag === 'input-select') {
       session.set_options_json(index, JSON.stringify((el as any).options ?? []));
     }
-    for (const type of ['value-changed', 'date-changed', 'timezone-changed']) {
+    for (const type of ['value-changed', 'date-changed', 'timezone-changed', 'start-changed', 'end-changed']) {
       session.on_notify(index, type, (json: string) => {
         const entry = { src: 'tui', tag, ...JSON.parse(json) };
         events.push(entry);
@@ -74,15 +72,15 @@ async function boot(): Promise<void> {
     fontSize: 13,
     scrollback: 0,
     cursorBlink: true,
-    theme: bootstrapTheme(),
+    theme: bootstrapTheme(document.getElementById('terminal')!),
   });
   term.open(document.getElementById('terminal')!);
   term.write(session.draw());
   term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
     if (ev.type !== 'keydown') return false;
-    // Shift+Tab leaves the pane (the runtime has no reverse traversal), and
-    // the browser keeps its function keys except the F4 picker.
-    if (ev.key === 'Tab' && ev.shiftKey) return false;
+    // Shift+Tab walks the focus backward inside the pane (the keymap turns
+    // it into BackTab); the browser keeps its function keys except the F4
+    // picker.
     if (/^F\d+$/.test(ev.key) && ev.key !== 'F4') return false;
     term.write(session.key(ev.key, ev.ctrlKey, ev.altKey, ev.shiftKey));
     if (session.take_quit()) term.blur();

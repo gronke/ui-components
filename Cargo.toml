@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/uic_template",
     "crates/uic_core",
+    "crates/uic_dom",
     "crates/uic_macros",
     "crates/uic_codegen_web",
     "crates/uic_tui",
@@ -25,6 +26,7 @@ rust-version = "1.95"
 # workspace crates
 uic_template = { path = "crates/uic_template", version = "0.1.0" }
 uic_core = { path = "crates/uic_core", version = "0.1.0" }
+uic_dom = { path = "crates/uic_dom", version = "0.1.0" }
 uic_macros = { path = "crates/uic_macros", version = "0.1.0" }
 uic_codegen_web = { path = "crates/uic_codegen_web", version = "0.1.0" }
 uic_tui = { path = "crates/uic_tui", version = "0.1.0" }
@@ -34,6 +36,8 @@ ui_components = { path = "crates/ui_components", version = "0.1.0" }
 # shared external dependencies
 inventory = "0.3"
 thiserror = "2"
+html5ever = "0.39"
+indextree = "4.8"
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }

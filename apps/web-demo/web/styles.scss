@@ -27,10 +27,11 @@ body:has(#debug-bar.collapsed) {
 }
 
 // The terminal pane: the same page, rendered by the TUI runtime in wasm.
-// The padding frame matches the terminal's Bootstrap dark background
-// (tui.ts derives the xterm theme from the same custom properties).
+// The padding frame reads the body background of the screen's OWN theme
+// (data-bs-theme on #terminal), the same custom property tui.ts maps to the
+// xterm background — flip the screen's theme and both follow.
 #tui-pane .tui-screen {
-  background: var(--bs-dark);
+  background: var(--bs-body-bg);
   border-radius: 0.375rem;
   padding: 0.75rem;
 }

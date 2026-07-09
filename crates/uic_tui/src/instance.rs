@@ -372,8 +372,9 @@ impl ElementInstance {
     }
 
     /// The full ReactiveElement-style update cycle: apply `f`, run
-    /// `will_update` (its sets join the same batch), emit notify events, run
-    /// `updated`, push state into the widgets, then into bound children.
+    /// `will_update` (its sets join the same batch), emit notify events,
+    /// push state into the widgets and bound children, then run `updated`
+    /// on the committed state (its sets start a follow-up cycle).
     /// Returns the notify events for the caller (a parent instance routes
     /// them through its `@event` bindings).
     pub(crate) fn update_cycle(
@@ -391,28 +392,45 @@ impl ElementInstance {
             let mut ctx = Ctx::new(&mut self.store, &mut changed);
             f(self.behavior.as_mut(), &mut ctx);
         }
-        let snapshot = changed.clone();
-        {
-            let mut ctx = Ctx::new(&mut self.store, &mut changed);
-            self.behavior.will_update(&mut ctx, &snapshot);
-        }
-        let mut events = notify_events(self.def, &changed, &self.store);
-        for event in &events {
-            for (name, listener) in self.listeners.iter_mut() {
-                if name == &event.event_name {
-                    listener(event);
+        // ReactiveElement's order per cycle: `will_update` before the commit
+        // (the widget and child sync stand in for Lit's render), `updated`
+        // after it. Writes inside `updated` request a follow-up cycle, like
+        // the browser; the store's no-change suppression makes it converge.
+        let mut events = Vec::new();
+        let mut cycles: u8 = 0;
+        loop {
+            cycles += 1;
+            debug_assert!(
+                cycles < 16,
+                "updated() keeps requesting follow-up cycles in <{}>",
+                self.def.tag_name
+            );
+            let snapshot = changed.clone();
+            {
+                let mut ctx = Ctx::new(&mut self.store, &mut changed);
+                self.behavior.will_update(&mut ctx, &snapshot);
+            }
+            let cycle_events = notify_events(self.def, &changed, &self.store);
+            for event in &cycle_events {
+                for (name, listener) in self.listeners.iter_mut() {
+                    if name == &event.event_name {
+                        listener(event);
+                    }
                 }
             }
+            events.extend(cycle_events);
+            self.sync_slots();
+            events.extend(self.sync_children(Some(&changed)));
+            let mut follow_up = Changed::default();
+            {
+                let mut ctx = Ctx::new(&mut self.store, &mut follow_up);
+                self.behavior.updated(&mut ctx, &changed);
+            }
+            if follow_up.is_empty() {
+                break;
+            }
+            changed = follow_up;
         }
-        {
-            // Sets inside `updated` do not start another cycle in v1.
-            let mut ignored = Changed::default();
-            let mut ctx = Ctx::new(&mut self.store, &mut ignored);
-            self.behavior.updated(&mut ctx, &changed);
-        }
-        self.sync_slots();
-        let cascaded = self.sync_children(Some(&changed));
-        events.extend(cascaded);
         self.cascade_depth -= 1;
         events
     }
@@ -656,6 +674,37 @@ impl ElementInstance {
     pub(crate) fn focus_first(&mut self) {
         self.focused = 0;
         for candidate in 0..self.focus_len() {
+            if !self.flat_disabled(candidate) {
+                self.focused = candidate;
+                return;
+            }
+        }
+    }
+
+    /// Moves focus to the previous enabled widget — Shift+Tab's direction;
+    /// the flat index walks backward through child subtrees on its own.
+    /// Returns true when the cycle wrapped past the start, so a host with
+    /// several roots can hand focus to the preceding one.
+    pub(crate) fn focus_prev(&mut self) -> bool {
+        let count = self.focus_len();
+        if count == 0 {
+            return true;
+        }
+        for step in 1..=count {
+            let candidate = (self.focused + count - step) % count;
+            if !self.flat_disabled(candidate) {
+                let wrapped = candidate >= self.focused;
+                self.focused = candidate;
+                return wrapped;
+            }
+        }
+        true
+    }
+
+    /// Focuses the last enabled widget, for a root receiving focus backward.
+    pub(crate) fn focus_last(&mut self) {
+        self.focused = 0;
+        for candidate in (0..self.focus_len()).rev() {
             if !self.flat_disabled(candidate) {
                 self.focused = candidate;
                 return;

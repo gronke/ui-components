@@ -1,0 +1,13 @@
+[package]
+name = "uic_dom"
+description = "Retained DOM for the terminal runtime: arena tree, web element operations, html5ever parsing, event dispatch"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uic_core = { workspace = true }
+html5ever = { workspace = true }
+indextree = { workspace = true }

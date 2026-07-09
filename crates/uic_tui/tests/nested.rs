@@ -265,3 +265,41 @@ fn hidden_timezone_branch_keeps_indices_and_focus_stable() {
     );
     assert!(events.borrow().is_empty());
 }
+
+#[test]
+fn shift_tab_returns_into_the_previous_child() {
+    let mut app = app();
+    app.mount("demo-form").expect("mount");
+
+    // Tab reaches the text child; Shift+Tab returns to the date child, so
+    // the typed date lands in the mask again.
+    key(&mut app, KeyCode::Tab);
+    key(&mut app, KeyCode::BackTab);
+    type_str(&mut app, "2026-08-01");
+    key(&mut app, KeyCode::Enter);
+
+    let screen = screen(&mut app);
+    assert!(
+        screen.contains("summary: [2026-08-01] []"),
+        "the date child took the input after Shift+Tab:\n{screen}"
+    );
+}
+
+#[test]
+fn shift_tab_skips_disabled_widgets() {
+    let mut app = app();
+    let el = app.mount("demo-form").expect("mount");
+    el.set_attr("lock-date", "");
+
+    // Focus sits on the text child (the only enabled one); the backward
+    // wrap skips the locked date and lands on the text child again.
+    key(&mut app, KeyCode::BackTab);
+    type_str(&mut app, "note");
+    key(&mut app, KeyCode::Enter);
+
+    let screen = screen(&mut app);
+    assert!(
+        screen.contains("summary: [] [note]"),
+        "focus stayed on the enabled child:\n{screen}"
+    );
+}

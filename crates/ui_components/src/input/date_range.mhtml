@@ -1,0 +1,15 @@
+<!-- Two whole date inputs share the row under one chrome; the composite is
+     seamless because each child draws its own border. -->
+<div class="d-flex flex-nowrap flex-grow-1 gap-2" data-qa="range-row">
+  <input-date data-qa="start-input"
+    class="flex-grow-1"
+    .value=${start}
+    ?disabled=${disabled}
+    @value-changed=${on_start_changed}></input-date>
+  <span class="align-self-center text-body-secondary flex-grow-0">–</span>
+  <input-date data-qa="end-input"
+    class="flex-grow-1"
+    .value=${end}
+    ?disabled=${disabled}
+    @value-changed=${on_end_changed}></input-date>
+</div>
