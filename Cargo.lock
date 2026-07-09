@@ -435,13 +435,11 @@ checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
 [[package]]
 name = "crossterm"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
+source = "git+https://github.com/gronke/fork-crossterm?rev=119bc826a1afbaf358cf6695b581cf8946b48839#119bc826a1afbaf358cf6695b581cf8946b48839"
 dependencies = [
  "bitflags 2.13.0",
  "crossterm_winapi",
  "derive_more",
- "document-features",
  "mio",
  "parking_lot",
  "rustix",
@@ -572,15 +570,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "document-features"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
-dependencies = [
- "litrs",
 ]
 
 [[package]]
@@ -1442,12 +1431,6 @@ name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
-
-[[package]]
-name = "litrs"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "lock_api"
@@ -3689,6 +3672,21 @@ dependencies = [
  "ui_components",
  "uic_core",
  "uic_tui",
+]
+
+[[package]]
+name = "uic_tui_web"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "js-sys",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "ui_components",
+ "uic_core",
+ "uic_tui",
+ "wasm-bindgen",
 ]
 
 [[package]]

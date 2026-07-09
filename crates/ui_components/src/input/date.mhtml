@@ -1,19 +1,23 @@
-<input type="text"
-  class="form-control text-center flex-grow-1"
-  data-tui="date-input"
-  data-qa="date-input"
-  .value=${value}
-  placeholder=${placeholder_text}
-  ?disabled=${disabled}
-  @change=${on_change} />
-<template if=${show_timezone}>
-  <!-- The disabled binding keeps focus out of the unrendered branch. -->
-  <input-timezone data-qa="timezone-input"
-    class="flex-shrink-0 w-auto"
-    embedded
-    seamless
-    ?disabled=${!show_timezone}
-    .value=${timezone}
-    .default=${timezone_default}
-    @value-changed=${on_timezone_changed}></input-timezone>
-</template>
+<!-- The wrapper carries the one border around the date and its zone select
+     (catalog's input-date-wrapper); the children render borderless. -->
+<div class="input-date-wrapper d-flex flex-nowrap flex-grow-1 flex-shrink-1 justify-content-center border border-input bg-body rounded">
+  <input type="text"
+    class="form-control text-center flex-grow-1 bg-transparent border-0"
+    data-tui="date-input"
+    data-qa="date-input"
+    .value=${value}
+    placeholder=${placeholder_text}
+    ?disabled=${disabled}
+    @change=${on_change} />
+  <template if=${show_timezone}>
+    <!-- The disabled binding keeps focus out of the unrendered branch. -->
+    <input-timezone data-qa="timezone-input"
+      class="flex-shrink-0 w-auto"
+      embedded
+      seamless
+      ?disabled=${!show_timezone}
+      .value=${timezone}
+      .default=${timezone_default}
+      @value-changed=${on_timezone_changed}></input-timezone>
+  </template>
+</div>

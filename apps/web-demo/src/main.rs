@@ -19,10 +19,18 @@ static DIST: Dir = include_dir!("$OUT_DIR/dist");
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let web = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
+    // The browser TUI (scripts/build-wasm.sh) is served from disk when built;
+    // absent, /tui 404s and the page degrades to the DOM demo alone.
+    let web_tui = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web-tui");
     let app = if std::env::var_os("WEB_MODULES_EMBEDDED").is_some() {
-        Frontend::embedded(&DIST).router()
+        Frontend::embedded(&DIST)
+            .mount_dir("/tui", web_tui)
+            .router()
     } else {
-        Frontend::embedded(&DIST).source(web).auto()
+        Frontend::embedded(&DIST)
+            .source(web)
+            .mount_dir("/tui", web_tui)
+            .auto()
     };
     serve(app, SocketAddr::from(([127, 0, 0, 1], 8080))).await?;
     Ok(())

@@ -152,8 +152,9 @@ pub(crate) fn widget_kind(el: &uic_template::Element) -> Option<&str> {
 }
 
 /// Layout height of a widget leaf: single-line widgets are one cell; a
-/// textarea grows with its content between 3 lines and the component's
-/// `max_lines` property (10 when absent).
+/// textarea starts at one line like the browser's initial height and grows
+/// with its content up to the component's `max_lines` property (10 when
+/// absent).
 fn widget_height(instance: &ElementInstance, slot: usize) -> u16 {
     use crate::instance::WidgetState;
     match instance.slots.get(slot).map(|s| &s.state) {
@@ -165,8 +166,10 @@ fn widget_height(instance: &ElementInstance, slot: usize) -> u16 {
                 },
                 false => 10,
             };
-            let lines = (state.len_lines() as u16).max(1);
-            lines.clamp(3, max_lines.max(3))
+            // rat's text is newline-terminated: the count includes an empty
+            // tail line that never shows in the browser.
+            let lines = (state.len_lines() as u16).saturating_sub(1).max(1);
+            lines.clamp(1, max_lines.max(1))
         }
         _ => 1,
     }
@@ -252,6 +255,15 @@ fn resolve_classes(
                 *class = "d-flex".to_string();
             }
         }
+    }
+    // The error state colors the surviving border red: the browser reaches
+    // the same through the [error] stylesheet rules on the reflected
+    // attribute (seamless drops the border entirely, there as here).
+    if classes.iter().any(|class| class == "input-group")
+        && store.has("error")
+        && store.get("error").truthy()
+    {
+        classes.push("is-invalid".to_string());
     }
     classes
 }

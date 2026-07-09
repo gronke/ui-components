@@ -44,3 +44,25 @@ jobs:
         uses: gronke/rust-ci/.github/actions/lint-and-test@main
         with:
           test-args: --no-run
+
+  # Warms the wasm-1 cache family the PR wasm job restores from.
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Rust cache
+        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        with:
+          prefix: wasm-1
+          cache-target: "true"
+          lockfiles: "**/Cargo.toml"
+
+      - name: Warm the wasm lint
+        run: cargo clippy -p uic_tui_web --target wasm32-unknown-unknown -- -D warnings

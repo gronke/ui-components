@@ -1,6 +1,6 @@
-// Catalog-parity subset of the Schuhkarton .el-input-date rules.
-// The hide-time/hide-seconds/compact width variants and the timezone-select
-// margin hack stay out until the element grows those attributes.
+// Catalog-parity subset of the .el-input-date rules.
+// The hide-time/hide-seconds/compact width variants stay out until the
+// element grows those attributes.
 .el-input-date {
   width: fit-content;
   --explicit-input-width: 100%;
@@ -11,14 +11,9 @@
     --explicit-input-width: 10ch;
   }
 
-  .input-group > *:not(:last-child) {
-    border-top-right-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
-  }
-
-  .input-group > *:not(:last-child) .form-select,
-  .input-group > *:not(:last-child) .form-control {
-    border-top-right-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
+  // The children render borderless inside the wrapper's one border, so the
+  // error state colors the wrapper instead of the input.
+  &[error] .input-date-wrapper {
+    border-color: var(--bs-danger) !important;
   }
 }

@@ -432,3 +432,160 @@ fn textarea_enter_adds_lines_and_tab_commits() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].value, Value::Str("line one\nline two".into()));
 }
+
+#[test]
+fn the_focus_ring_and_caret_follow_the_focused_root() {
+    let mut app = app();
+    app.mount("input-text").expect("mount");
+    app.root_mut().expect("root").set_attr("label", "First");
+    app.mount("input-number").expect("mount");
+    app.root_at_mut(1)
+        .expect("root")
+        .set_attr("label", "Second");
+
+    let focus_ring = ratatui::style::Color::LightBlue;
+    let corner_colors = |app: &mut App<TestBackend>| -> Vec<ratatui::style::Color> {
+        app.draw().expect("draw");
+        let buffer = app.terminal().backend().buffer();
+        let area = buffer.area;
+        (0..area.height)
+            .flat_map(|y| (0..area.width).map(move |x| (x, y)))
+            .filter(|&(x, y)| buffer[(x, y)].symbol() == "┌")
+            .map(|(x, y)| buffer[(x, y)].fg)
+            .collect()
+    };
+
+    // The browser's focus outline in cells: the focused element's group is
+    // ringed, the idle one stays dark gray, and Tab moves the ring.
+    assert_eq!(
+        corner_colors(&mut app),
+        [focus_ring, ratatui::style::Color::DarkGray]
+    );
+    key(&mut app, KeyCode::Tab);
+    assert_eq!(
+        corner_colors(&mut app),
+        [ratatui::style::Color::DarkGray, focus_ring]
+    );
+}
+
+#[test]
+fn the_error_state_outlines_the_group_in_danger_red() {
+    let mut app = app();
+    app.mount("input-number").expect("mount");
+    app.root_mut().expect("root").set_attr("label", "Amount");
+
+    let corner = |app: &mut App<TestBackend>| -> ratatui::style::Color {
+        app.draw().expect("draw");
+        let buffer = app.terminal().backend().buffer();
+        let area = buffer.area;
+        (0..area.height)
+            .flat_map(|y| (0..area.width).map(move |x| (x, y)))
+            .find(|&(x, y)| buffer[(x, y)].symbol() == "┌")
+            .map(|(x, y)| buffer[(x, y)].fg)
+            .expect("a bordered group")
+    };
+
+    // An invalid commit wears the browser's [error] border; a valid one
+    // clears it back to the focus ring.
+    type_str(&mut app, "abc");
+    key(&mut app, KeyCode::Tab);
+    assert_eq!(corner(&mut app), ratatui::style::Color::Red);
+    clear_input(&mut app);
+    type_str(&mut app, "2,50");
+    key(&mut app, KeyCode::Tab);
+    assert_eq!(corner(&mut app), ratatui::style::Color::LightBlue);
+}
+
+#[test]
+fn placeholders_show_under_empty_widgets() {
+    let mut app = app();
+    app.mount("input-text").expect("mount");
+    let root = app.root_mut().expect("root");
+    root.set_attr("label", "Note");
+    root.set_attr("placeholder", "free text");
+
+    assert!(
+        screen(&mut app).contains("free text"),
+        "the empty input shows its placeholder:\n{}",
+        screen(&mut app)
+    );
+    type_str(&mut app, "x");
+    assert!(
+        !screen(&mut app).contains("free text"),
+        "typing hides the placeholder:\n{}",
+        screen(&mut app)
+    );
+}
+
+#[test]
+fn the_empty_date_shows_its_placeholder_over_the_mask() {
+    let mut app = app();
+    app.mount("input-date").expect("mount");
+    app.root_mut().expect("root").set_attr("label", "Date");
+
+    let screen = screen(&mut app);
+    assert!(
+        screen.contains("YYYY-MM-DD"),
+        "the computed placeholder covers the pristine mask:\n{screen}"
+    );
+    assert!(!screen.contains("0000"), "the mask stays hidden:\n{screen}");
+}
+
+#[test]
+fn the_number_rests_right_aligned_beside_its_unit() {
+    let mut app = app();
+    app.mount("input-number").expect("mount");
+    let root = app.root_mut().expect("root");
+    root.set_attr("label", "Amount");
+    root.set_attr("unit", "€");
+    root.set_attr("value", "1234.5");
+
+    // At rest (blurred, like an unfocused browser input) the value sits
+    // beside its unit at the right edge.
+    app.blur();
+    let at_rest = screen(&mut app);
+    let row = at_rest
+        .lines()
+        .find(|l| l.contains("1234,50"))
+        .expect("value row");
+    assert!(
+        row.trim_end().ends_with("1234,50 €│") || row.trim_end().ends_with("1234,50€│"),
+        "the value sits beside its unit at the right edge: {row:?}"
+    );
+
+    // Editing moves the text to the left, where the caret lives.
+    key(&mut app, KeyCode::Char('9'));
+    let editing = screen(&mut app);
+    let row = editing
+        .lines()
+        .find(|l| l.contains("234,50"))
+        .expect("value row");
+    assert!(
+        row.starts_with('│') && !row.starts_with("│ "),
+        "editing is left-aligned: {row:?}"
+    );
+}
+
+#[test]
+fn the_textarea_starts_at_one_line_and_grows() {
+    let mut app = app();
+    app.mount("input-textarea").expect("mount");
+    app.root_mut().expect("root").set_attr("label", "Comment");
+
+    let box_rows = |screen: &str| {
+        let top = screen.lines().position(|l| l.contains('┌')).unwrap();
+        let bottom = screen.lines().position(|l| l.contains('└')).unwrap();
+        bottom - top - 1
+    };
+    assert_eq!(
+        box_rows(&screen(&mut app)),
+        1,
+        "one content line, like the browser's initial height"
+    );
+    type_str(&mut app, "one");
+    key(&mut app, KeyCode::Enter);
+    type_str(&mut app, "two");
+    key(&mut app, KeyCode::Enter);
+    type_str(&mut app, "three");
+    assert_eq!(box_rows(&screen(&mut app)), 3, "the box grew with content");
+}

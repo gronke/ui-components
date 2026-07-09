@@ -6,6 +6,7 @@ members = [
     "crates/uic_macros",
     "crates/uic_codegen_web",
     "crates/uic_tui",
+    "crates/uic_tui_web",
     "crates/ui_components",
     "apps/web-demo",
     "apps/tui-demo",
@@ -27,6 +28,7 @@ uic_core = { path = "crates/uic_core", version = "0.1.0" }
 uic_macros = { path = "crates/uic_macros", version = "0.1.0" }
 uic_codegen_web = { path = "crates/uic_codegen_web", version = "0.1.0" }
 uic_tui = { path = "crates/uic_tui", version = "0.1.0" }
+uic_tui_web = { path = "crates/uic_tui_web", version = "0.1.0" }
 ui_components = { path = "crates/ui_components", version = "0.1.0" }
 
 # shared external dependencies
@@ -47,8 +49,23 @@ taffy = "0.12"
 rat-widget = "=3.2.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 include_dir = "0.7"
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+
+# The browser TUI build (scripts/build-wasm.sh). One codegen unit per crate:
+# wasm-ld extracts archive members lazily, and the element registry's
+# inventory constructors survive only when they share their object file with
+# the `link()` the session calls.
+[profile.wasm]
+inherits = "release"
+codegen-units = 1
 
 # 0.5.1 plus the dev-server fix rendering live .tera with the embedded
 # fallback's import map; drop the pin with the next web_modules release.
 [patch.crates-io]
 web_modules = { git = "https://github.com/gronke/web_modules", rev = "2f9e4d90ba0fc12411cd7698a52d7df5de86908e" }
+# Upstream master plus neutral cfg(not(any(unix, windows))) stubs so the TUI
+# stack compiles to wasm — the branch behind crossterm-rs/crossterm#1066;
+# re-pin if that PR rebases, drop when a release carrying it reaches
+# ratatui-crossterm and the rat crates.
+crossterm = { git = "https://github.com/gronke/fork-crossterm", rev = "119bc826a1afbaf358cf6695b581cf8946b48839" }

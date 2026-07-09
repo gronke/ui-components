@@ -65,6 +65,7 @@ Format: YYYY-MM-DD
 | `crates/uic_macros` | `#[derive(CustomElement)]` |
 | `crates/uic_codegen_web` | Emits the TypeScript/SCSS/manifest web components for `web_modules` builds |
 | `crates/uic_tui` | Terminal runtime (ratatui + taffy + rat-widget) |
+| `crates/uic_tui_web` | Browser host for the terminal runtime: wasm sessions rendered through xterm.js (ADR 0007) |
 | `crates/ui_components` | The component catalog |
 | `apps/web-demo` | Browser demo served via axum/`web_modules::Frontend` |
 | `apps/tui-demo` | Terminal demo |
@@ -73,11 +74,14 @@ Format: YYYY-MM-DD
 
 ```sh
 cargo run -p uic_web_demo             # http://127.0.0.1:8080, live reload for web/
-cargo run -p uic_tui_demo             # terminal demo (Enter commits, F4/Down opens a date's calendar or a select's list, Esc quits)
+cargo run -p uic_tui_demo             # terminal demo (Enter commits, F4/Down or a click opens pickers, clicks focus, Esc quits)
 cargo run -p uic_tui_demo input-text  # any registered tag
 cargo run -p uic_tui --example screen # print one rendered terminal frame
 cargo run -p uic_dist                 # npm package tree in dist/npm (ADR 0004)
+scripts/build-wasm.sh                 # browser TUI for the web demo's split view (ADR 0007), then restart the demo
 ```
+
+With the wasm build in place the web demo shows a split view: the DOM components on the left and one terminal on the right, rendering the same page through the TUI runtime (Tab moves across components, F4 opens pickers, notify events land in the shared log with a `[tui]` prefix).
 
 The dist tree is plain lit ESM + `.d.ts` + `elements.css` + `custom-elements.json` with `lit` as peer dependency — usable from any bundler or import map without Rust.
 

@@ -37,3 +37,27 @@ jobs:
       # Building uic_web_demo vendors the npm dependencies (network access).
       - name: Lint and test
         uses: gronke/rust-ci/.github/actions/lint-and-test@main
+
+  # The TUI stack keeps compiling for the browser; this is what the crossterm
+  # mirror pin exists for.
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Same cache family the warmup saves from main, so PRs start warm.
+      - name: Rust cache
+        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        with:
+          prefix: wasm-1
+          cache-target: "true"
+          lockfiles: "**/Cargo.toml"
+
+      - name: Lint the browser TUI on wasm
+        run: cargo clippy -p uic_tui_web --target wasm32-unknown-unknown -- -D warnings

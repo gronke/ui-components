@@ -1,0 +1,23 @@
+[package]
+name = "uic_tui_web"
+description = "Browser host for the terminal runtime: wasm sessions rendered through xterm.js"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+# rlib so the ANSI backend and key map test natively; cdylib for the browser.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+uic_core.workspace = true
+uic_tui.workspace = true
+ui_components.workspace = true
+ratatui.workspace = true
+crossterm = "0.29"
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+serde.workspace = true
+serde_json.workspace = true

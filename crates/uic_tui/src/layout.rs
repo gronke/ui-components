@@ -114,8 +114,10 @@ fn container_style(classes: &[String]) -> Style {
             "flex-grow-1" => style.flex_grow = 1.0,
             "flex-shrink-0" => style.flex_shrink = 0.0,
             "flex-shrink-1" => style.flex_shrink = 1.0,
-            "w-100" => style.size.width = percent(1.0),
-            "mt-1" => style.margin.top = length(1.0),
+            "w-100" => style.size.width = percent(1.0_f32),
+            // Bootstrap's fractional-row spacers round down in cells: mt-1
+            // is a quarter rem in the browser, less than any terminal row.
+            "mt-1" => {}
             "p-0" => style.padding = taffy::geometry::Rect::zero(),
             _ => {}
         }
@@ -123,10 +125,10 @@ fn container_style(classes: &[String]) -> Style {
     if classes.iter().any(|c| c == "input-group") {
         // The input group draws a border block; reserve the cells.
         style.border = taffy::geometry::Rect {
-            left: length(1.0),
-            right: length(1.0),
-            top: length(1.0),
-            bottom: length(1.0),
+            left: length(1.0_f32),
+            right: length(1.0_f32),
+            top: length(1.0_f32),
+            bottom: length(1.0_f32),
         };
     }
     style
@@ -140,7 +142,7 @@ fn widget_style(classes: &[String], height: u16) -> Style {
             height: length(height),
         },
         min_size: Size {
-            width: length(12.0),
+            width: length(12.0_f32),
             height: length(height),
         },
         ..Default::default()
@@ -149,7 +151,7 @@ fn widget_style(classes: &[String], height: u16) -> Style {
         match class.as_str() {
             "flex-grow-1" => style.flex_grow = 1.0,
             "flex-shrink-0" => style.flex_shrink = 0.0,
-            "w-100" => style.size.width = percent(1.0),
+            "w-100" => style.size.width = percent(1.0_f32),
             _ => {}
         }
     }

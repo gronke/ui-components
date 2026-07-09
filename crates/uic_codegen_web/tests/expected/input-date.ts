@@ -92,11 +92,14 @@ export class InputDate extends LitElement {
 ` : nothing}
 <div class="input-target p-0 position-relative d-flex flex-grow-1 flex-shrink-0">
   <div class="input-group w-100 flex-nowrap">
-    <input type="text" class="form-control text-center flex-grow-1" data-tui="date-input" data-qa="date-input" .value=${this.value} placeholder=${this.placeholderText} ?disabled=${this.disabled} @change=${this.onChange}>
-${this.showTimezone ? html`
-  
-  <input-timezone data-qa="timezone-input" class="flex-shrink-0 w-auto" embedded seamless ?disabled=${!this.showTimezone} .value=${this.timezone} .default=${this.timezoneDefault} @value-changed=${this.onTimezoneChanged}></input-timezone>
-` : nothing}
+    
+<div class="input-date-wrapper d-flex flex-nowrap flex-grow-1 flex-shrink-1 justify-content-center border border-input bg-body rounded">
+  <input type="text" class="form-control text-center flex-grow-1 bg-transparent border-0" data-tui="date-input" data-qa="date-input" .value=${this.value} placeholder=${this.placeholderText} ?disabled=${this.disabled} @change=${this.onChange}>
+  ${this.showTimezone ? html`
+    
+    <input-timezone data-qa="timezone-input" class="flex-shrink-0 w-auto" embedded seamless ?disabled=${!this.showTimezone} .value=${this.timezone} .default=${this.timezoneDefault} @value-changed=${this.onTimezoneChanged}></input-timezone>
+  ` : nothing}
+</div>
 
   </div>
 </div>

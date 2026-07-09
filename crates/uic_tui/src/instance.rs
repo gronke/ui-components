@@ -9,8 +9,8 @@
 //! Unregistered custom tags stay plain blocks (browser parity), and a child's
 //! light-DOM template children are not projected.
 
-use chrono::{Days, Months, NaiveDate};
-use crossterm::event::{Event, KeyCode, KeyEventKind};
+use chrono::{Datelike, Days, Months, NaiveDate};
+use crossterm::event::{Event, KeyCode, KeyEventKind, MouseEvent, MouseEventKind};
 use rat_widget::calendar::{selection::SingleSelection, MonthState};
 use rat_widget::choice::ChoiceState;
 use rat_widget::date_input::DateInputState;
@@ -18,12 +18,12 @@ use rat_widget::event::{CalOutcome, ChoiceOutcome, HandleEvent, Regular};
 use rat_widget::popup::PopupCoreState;
 use rat_widget::text_input::TextInputState;
 use rat_widget::textarea::TextAreaState;
-use ratatui::layout::Rect;
+use ratatui::layout::{Position, Rect};
 use uic_core::{
     attribute_to_value, notify_events, Behavior, Changed, ComponentDef, Ctx, CustomElementRegistry,
     NotifyEvent, PropertyMeta, PropertyStore, SelectOption, UiEvent, Value,
 };
-use uic_template::{Attribute, Expr, Node};
+use uic_template::{AttrPart, Attribute, Expr, Node};
 
 use crate::expand::{resolve_expr, widget_kind};
 use crate::Error;
@@ -81,11 +81,22 @@ impl WidgetState {
         matches!(self, WidgetState::TextArea(_))
     }
 
+    /// The screen cells the widget covered in the last paint, for pointer
+    /// hit-testing.
+    pub(crate) fn area(&self) -> Rect {
+        match self {
+            WidgetState::Date { input, .. } => input.widget.area,
+            WidgetState::Text(state) | WidgetState::Number(state) => state.area,
+            WidgetState::TextArea(state) => state.area,
+            WidgetState::Select(state) => state.area,
+        }
+    }
+
     /// The value a commit hands to the change handler. The masked date input
     /// passes the normalized date (or the digit-bearing raw text); the plain
     /// text widgets pass their raw text — trimming, parsing and validation
     /// are the component's job, like in the browser.
-    fn committed_text(&self) -> String {
+    pub(crate) fn committed_text(&self) -> String {
         match self {
             WidgetState::Date { input, .. } => match input.value() {
                 Ok(date) => date.format("%Y-%m-%d").to_string(),
@@ -199,6 +210,9 @@ pub(crate) struct Slot {
     pub value_prop: Option<String>,
     /// `.options=${…}`: the option list a select resolves at paint time.
     pub options_prop: Option<String>,
+    /// The `placeholder` attribute's parts, resolved at paint time and
+    /// painted under an empty widget — rat has no placeholder notion.
+    pub placeholder: Option<Vec<AttrPart>>,
     pub change_handler: Option<String>,
     pub disabled: Option<Expr>,
     /// The value last pushed into the widget — lit-style dirty check, so
@@ -620,19 +634,79 @@ impl ElementInstance {
     }
 
     /// Moves focus to the next enabled widget, traversing into children in
-    /// template order.
-    pub(crate) fn focus_next(&mut self) {
+    /// template order. Returns true when the cycle wrapped past the end, so
+    /// a host with several roots can hand focus to the following one.
+    pub(crate) fn focus_next(&mut self) -> bool {
         let count = self.focus_len();
         if count == 0 {
-            return;
+            return true;
         }
         for step in 1..=count {
             let candidate = (self.focused + step) % count;
+            if !self.flat_disabled(candidate) {
+                let wrapped = candidate <= self.focused;
+                self.focused = candidate;
+                return wrapped;
+            }
+        }
+        true
+    }
+
+    /// Focuses the first enabled widget, for a root that just received focus.
+    pub(crate) fn focus_first(&mut self) {
+        self.focused = 0;
+        for candidate in 0..self.focus_len() {
             if !self.flat_disabled(candidate) {
                 self.focused = candidate;
                 return;
             }
         }
+    }
+
+    /// Places the caret under the pointer for the focused text-bearing
+    /// widget (a drag extends the selection), or opens a select's list —
+    /// the click semantics of the browser. rat's own mouse path stays
+    /// unused everywhere: its click arming reads the system clock, which
+    /// wasm32 does not have.
+    pub(crate) fn place_cursor(&mut self, column: u16, row: u16, extend: bool) {
+        let flat = self.focused;
+        let Some((owner, slot)) = self.locate_mut(flat) else {
+            return;
+        };
+        match &mut owner.slots[slot].state {
+            WidgetState::Date { input, .. } => {
+                let x = column as i16 - input.widget.area.x as i16;
+                input.widget.set_screen_cursor(x, extend);
+            }
+            WidgetState::Text(state) | WidgetState::Number(state) => {
+                let x = column as i16 - state.area.x as i16;
+                state.set_screen_cursor(x, extend);
+            }
+            WidgetState::TextArea(state) => {
+                let x = column as i16 - state.area.x as i16;
+                let y = row as i16 - state.area.y as i16;
+                state.set_screen_cursor((x, y), extend);
+            }
+            WidgetState::Select(state) => {
+                if !extend && !state.is_popup_active() {
+                    state.set_popup_active(true);
+                    state.scroll_to_selected();
+                }
+            }
+        }
+    }
+
+    /// The flat focus index of the enabled widget under the given screen
+    /// cell, resolved against the areas recorded during the last paint.
+    pub(crate) fn hit_test(&self, column: u16, row: u16) -> Option<usize> {
+        let position = Position::new(column, row);
+        (0..self.focus_len()).find(|&flat| {
+            !self.flat_disabled(flat)
+                && matches!(
+                    self.locate(flat),
+                    Some((owner, slot)) if owner.slots[slot].state.area().contains(position)
+                )
+        })
     }
 
     /// Forwards a terminal event to the focused widget, wherever it lives.
@@ -747,6 +821,9 @@ impl ElementInstance {
     /// Returns whether the event was consumed; Tab closes and reports
     /// unconsumed so the global commit-and-focus handling still runs.
     pub(crate) fn handle_popup_event(&mut self, event: &Event) -> bool {
+        if let Event::Mouse(mouse) = event {
+            return self.handle_popup_mouse(*mouse);
+        }
         let Event::Key(key) = event else {
             return false;
         };
@@ -830,6 +907,119 @@ impl ElementInstance {
                 }
                 true
             }
+        }
+    }
+
+    /// Routes the pointer while an overlay is open: a click picks the day or
+    /// option under it (committing like Enter), the wheel and drags browse,
+    /// and a press outside dismisses the overlay and reports unconsumed so
+    /// the click still focuses whatever it landed on.
+    fn handle_popup_mouse(&mut self, mouse: MouseEvent) -> bool {
+        enum Overlay {
+            Date,
+            Select,
+        }
+        let position = Position::new(mouse.column, mouse.row);
+        let flat = self.focused;
+        let (overlay, inside) = match self.locate(flat) {
+            Some((owner, slot)) => match &owner.slots[slot].state {
+                WidgetState::Date { popup, .. } => {
+                    (Overlay::Date, popup.core.area.contains(position))
+                }
+                WidgetState::Select(state) => {
+                    (Overlay::Select, state.popup.area.contains(position))
+                }
+                _ => return false,
+            },
+            None => return false,
+        };
+        if !inside {
+            if matches!(mouse.kind, MouseEventKind::Down(_)) {
+                if matches!(overlay, Overlay::Select) {
+                    self.revert_select();
+                }
+                self.close_popup();
+                return false;
+            }
+            return true;
+        }
+        // Picks resolve against the overlay's published geometry (day rects,
+        // option rows) instead of rat's mouse handling — see [`Self::place_cursor`].
+        match overlay {
+            Overlay::Date => match mouse.kind {
+                MouseEventKind::Down(_) => {
+                    let mut picked = None;
+                    if let Some((owner, slot)) = self.locate_mut(flat) {
+                        if let WidgetState::Date { popup, .. } = &mut owner.slots[slot].state {
+                            let start = popup.month.start_date();
+                            picked = popup
+                                .month
+                                .area_days
+                                .iter()
+                                .position(|day| day.contains(position))
+                                .and_then(|index| start.with_day(index as u32 + 1));
+                        }
+                    }
+                    if let Some(date) = picked {
+                        if let Some((owner, slot)) = self.locate_mut(flat) {
+                            if let WidgetState::Date { input, .. } = &mut owner.slots[slot].state {
+                                input.set_value(date);
+                            }
+                        }
+                        self.close_popup();
+                        self.commit_focused();
+                    }
+                    true
+                }
+                MouseEventKind::ScrollUp => {
+                    self.shift_popup_month(-1);
+                    true
+                }
+                MouseEventKind::ScrollDown => {
+                    self.shift_popup_month(1);
+                    true
+                }
+                _ => true,
+            },
+            Overlay::Select => match mouse.kind {
+                MouseEventKind::Down(_) => {
+                    let mut picked = false;
+                    if let Some((owner, slot)) = self.locate_mut(flat) {
+                        if let WidgetState::Select(state) = &mut owner.slots[slot].state {
+                            if let Some(row) = state
+                                .item_areas
+                                .iter()
+                                .position(|item| item.contains(position))
+                            {
+                                let _ = state.select(state.offset() + row);
+                                picked = true;
+                            }
+                        }
+                    }
+                    if picked {
+                        self.close_popup();
+                        self.commit_focused();
+                    }
+                    true
+                }
+                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+                    // The wheel scrolls the list window without moving the
+                    // selection, like the browser's open dropdown.
+                    if let Some((owner, slot)) = self.locate_mut(flat) {
+                        if let WidgetState::Select(state) = &mut owner.slots[slot].state {
+                            let offset = state.offset();
+                            let target = if matches!(mouse.kind, MouseEventKind::ScrollUp) {
+                                offset.saturating_sub(1)
+                            } else {
+                                offset.saturating_add(1)
+                            };
+                            let _ = state.set_offset(target);
+                        }
+                    }
+                    true
+                }
+                _ => true,
+            },
         }
     }
 
@@ -1019,6 +1209,7 @@ fn new_slot(kind: &str, el: &uic_template::Element) -> Result<Slot, Error> {
         state,
         value_prop: None,
         options_prop: None,
+        placeholder: None,
         change_handler: None,
         disabled: None,
         last_synced: None,
@@ -1030,6 +1221,12 @@ fn new_slot(kind: &str, el: &uic_template::Element) -> Result<Slot, Error> {
             }
             Attribute::Prop { name, expr } if name == "options" => {
                 slot.options_prop = Some(expr.ident().to_string());
+            }
+            Attribute::Static { name, value } if name == "placeholder" => {
+                slot.placeholder = Some(vec![AttrPart::Static(value.clone())]);
+            }
+            Attribute::Attr { name, parts } if name == "placeholder" => {
+                slot.placeholder = Some(parts.clone());
             }
             Attribute::Event { name, handler } if name == "change" => {
                 slot.change_handler = Some(handler.clone());

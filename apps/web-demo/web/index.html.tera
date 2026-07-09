@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ui-components · web demo</title>
 <link rel="stylesheet" href="/web_modules/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="/web_modules/@xterm/xterm/css/xterm.css">
 <link rel="stylesheet" href="/elements.css">
 <link rel="stylesheet" href="/styles.css">
 {{ importmap | safe }}
 <script type="module" src="/app.js"></script>
 </head>
-<body class="py-5 bg-body-tertiary">
-<main class="container">
+<!-- Only the top padding is a utility: the bottom clears the debug bar and
+     follows its collapsed state from the stylesheet. -->
+<body class="pt-5 bg-body-tertiary">
+<div class="container-fluid px-4 px-xl-5">
+<div class="d-flex flex-column flex-md-row align-items-md-start gap-5">
+<main class="flex-grow-1">
 <h1 class="h4 mb-4">ui-components web demo</h1>
 <input-date
   label="Date of purchase"
@@ -56,9 +61,25 @@
   default=""
   class="mb-4 d-block"
 ></input-timezone>
-<h2 class="h6 mt-5">notify events</h2>
-<pre id="events" class="border bg-body p-2 small" data-qa="events"></pre>
 </main>
+<!-- The same page rendered by the TUI runtime, compiled to wasm; tui.js
+     reveals the pane once /tui (scripts/build-wasm.sh) is available. -->
+<aside id="tui-pane" class="flex-shrink-0 d-none" data-qa="tui-pane">
+<h2 class="h4 mb-4 text-body-secondary">the same page, in a terminal</h2>
+<div id="terminal" class="tui-screen"></div>
+<p class="text-body-secondary small mt-2 mb-0">Click a field or Tab around — Enter commits, F4 or a click opens pickers, Esc leaves.</p>
+</aside>
+</div>
+</div>
+<!-- The debug bar: notify events today, more tooling later; the handle
+     collapses it to its edge. -->
+<footer id="debug-bar" class="fixed-bottom bg-body border-top" data-qa="debug-bar">
+<button id="debug-toggle" class="btn btn-sm w-100 py-0 text-body-secondary" aria-expanded="true" aria-controls="debug-body" title="Toggle the debug bar">&#9662;</button>
+<div id="debug-body" class="debug-body container-fluid px-4 pb-2">
+<h2 class="h6">notify events</h2>
+<pre id="events" class="border bg-body p-2 small mb-0" data-qa="events"></pre>
+</div>
+</footer>
 <script type="module">
 // The option list is data, assigned as a property (ADR 0006).
 const select = document.querySelector('input-select');
@@ -81,6 +102,15 @@ for (const el of document.querySelectorAll('input-date, input-text, input-number
     });
   }
 }
+// The debug bar collapses to its handle; the caret points where it moves.
+const bar = document.getElementById('debug-bar');
+const toggle = document.getElementById('debug-toggle');
+toggle.addEventListener('click', () => {
+  const collapsed = bar.classList.toggle('collapsed');
+  toggle.textContent = collapsed ? '▴' : '▾';
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+});
 </script>
+<script type="module" src="/tui.js"></script>
 </body>
 </html>
