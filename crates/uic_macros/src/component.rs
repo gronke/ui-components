@@ -493,6 +493,7 @@ enum JsTypeArg {
     Boolean,
     Zoned,
     Options,
+    Object,
 }
 
 enum NotifyArg {
@@ -527,7 +528,10 @@ impl Prop {
         let rust_name = &self.rust_name;
         let js_name = &self.js_name;
         // Object-valued properties are property-only: no observed attribute.
-        let attribute = if matches!(self.js_type, JsTypeArg::Zoned | JsTypeArg::Options) {
+        let attribute = if matches!(
+            self.js_type,
+            JsTypeArg::Zoned | JsTypeArg::Options | JsTypeArg::Object
+        ) {
             quote!(::core::option::Option::None)
         } else {
             let attribute = &self.attribute;
@@ -539,6 +543,7 @@ impl Prop {
             JsTypeArg::Boolean => quote!(::uic_core::JsType::Boolean),
             JsTypeArg::Zoned => quote!(::uic_core::JsType::Zoned),
             JsTypeArg::Options => quote!(::uic_core::JsType::Options),
+            JsTypeArg::Object => quote!(::uic_core::JsType::Object),
         };
         let reflect = self.reflect;
         let notify = match &self.notify {
@@ -558,6 +563,7 @@ impl Prop {
                 // Unreachable: Zoned properties must be Option<Zoned>.
                 JsTypeArg::Zoned => quote!(::uic_core::DefaultValue::Undefined),
                 JsTypeArg::Options => quote!(::uic_core::DefaultValue::EmptyOptions),
+                JsTypeArg::Object => quote!(::uic_core::DefaultValue::EmptyObject),
             },
         };
         let optional = self.optional;
@@ -637,7 +643,7 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
             syn::Error::new_spanned(
                 &field.ty,
                 "unsupported property type; use String, bool, a number type, Zoned, \
-                 Vec<SelectOption>, or Option of one of those",
+                 Vec<SelectOption>, ObjectMap, or Option of one of those",
             )
         })?;
         if matches!(js_type, JsTypeArg::Zoned) {
@@ -684,6 +690,28 @@ fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
                 ));
             }
         }
+        if matches!(js_type, JsTypeArg::Object) {
+            if optional {
+                return Err(syn::Error::new_spanned(
+                    &field.ty,
+                    "Object properties are plain ObjectMap; \
+                     the empty state is the empty object, not None",
+                ));
+            }
+            if reflect || attribute.is_some() {
+                return Err(syn::Error::new_spanned(
+                    property_attr,
+                    "Object properties are property-only; \
+                     no attribute serialization exists (drop reflect/attribute)",
+                ));
+            }
+            if let Some(lit) = &default_lit {
+                return Err(syn::Error::new_spanned(
+                    lit,
+                    "Object properties cannot take a default; they start empty",
+                ));
+            }
+        }
         let default = default_lit
             .map(|lit| default_arg(&lit, &js_type))
             .transpose()?;
@@ -721,6 +749,7 @@ fn default_arg(lit: &Lit, js_type: &JsTypeArg) -> syn::Result<DefaultArg> {
                     JsTypeArg::Boolean => "Boolean expects true or false",
                     JsTypeArg::Zoned => "Zoned takes no default",
                     JsTypeArg::Options => "Options takes no default",
+                    JsTypeArg::Object => "Object takes no default",
                 }
             ),
         )),
@@ -766,6 +795,7 @@ fn js_type_of(ty: &Type) -> Option<(JsTypeArg, bool)> {
         "f64" | "f32" | "i64" | "i32" | "i16" | "i8" | "u64" | "u32" | "u16" | "u8" | "usize"
         | "isize" => JsTypeArg::Number,
         "Zoned" => JsTypeArg::Zoned,
+        "ObjectMap" => JsTypeArg::Object,
         _ => return None,
     };
     Some((js_type, false))

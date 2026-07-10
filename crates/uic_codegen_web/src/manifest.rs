@@ -76,6 +76,7 @@ fn member_json(prop: &PropertyMeta) -> Json {
         JsType::Boolean => "boolean",
         JsType::Zoned => "Temporal.ZonedDateTime | null",
         JsType::Options => "SelectOption[]",
+        JsType::Object => "Record<string, unknown>",
     };
     let mut member = json!({
         "kind": "field",
@@ -88,6 +89,7 @@ fn member_json(prop: &PropertyMeta) -> Json {
         DefaultValue::Num(n) => Some(n.to_string()),
         DefaultValue::Bool(b) => Some(b.to_string()),
         DefaultValue::EmptyOptions => Some("[]".to_string()),
+        DefaultValue::EmptyObject => Some("{}".to_string()),
     };
     if let Some(default) = default {
         member["default"] = json!(default);

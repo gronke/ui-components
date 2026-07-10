@@ -21,10 +21,9 @@ fn key(app: &mut App<XtermBackend>, code: KeyCode) -> Control {
 #[test]
 fn a_frame_is_positioned_styled_ansi() {
     let (mut app, out) = app(44, 10);
-    app.mount("input-text").unwrap();
-    let root = app.root_mut().unwrap();
-    root.set_attr("label", "Note");
-    root.set_attr("value", "hello");
+    let el = app.mount("input-text").unwrap();
+    app.set_attr(el, "label", "Note");
+    app.set_attr(el, "value", "hello");
     app.draw().unwrap();
 
     let ansi = out.take();
@@ -55,8 +54,8 @@ fn a_frame_is_positioned_styled_ansi() {
 #[test]
 fn keys_travel_through_the_runtime_and_back_as_ansi() {
     let (mut app, out) = app(44, 10);
-    app.mount("input-text").unwrap();
-    app.root_mut().unwrap().set_attr("label", "Note");
+    let el = app.mount("input-text").unwrap();
+    app.set_attr(el, "label", "Note");
     app.draw().unwrap();
     out.take();
 
@@ -73,11 +72,11 @@ fn keys_travel_through_the_runtime_and_back_as_ansi() {
 #[test]
 fn commits_notify_like_the_terminal_demo() {
     let (mut app, out) = app(44, 10);
-    app.mount("input-text").unwrap();
+    let el = app.mount("input-text").unwrap();
     let seen: Rc<RefCell<Vec<String>>> = Rc::default();
     {
         let seen = seen.clone();
-        app.root_mut().unwrap().on("value-changed", move |notify| {
+        app.on(el, "value-changed", move |notify| {
             seen.borrow_mut().push(notify.value.display_text());
         });
     }
@@ -87,13 +86,51 @@ fn commits_notify_like_the_terminal_demo() {
     assert_eq!(seen.borrow().as_slice(), ["A"]);
 }
 
+/// The state wire format, composed exactly like `TuiSession::set_prop_json`
+/// and `on_notify`: JSON in through `value_from_json`, the notify value back
+/// out through `value_to_json` as the canonical sorted-key snapshot.
+#[test]
+fn json_state_drives_the_screen_like_the_session() {
+    let (mut app, _out) = app(72, 50);
+    let el = app.mount("app-root").unwrap();
+    let seen: Rc<RefCell<Vec<String>>> = Rc::default();
+    {
+        let seen = seen.clone();
+        app.on(el, "state-changed", move |notify| {
+            seen.borrow_mut()
+                .push(uic_core::json::value_to_json(&notify.value).to_string());
+        });
+    }
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(r#"{"note":"hi","date":"2026-07-07"}"#).unwrap();
+    app.set_prop(
+        el,
+        "state",
+        uic_core::json::value_from_json(&parsed).unwrap(),
+    );
+    app.draw().unwrap();
+
+    let screen = app.terminal().backend().screen_text();
+    assert!(screen.contains("2026-07-07"), "date member:\n{screen}");
+    assert!(
+        screen.contains("date: 2026-07-07 · note: hi"),
+        "state line:\n{screen}"
+    );
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [r#"{"date":"2026-07-07","note":"hi"}"#],
+        "one notify carrying the canonical sorted-key snapshot"
+    );
+}
+
 #[test]
 fn roots_stack_and_tab_crosses_their_boundary() {
     let (mut app, _out) = app(50, 16);
-    app.mount("input-text").unwrap();
-    app.root_mut().unwrap().set_attr("label", "First");
-    app.mount("input-number").unwrap();
-    app.root_at_mut(1).unwrap().set_attr("label", "Second");
+    let first = app.mount("input-text").unwrap();
+    app.set_attr(first, "label", "First");
+    let second = app.mount("input-number").unwrap();
+    app.set_attr(second, "label", "Second");
     app.draw().unwrap();
 
     let screen = app.terminal().backend().screen_text();

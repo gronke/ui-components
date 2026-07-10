@@ -19,6 +19,7 @@ fn generate(test: &str) -> PathBuf {
     assert_eq!(
         root.components,
         vec![
+            "app-root",
             "input-date",
             "input-date-range",
             "input-number",
@@ -59,6 +60,8 @@ fn assert_matches_snapshot(generated: &str, snapshot: &str) {
 fn emits_the_full_generated_root() {
     let root = generate("root");
     for file in [
+        "components/app-root.ts",
+        "components/app-root.impl.ts",
         "components/input-date.ts",
         "components/input-date.impl.ts",
         "components/_input-date.scss",
@@ -112,6 +115,13 @@ fn generated_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_app_root_class_matches_the_snapshot() {
+    let root = generate("snapshot-app-root");
+    let generated = fs::read_to_string(root.join("components/app-root.ts")).unwrap();
+    assert_matches_snapshot(&generated, "app-root.ts");
+}
+
+#[test]
 fn generated_date_range_class_matches_the_snapshot() {
     let root = generate("snapshot-date-range");
     let generated = fs::read_to_string(root.join("components/input-date-range.ts")).unwrap();
@@ -157,6 +167,7 @@ fn generated_timezone_class_matches_the_snapshot() {
 fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
     for file in [
+        "components/app-root.ts",
         "components/input-date.ts",
         "components/input-date-range.ts",
         "components/input-number.ts",
@@ -179,7 +190,8 @@ fn manifest_describes_the_component() {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root.join("custom-elements.json")).unwrap())
             .unwrap();
-    let module = &manifest["modules"][0];
+    // Modules sort by tag: app-root first, then the inputs.
+    let module = &manifest["modules"][1];
     assert_eq!(module["path"], "components/input-date.ts");
     let declaration = &module["declarations"][0];
     assert_eq!(declaration["tagName"], "input-date");
@@ -204,7 +216,7 @@ fn manifest_describes_the_component() {
     );
 
     // The Options property is typed and property-only as well.
-    let select = &manifest["modules"][3];
+    let select = &manifest["modules"][4];
     assert_eq!(select["path"], "components/input-select.ts");
     let declaration = &select["declarations"][0];
     assert_eq!(declaration["tagName"], "input-select");
@@ -220,4 +232,22 @@ fn manifest_describes_the_component() {
         attributes.iter().all(|a| a["fieldName"] != "options"),
         "no attribute for the options property"
     );
+
+    // The Object property (app-root's state) is typed and property-only.
+    let app_root = &manifest["modules"][0];
+    assert_eq!(app_root["path"], "components/app-root.ts");
+    let declaration = &app_root["declarations"][0];
+    assert_eq!(declaration["tagName"], "app-root");
+    let members = declaration["members"].as_array().unwrap();
+    let state = members
+        .iter()
+        .find(|m| m["name"] == "state")
+        .expect("state member");
+    assert_eq!(state["type"]["text"], "Record<string, unknown>");
+    assert_eq!(state["default"], "{}");
+    let events = declaration["events"].as_array().unwrap();
+    let names: Vec<_> = events.iter().map(|e| e["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["state-changed"]);
+    let attributes = declaration["attributes"].as_array().unwrap();
+    assert!(attributes.is_empty(), "no attribute for the state property");
 }

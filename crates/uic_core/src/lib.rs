@@ -6,8 +6,11 @@
 //! with fixed assumptions, produced by `uic_codegen_web`.
 
 mod behavior;
+#[cfg(feature = "json")]
+pub mod json;
 mod meta;
 mod notify;
+mod object;
 mod registry;
 mod select;
 mod value;
@@ -18,6 +21,7 @@ pub use meta::{
     ComponentDef, DefaultValue, HandlerKind, HandlerMeta, JsType, Notify, PropertyMeta,
 };
 pub use notify::notify_events;
+pub use object::ObjectMap;
 pub use registry::{CustomElementRegistry, Registration, RegistryError};
 pub use select::SelectOption;
 pub use value::{attribute_to_value, Changed, PropertyStore, Value};

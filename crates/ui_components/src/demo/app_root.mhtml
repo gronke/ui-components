@@ -1,0 +1,66 @@
+<!-- The demo form: the page's controls with their labels and hints, each
+     bound to one state member (values down through computeds, commits up
+     through the @value-changed handlers). -->
+<div data-qa="app-form">
+  <!-- The date hugs its content by default (the catalog's fit-content);
+       the demo opts into the full column with w-100, like the terminal. -->
+  <input-date
+    label="Date of purchase"
+    hint="Format: YYYY-MM-DD"
+    min="2020-01-01"
+    max="2030-12-31"
+    default-timezone="Europe/Berlin"
+    show-timezone
+    class="mb-4 d-block w-100"
+    .value=${date}
+    @value-changed=${on_date}></input-date>
+  <input-date-range
+    label="Stay"
+    hint="The end never precedes the start; both ends commit the interval"
+    class="mb-4 d-block"
+    .start=${start}
+    .end=${end}
+    @start-changed=${on_start}
+    @end-changed=${on_end}></input-date-range>
+  <input-text
+    label="Note"
+    hint="Trimmed on commit; empty becomes null"
+    placeholder="free text"
+    allow-null
+    class="mb-4 d-block"
+    .value=${note}
+    @value-changed=${on_note}></input-text>
+  <input-number
+    label="Amount"
+    hint="Comma or dot decimals; dots group thousands"
+    unit="€"
+    allow-null
+    class="mb-4 d-block"
+    .value=${amount}
+    @value-changed=${on_amount}></input-number>
+  <input-select
+    label="Time zone"
+    hint="Empty commits null once a default is set"
+    default="Pick a zone"
+    data-qa="select-demo"
+    class="mb-4 d-block"
+    .value=${pick}
+    .options=${pick_options}
+    @value-changed=${on_pick}></input-select>
+  <input-textarea
+    label="Comment"
+    hint="Grows with its content up to max-lines"
+    max-lines="6"
+    placeholder="multi-line text"
+    .value=${essay}
+    @value-changed=${on_essay}></input-textarea>
+  <input-timezone
+    label="Default time zone"
+    hint="The browser zone list; empty commits null"
+    default=""
+    class="mb-4 d-block"
+    .value=${zone}
+    @value-changed=${on_zone}></input-timezone>
+  <!-- The state, one line — the cross-target assertion hook. -->
+  <p class="small text-body-secondary mt-4 mb-0" data-qa="state-line">state · ${state_line}</p>
+</div>

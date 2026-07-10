@@ -1,7 +1,7 @@
 use std::sync::Once;
 
 use ratatui::Terminal;
-use uic_core::{SelectOption, Value};
+use uic_core::SelectOption;
 use uic_tui::{App, Control};
 use wasm_bindgen::prelude::*;
 
@@ -67,15 +67,23 @@ impl TuiSession {
     /// its root index. The first paint is deferred until the host replayed
     /// the attributes.
     pub fn mount(&mut self, tag: &str) -> Result<u32, JsError> {
-        self.app.mount(tag).map_err(js_err)?;
-        Ok(self.app.root_len() as u32 - 1)
+        Ok(self.app.mount(tag).map_err(js_err)? as u32)
     }
 
     /// Replays one markup attribute; unknown names no-op like in the DOM.
     pub fn set_attr(&mut self, index: u32, name: &str, value: &str) {
-        if let Some(root) = self.app.root_at_mut(index as usize) {
-            root.set_attr(name, value);
-        }
+        self.app.set_attr(index as usize, name, value);
+    }
+
+    /// Replays a property write from JSON: `null`, booleans, numbers,
+    /// strings and object maps convert to their `Value` analogs (objects
+    /// recursively). Arrays and malformed JSON error; unknown property
+    /// names no-op like the DOM runtime.
+    pub fn set_prop_json(&mut self, index: u32, name: &str, json: &str) -> Result<(), JsError> {
+        let parsed: serde_json::Value = serde_json::from_str(json).map_err(js_err)?;
+        let value = uic_core::json::value_from_json(&parsed).map_err(js_err)?;
+        self.app.set_prop(index as usize, name, value);
+        Ok(())
     }
 
     /// Replays an option list property as JSON rows of
@@ -98,9 +106,7 @@ impl TuiSession {
                 label: row.label,
             })
             .collect();
-        if let Some(root) = self.app.root_at_mut(index as usize) {
-            root.set_prop("options", options);
-        }
+        self.app.set_prop(index as usize, "options", options);
         Ok(())
     }
 
@@ -109,17 +115,15 @@ impl TuiSession {
     /// hand the data on — calling back into the session would trip the
     /// wasm-bindgen borrow guard.
     pub fn on_notify(&mut self, index: u32, event: &str, callback: js_sys::Function) {
-        if let Some(root) = self.app.root_at_mut(index as usize) {
-            root.on(event, move |notify| {
-                let json = serde_json::json!({
-                    "type": notify.event_name,
-                    "property": notify.property,
-                    "value": value_json(&notify.value),
-                    "oldValue": value_json(&notify.old_value),
-                });
-                let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(&json.to_string()));
+        self.app.on(index as usize, event, move |notify| {
+            let json = serde_json::json!({
+                "type": notify.event_name,
+                "property": notify.property,
+                "value": uic_core::json::value_to_json(&notify.value),
+                "oldValue": uic_core::json::value_to_json(&notify.old_value),
             });
-        }
+            let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(&json.to_string()));
+        });
     }
 
     /// Renders and returns the pending ANSI.
@@ -185,31 +189,5 @@ impl TuiSession {
     /// The screen as plain text rows — the assertion hook for tests.
     pub fn screen_text(&self) -> String {
         self.app.terminal().backend().screen_text()
-    }
-}
-
-fn value_json(value: &Value) -> serde_json::Value {
-    match value {
-        Value::Undefined | Value::Null => serde_json::Value::Null,
-        Value::Str(s) => serde_json::Value::String(s.clone()),
-        Value::Num(n) => serde_json::Number::from_f64(*n)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
-        Value::Bool(b) => serde_json::Value::Bool(*b),
-        // Matches the browser detail, where a ZonedDateTime serializes to
-        // its ISO string via toJSON.
-        Value::Zoned(_) => serde_json::Value::String(value.display_text()),
-        Value::Options(options) => serde_json::Value::Array(
-            options
-                .iter()
-                .map(|option| {
-                    serde_json::json!({
-                        "value": option.value,
-                        "short": option.short,
-                        "label": option.label,
-                    })
-                })
-                .collect(),
-        ),
     }
 }

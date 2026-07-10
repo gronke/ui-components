@@ -190,6 +190,11 @@ impl<T> Document<T> {
         self.arena.new_node(NodeData::Comment(text.to_string()))
     }
 
+    /// A detached grouping node, the `DocumentFragment` analog.
+    pub(crate) fn create_fragment(&mut self) -> NodeId {
+        self.arena.new_node(NodeData::Fragment)
+    }
+
     /// The shared constructor behind typed, named and parsed elements; a
     /// `<template>` gets its contents fragment here, so every creation path
     /// honors the whatwg template model.
@@ -271,6 +276,59 @@ impl<T> Document<T> {
         while let Some(child) = self.first_child(node) {
             self.append_child(new_parent, child);
         }
+    }
+
+    /// `importNode(…, deep)`: copies a subtree from another document into
+    /// this one, detached. Elements keep their name, attributes and template
+    /// contents; the consumer payload starts fresh. Every copied pair lands
+    /// in `map` (source id → new id), so callers holding references into the
+    /// source — a compiled template's part plan — can resolve them against
+    /// the copy.
+    pub fn import_node<U>(
+        &mut self,
+        source: &Document<U>,
+        node: NodeId,
+        map: &mut HashMap<NodeId, NodeId>,
+    ) -> Option<NodeId>
+    where
+        T: Default,
+    {
+        let copy = match source.node(node)? {
+            NodeData::Document | NodeData::Fragment => self.arena.new_node(NodeData::Fragment),
+            NodeData::Element(el) => {
+                let attrs = el
+                    .qual_attrs()
+                    .map(|(qual, value)| (qual.clone(), value.to_string()))
+                    .collect();
+                let copy = self.new_element_node(el.name.clone(), attrs);
+                if let Some(contents) = el.template_contents {
+                    // The constructor gave the copy a fresh contents
+                    // fragment; fill it from the source's.
+                    let target = self
+                        .element(copy)
+                        .and_then(|el| el.template_contents)
+                        .expect("template copies carry a contents fragment");
+                    let children: Vec<NodeId> = source.children(contents).collect();
+                    for child in children {
+                        if let Some(imported) = self.import_node(source, child, map) {
+                            self.append_child(target, imported);
+                        }
+                    }
+                    map.insert(contents, target);
+                }
+                copy
+            }
+            NodeData::Text(text) => self.create_text_node(text),
+            NodeData::Comment(text) => self.create_comment(text),
+        };
+        map.insert(node, copy);
+        let children: Vec<NodeId> = source.children(node).collect();
+        for child in children {
+            if let Some(imported) = self.import_node(source, child, map) {
+                self.append_child(copy, imported);
+            }
+        }
+        Some(copy)
     }
 
     // -- traversal --------------------------------------------------------

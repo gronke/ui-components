@@ -80,20 +80,16 @@ fn ring_corners(app: &mut App<TestBackend>) -> Vec<bool> {
 #[test]
 fn a_click_focuses_the_widget_under_it_and_commits_the_left_one() {
     let mut app = app(50, 14);
-    app.mount("input-text").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "First");
-    app.mount("input-text").expect("mount");
-    app.root_at_mut(1)
-        .expect("root")
-        .set_attr("label", "Second");
+    let first = app.mount("input-text").expect("mount");
+    app.set_attr(first, "label", "First");
+    let second = app.mount("input-text").expect("mount");
+    app.set_attr(second, "label", "Second");
     let committed: Rc<RefCell<Vec<Value>>> = Rc::default();
     {
         let committed = committed.clone();
-        app.root_mut()
-            .expect("root")
-            .on("value-changed", move |ev| {
-                committed.borrow_mut().push(ev.value.clone());
-            });
+        app.on(first, "value-changed", move |ev| {
+            committed.borrow_mut().push(ev.value.clone());
+        });
     }
 
     key(&mut app, KeyCode::Char('1'));
@@ -127,16 +123,14 @@ fn a_click_focuses_the_widget_under_it_and_commits_the_left_one() {
 #[test]
 fn a_click_outside_blurs_and_a_key_refocuses() {
     let mut app = app(50, 14);
-    app.mount("input-text").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "Note");
+    let el = app.mount("input-text").expect("mount");
+    app.set_attr(el, "label", "Note");
     let committed: Rc<RefCell<Vec<Value>>> = Rc::default();
     {
         let committed = committed.clone();
-        app.root_mut()
-            .expect("root")
-            .on("value-changed", move |ev| {
-                committed.borrow_mut().push(ev.value.clone());
-            });
+        app.on(el, "value-changed", move |ev| {
+            committed.borrow_mut().push(ev.value.clone());
+        });
     }
 
     key(&mut app, KeyCode::Char('x'));
@@ -155,18 +149,15 @@ fn a_click_outside_blurs_and_a_key_refocuses() {
 #[test]
 fn a_click_picks_a_calendar_day() {
     let mut app = app(50, 16);
-    app.mount("input-date").expect("mount");
-    let root = app.root_mut().expect("root");
-    root.set_attr("label", "Date");
-    root.set_attr("value", "2026-07-07");
+    let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "label", "Date");
+    app.set_attr(el, "value", "2026-07-07");
     let committed: Rc<RefCell<Vec<Value>>> = Rc::default();
     {
         let committed = committed.clone();
-        app.root_mut()
-            .expect("root")
-            .on("value-changed", move |ev| {
-                committed.borrow_mut().push(ev.value.clone());
-            });
+        app.on(el, "value-changed", move |ev| {
+            committed.borrow_mut().push(ev.value.clone());
+        });
     }
 
     key(&mut app, KeyCode::F(4));
@@ -186,10 +177,10 @@ fn a_click_picks_a_calendar_day() {
 #[test]
 fn a_click_opens_a_select_and_picks_an_option() {
     let mut app = app(50, 16);
-    app.mount("input-select").expect("mount");
-    let root = app.root_mut().expect("root");
-    root.set_attr("label", "Zone");
-    root.set_prop(
+    let el = app.mount("input-select").expect("mount");
+    app.set_attr(el, "label", "Zone");
+    app.set_prop(
+        el,
         "options",
         vec![
             SelectOption::new("Europe/Amsterdam").with_short("Amsterdam"),
@@ -199,11 +190,9 @@ fn a_click_opens_a_select_and_picks_an_option() {
     let committed: Rc<RefCell<Vec<Value>>> = Rc::default();
     {
         let committed = committed.clone();
-        app.root_mut()
-            .expect("root")
-            .on("value-changed", move |ev| {
-                committed.borrow_mut().push(ev.value.clone());
-            });
+        app.on(el, "value-changed", move |ev| {
+            committed.borrow_mut().push(ev.value.clone());
+        });
     }
 
     let (x, y) = locate(&mut app, "Zone");
@@ -228,12 +217,11 @@ fn a_click_opens_a_select_and_picks_an_option() {
 #[test]
 fn a_press_outside_an_open_list_dismisses_it_and_focuses_the_hit() {
     let mut app = app(50, 20);
-    app.mount("input-text").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "Note");
-    app.mount("input-select").expect("mount");
-    let select = app.root_at_mut(1).expect("root");
-    select.set_attr("label", "Zone");
-    select.set_prop("options", vec![SelectOption::new("Europe/Berlin")]);
+    let note = app.mount("input-text").expect("mount");
+    app.set_attr(note, "label", "Note");
+    let select = app.mount("input-select").expect("mount");
+    app.set_attr(select, "label", "Zone");
+    app.set_prop(select, "options", vec![SelectOption::new("Europe/Berlin")]);
 
     // The list opens below the select, leaving the input above it visible.
     let (x, y) = locate(&mut app, "Note");
@@ -256,10 +244,9 @@ fn a_press_outside_an_open_list_dismisses_it_and_focuses_the_hit() {
 #[test]
 fn a_click_places_the_caret_and_a_drag_selects() {
     let mut app = app(50, 10);
-    app.mount("input-text").expect("mount");
-    let root = app.root_mut().expect("root");
-    root.set_attr("label", "Note");
-    root.set_attr("value", "abcdef");
+    let el = app.mount("input-text").expect("mount");
+    app.set_attr(el, "label", "Note");
+    app.set_attr(el, "value", "abcdef");
 
     // Click between c and d: typing inserts there.
     let (x, y) = locate(&mut app, "abcdef");

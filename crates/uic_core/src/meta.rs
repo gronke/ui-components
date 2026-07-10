@@ -21,6 +21,9 @@ pub enum JsType {
     /// `SelectOption[]` — object-valued, property-only; Rust side is
     /// `Vec<SelectOption>` and starts empty (ADR 0006).
     Options,
+    /// `Record<string, unknown>` — object-valued, property-only; Rust side
+    /// is `ObjectMap` and starts empty (ADR 0013).
+    Object,
 }
 
 /// Notify behavior of a property, mirroring the catalog's `LitNotify` option.
@@ -43,6 +46,8 @@ pub enum DefaultValue {
     Bool(bool),
     /// Option lists always start empty (`[]`), never undefined.
     EmptyOptions,
+    /// Object maps always start empty (`{}`), never undefined.
+    EmptyObject,
 }
 
 impl DefaultValue {
@@ -53,6 +58,7 @@ impl DefaultValue {
             DefaultValue::Num(n) => Value::Num(n),
             DefaultValue::Bool(b) => Value::Bool(b),
             DefaultValue::EmptyOptions => Value::Options(Vec::new()),
+            DefaultValue::EmptyObject => Value::Object(crate::object::ObjectMap::new()),
         }
     }
 }

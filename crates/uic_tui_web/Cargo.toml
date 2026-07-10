@@ -12,7 +12,7 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-uic_core.workspace = true
+uic_core = { workspace = true, features = ["json"] }
 uic_tui.workspace = true
 ui_components.workspace = true
 ratatui.workspace = true

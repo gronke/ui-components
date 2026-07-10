@@ -10,6 +10,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Backtraces keep file/line without the variable-level debug info that
+  # dominates target/ size and codegen time; local builds stay untouched.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 permissions:
   contents: read
@@ -20,6 +23,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+
+      # The native target with every test binary, plus the cache's zstd
+      # staging, no longer fits beside the runner's preinstalled bundles.
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
       - name: Install Rust toolchain
         uses: gronke/rust-ci/.github/actions/install-toolchain@main
@@ -45,6 +53,11 @@ jobs:
         with:
           test-args: --no-run
 
+      # The save half: prune target/ to dependency artifacts, upload under
+      # the restore's key — the entry every PR restores from.
+      - name: Save the pruned target
+        uses: gronke/rust-ci/.github/actions/rust-cache-save@main
+
   # Warms the wasm-1 cache family the PR wasm job restores from.
   wasm:
     runs-on: ubuntu-latest
@@ -66,3 +79,8 @@ jobs:
 
       - name: Warm the wasm lint
         run: cargo clippy -p uic_tui_web -p uic_dom --target wasm32-unknown-unknown -- -D warnings
+
+      # The save half: prune target/ to dependency artifacts, upload under
+      # the restore's key — the entry every PR restores from.
+      - name: Save the pruned target
+        uses: gronke/rust-ci/.github/actions/rust-cache-save@main

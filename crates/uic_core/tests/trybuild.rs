@@ -15,6 +15,8 @@ fn ui() {
     t.compile_fail("tests/ui/fail_zoned_options.rs");
     t.compile_fail("tests/ui/fail_options_optional.rs");
     t.compile_fail("tests/ui/fail_options_attribute.rs");
+    t.compile_fail("tests/ui/fail_object_optional.rs");
+    t.compile_fail("tests/ui/fail_object_attribute.rs");
     t.compile_fail("tests/ui/fail_options_on_input.rs");
     t.compile_fail("tests/ui/fail_select_options_with_children.rs");
     t.compile_fail("tests/ui/fail_tag_without_dash.rs");

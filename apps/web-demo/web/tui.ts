@@ -1,12 +1,16 @@
 // The terminal pane: the same page, run by the TUI runtime compiled to
-// wasm. The DOM markup stays the single source of truth — every component
-// element is mounted into one session and its attributes are replayed.
+// wasm. One <app-root> mounts into the session, seeded with the DOM
+// element's state; the bridge keeps both sides on the same snapshot.
 // Without the wasm assets (scripts/build-wasm.sh) the pane stays hidden.
 import { Terminal } from '@xterm/xterm';
 
+import { StateBridge } from './bridge.js';
+import type { AppState } from './bridge.js';
+
 const COLS = 72;
-const ROWS = 44;
-const TAGS = 'input-date, input-date-range, input-text, input-number, input-select, input-textarea, input-timezone';
+// The form ends around row 36 with a one-line state; the slack covers the
+// textarea growing to its max-lines and the wrapping state line.
+const ROWS = 42;
 
 // The terminal palette from Bootstrap's own variables: the runtime speaks
 // plain ANSI colors (a real terminal keeps the user's scheme), and this pane
@@ -45,27 +49,17 @@ async function boot(): Promise<void> {
   const log = document.getElementById('events')!;
   const events = (window as any).__events as unknown[];
   const session = new glue.TuiSession(COLS, ROWS);
-  // Components render their embedded children into the light DOM (input-date
-  // carries an input-timezone); only page-level elements become roots.
-  const roots = [...document.querySelectorAll(TAGS)].filter((el) => !el.parentElement?.closest(TAGS));
-  for (const el of roots) {
-    const tag = el.tagName.toLowerCase();
-    const index = session.mount(tag);
-    for (const { name, value } of [...el.attributes]) {
-      if (name === 'class' || name === 'id' || name.startsWith('data-')) continue;
-      session.set_attr(index, name, value);
-    }
-    if (tag === 'input-select') {
-      session.set_options_json(index, JSON.stringify((el as any).options ?? []));
-    }
-    for (const type of ['value-changed', 'date-changed', 'timezone-changed', 'start-changed', 'end-changed']) {
-      session.on_notify(index, type, (json: string) => {
-        const entry = { src: 'tui', tag, ...JSON.parse(json) };
-        events.push(entry);
-        log.textContent += '[tui] ' + JSON.stringify(entry) + '\n';
-      });
-    }
-  }
+
+  // One root: the same <app-root> the page hosts, seeded with the DOM
+  // element's SETTLED state (children normalize members during the first
+  // update) BEFORE any listener attaches — booting is not news.
+  const root = document.querySelector('app-root') as any;
+  await root.updateComplete;
+  const index = session.mount('app-root');
+  session.set_prop_json(index, 'state', JSON.stringify(root.state ?? {}));
+  const bridge = new StateBridge();
+  bridge.remember(root.state ?? {});
+
   const term = new Terminal({
     cols: COLS,
     rows: ROWS,
@@ -76,6 +70,27 @@ async function boot(): Promise<void> {
   });
   term.open(document.getElementById('terminal')!);
   term.write(session.draw());
+
+  // Forward-only: the callback runs inside a session borrow, so it must not
+  // call back into the session — it hands the snapshot to the channel.
+  session.on_notify(index, 'state-changed', (json: string) => {
+    const state = JSON.parse(json).value as AppState;
+    if (bridge.send(state)) {
+      const entry = { src: 'tui', type: 'state-changed', state };
+      events.push(entry);
+      log.textContent += '[tui] ' + JSON.stringify(entry) + '\n';
+    }
+  });
+  // BroadcastChannel delivery is asynchronous (its own task), so applying
+  // the state re-enters the session safely.
+  bridge.onState((state) => {
+    session.set_prop_json(index, 'state', JSON.stringify(state));
+    term.write(session.draw());
+    const entry = { src: 'tui', type: 'state-applied', state };
+    events.push(entry);
+    log.textContent += '[tui] ' + JSON.stringify(entry) + '\n';
+  });
+
   term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
     if (ev.type !== 'keydown') return false;
     // Shift+Tab walks the focus backward inside the pane (the keymap turns

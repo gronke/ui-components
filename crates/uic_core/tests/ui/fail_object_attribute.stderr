@@ -1,0 +1,17 @@
+error: Object properties are property-only; no attribute serialization exists (drop reflect/attribute)
+ --> tests/ui/fail_object_attribute.rs:6:5
+  |
+6 |     #[property(reflect)]
+  |     ^^^^^^^^^^^^^^^^^^^^
+
+error: Object properties are property-only; no attribute serialization exists (drop reflect/attribute)
+  --> tests/ui/fail_object_attribute.rs:13:5
+   |
+13 |     #[property(attribute = "state")]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Object properties cannot take a default; they start empty
+  --> tests/ui/fail_object_attribute.rs:20:26
+   |
+20 |     #[property(default = "x")]
+   |                          ^^^

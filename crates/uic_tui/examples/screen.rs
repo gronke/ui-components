@@ -8,9 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui_components::link();
     let mut app = uic_tui::App::from_terminal(Terminal::new(TestBackend::new(44, 8))?);
     let element = app.mount("input-date")?;
-    element.set_attr("label", "Date of purchase");
-    element.set_attr("hint", "Format: YYYY-MM-DD");
-    element.set_attr("value", "2026-07-07");
+    app.set_attr(element, "label", "Date of purchase");
+    app.set_attr(element, "hint", "Format: YYYY-MM-DD");
+    app.set_attr(element, "value", "2026-07-07");
     app.draw()?;
 
     let buffer = app.terminal().backend().buffer();

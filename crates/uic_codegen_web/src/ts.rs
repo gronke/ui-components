@@ -219,7 +219,9 @@ fn property_options(prop: &PropertyMeta) -> String {
     // Object-valued properties: no converter runs (attribute: false) and the
     // default `!==` hasChanged applies — reference semantics like the catalog.
     let mut options = match prop.js_type {
-        JsType::Zoned | JsType::Options => vec!["attribute: false".to_string()],
+        JsType::Zoned | JsType::Options | JsType::Object => {
+            vec!["attribute: false".to_string()]
+        }
         JsType::String => vec!["type: String".to_string()],
         JsType::Number => vec!["type: Number".to_string()],
         JsType::Boolean => vec!["type: Boolean".to_string()],
@@ -249,6 +251,7 @@ fn field_declaration(prop: &PropertyMeta) -> String {
         JsType::Boolean => "boolean",
         JsType::Zoned => "Temporal.ZonedDateTime | null",
         JsType::Options => "SelectOption[]",
+        JsType::Object => "Record<string, unknown>",
     };
     let initializer = match prop.default {
         DefaultValue::Undefined => return format!("{}?: {ts_type};", prop.js_name),
@@ -257,6 +260,8 @@ fn field_declaration(prop: &PropertyMeta) -> String {
         DefaultValue::Bool(b) => b.to_string(),
         // A bare `[]` would infer `never[]`; spell the element type.
         DefaultValue::EmptyOptions => return format!("{}: {ts_type} = [];", prop.js_name),
+        // A bare `{}` would infer the empty object type; spell the record.
+        DefaultValue::EmptyObject => return format!("{}: {ts_type} = {{}};", prop.js_name),
     };
     if prop.optional {
         // Optional with a default: nullable field, initialized.

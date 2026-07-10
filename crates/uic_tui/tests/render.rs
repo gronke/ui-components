@@ -43,14 +43,12 @@ fn type_str(app: &mut App<TestBackend>, text: &str) {
     }
 }
 
-fn events_probe(app: &mut App<TestBackend>) -> Rc<RefCell<Vec<NotifyEvent>>> {
+fn events_probe(app: &mut App<TestBackend>, index: usize) -> Rc<RefCell<Vec<NotifyEvent>>> {
     let events = Rc::new(RefCell::new(Vec::new()));
     let sink = events.clone();
-    app.root_mut()
-        .expect("mounted")
-        .on("value-changed", move |ev| {
-            sink.borrow_mut().push(ev.clone())
-        });
+    app.on(index, "value-changed", move |ev| {
+        sink.borrow_mut().push(ev.clone())
+    });
     events
 }
 
@@ -58,9 +56,9 @@ fn events_probe(app: &mut App<TestBackend>) -> Rc<RefCell<Vec<NotifyEvent>>> {
 fn renders_label_value_and_hint() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("label", "Date of purchase");
-    el.set_attr("hint", "Format: YYYY-MM-DD");
-    el.set_attr("value", "2026-07-07");
+    app.set_attr(el, "label", "Date of purchase");
+    app.set_attr(el, "hint", "Format: YYYY-MM-DD");
+    app.set_attr(el, "value", "2026-07-07");
 
     let screen = screen(&mut app);
     assert!(screen.contains("Date of purchase"), "label row:\n{screen}");
@@ -71,8 +69,8 @@ fn renders_label_value_and_hint() {
 #[test]
 fn commit_updates_value_and_notifies() {
     let mut app = app();
-    app.mount("input-date").expect("mount");
-    let events = events_probe(&mut app);
+    let el = app.mount("input-date").expect("mount");
+    let events = events_probe(&mut app, el);
 
     // Type in mask order (separators jump sections), commit with Enter.
     type_str(&mut app, "2026-08-01");
@@ -89,8 +87,8 @@ fn commit_updates_value_and_notifies() {
 fn invalid_input_renders_the_error_line_and_hides_the_hint() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("hint", "Format: YYYY-MM-DD");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "hint", "Format: YYYY-MM-DD");
+    let events = events_probe(&mut app, el);
 
     type_str(&mut app, "2026-13-99");
     key(&mut app, KeyCode::Enter);
@@ -114,8 +112,8 @@ fn invalid_input_renders_the_error_line_and_hides_the_hint() {
 fn min_bound_is_enforced() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("min", "2020-01-01");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "min", "2020-01-01");
+    let events = events_probe(&mut app, el);
 
     type_str(&mut app, "2019-01-01");
     key(&mut app, KeyCode::Enter);
@@ -132,8 +130,8 @@ fn min_bound_is_enforced() {
 fn disabled_widget_ignores_input() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("disabled", "");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "disabled", "");
+    let events = events_probe(&mut app, el);
 
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
@@ -145,9 +143,9 @@ fn disabled_widget_ignores_input() {
 fn text_input_renders_chrome_and_commits_trimmed() {
     let mut app = app();
     let el = app.mount("input-text").expect("mount");
-    el.set_attr("label", "Note");
-    el.set_attr("hint", "Free text");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "label", "Note");
+    app.set_attr(el, "hint", "Free text");
+    let events = events_probe(&mut app, el);
 
     let before = screen(&mut app);
     assert!(before.contains("Note"), "chrome label:\n{before}");
@@ -165,8 +163,8 @@ fn text_input_renders_chrome_and_commits_trimmed() {
 fn text_input_allow_null_commits_null_for_empty() {
     let mut app = app();
     let el = app.mount("input-text").expect("mount");
-    el.set_attr("allow-null", "");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "allow-null", "");
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::Enter);
 
@@ -180,7 +178,7 @@ fn text_input_allow_null_commits_null_for_empty() {
 fn text_input_value_attribute_syncs_into_the_widget() {
     let mut app = app();
     let el = app.mount("input-text").expect("mount");
-    el.set_attr("value", "prefilled");
+    app.set_attr(el, "value", "prefilled");
     let screen = screen(&mut app);
     assert!(screen.contains("prefilled"), "synced value:\n{screen}");
 }
@@ -203,8 +201,8 @@ fn tall_app() -> App<TestBackend> {
 fn f4_opens_the_calendar_over_the_content_below() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-07");
-    el.set_attr("hint", "Format: YYYY-MM-DD");
+    app.set_attr(el, "value", "2026-07-07");
+    app.set_attr(el, "hint", "Format: YYYY-MM-DD");
 
     let before = screen(&mut app);
     assert!(before.contains("Format: YYYY-MM-DD"), "hint row:\n{before}");
@@ -224,8 +222,8 @@ fn f4_opens_the_calendar_over_the_content_below() {
 fn calendar_enter_commits_through_the_change_path() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-07");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "value", "2026-07-07");
+    let events = events_probe(&mut app, el);
 
     screen(&mut app);
     key(&mut app, KeyCode::Down); // Down opens like F4
@@ -248,8 +246,8 @@ fn calendar_enter_commits_through_the_change_path() {
 fn calendar_arrows_roll_over_month_edges() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-01");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "value", "2026-07-01");
+    let events = events_probe(&mut app, el);
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -265,8 +263,8 @@ fn calendar_arrows_roll_over_month_edges() {
 fn calendar_pages_by_month() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-07");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "value", "2026-07-07");
+    let events = events_probe(&mut app, el);
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -282,7 +280,7 @@ fn calendar_pages_by_month() {
 fn calendar_esc_closes_before_quit() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-07");
+    app.set_attr(el, "value", "2026-07-07");
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -297,9 +295,9 @@ fn calendar_esc_closes_before_quit() {
 fn calendar_commit_respects_the_min_bound() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-07");
-    el.set_attr("min", "2026-07-05");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "value", "2026-07-07");
+    app.set_attr(el, "min", "2026-07-05");
+    let events = events_probe(&mut app, el);
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -320,7 +318,7 @@ fn calendar_commit_respects_the_min_bound() {
 fn disabled_date_ignores_the_calendar_keys() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("disabled", "");
+    app.set_attr(el, "disabled", "");
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -332,10 +330,12 @@ fn disabled_date_ignores_the_calendar_keys() {
 fn date_commit_notifies_the_zoned_date_in_the_current_timezone() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("default-timezone", "Europe/Berlin");
+    app.set_attr(el, "default-timezone", "Europe/Berlin");
     let dates = Rc::new(RefCell::new(Vec::new()));
     let sink = dates.clone();
-    el.on("date-changed", move |ev| sink.borrow_mut().push(ev.clone()));
+    app.on(el, "date-changed", move |ev| {
+        sink.borrow_mut().push(ev.clone())
+    });
 
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
@@ -359,8 +359,8 @@ fn clear_input(app: &mut App<TestBackend>) {
 fn number_commit_parses_separators_and_echoes_the_format() {
     let mut app = app();
     let el = app.mount("input-number").expect("mount");
-    el.set_attr("label", "Amount");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "label", "Amount");
+    let events = events_probe(&mut app, el);
 
     clear_input(&mut app);
     type_str(&mut app, "1.234,5");
@@ -378,8 +378,8 @@ fn number_commit_parses_separators_and_echoes_the_format() {
 #[test]
 fn number_invalid_commit_shows_the_error_line() {
     let mut app = app();
-    app.mount("input-number").expect("mount");
-    let events = events_probe(&mut app);
+    let el = app.mount("input-number").expect("mount");
+    let events = events_probe(&mut app, el);
 
     type_str(&mut app, "12x");
     key(&mut app, KeyCode::Enter);
@@ -396,8 +396,8 @@ fn number_invalid_commit_shows_the_error_line() {
 fn number_allow_null_commits_null_for_empty() {
     let mut app = app();
     let el = app.mount("input-number").expect("mount");
-    el.set_attr("allow-null", "");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "allow-null", "");
+    let events = events_probe(&mut app, el);
 
     clear_input(&mut app);
     key(&mut app, KeyCode::Enter);
@@ -412,8 +412,8 @@ fn number_allow_null_commits_null_for_empty() {
 fn textarea_enter_adds_lines_and_tab_commits() {
     let mut app = tall_app();
     let el = app.mount("input-textarea").expect("mount");
-    el.set_attr("label", "Comment");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "label", "Comment");
+    let events = events_probe(&mut app, el);
 
     type_str(&mut app, "line one");
     key(&mut app, KeyCode::Enter); // newline, not a commit
@@ -436,12 +436,10 @@ fn textarea_enter_adds_lines_and_tab_commits() {
 #[test]
 fn the_focus_ring_and_caret_follow_the_focused_root() {
     let mut app = app();
-    app.mount("input-text").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "First");
-    app.mount("input-number").expect("mount");
-    app.root_at_mut(1)
-        .expect("root")
-        .set_attr("label", "Second");
+    let first = app.mount("input-text").expect("mount");
+    app.set_attr(first, "label", "First");
+    let second = app.mount("input-number").expect("mount");
+    app.set_attr(second, "label", "Second");
 
     let focus_ring = ratatui::style::Color::LightBlue;
     let corner_colors = |app: &mut App<TestBackend>| -> Vec<ratatui::style::Color> {
@@ -471,8 +469,8 @@ fn the_focus_ring_and_caret_follow_the_focused_root() {
 #[test]
 fn the_error_state_outlines_the_group_in_danger_red() {
     let mut app = app();
-    app.mount("input-number").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "Amount");
+    let el = app.mount("input-number").expect("mount");
+    app.set_attr(el, "label", "Amount");
 
     let corner = |app: &mut App<TestBackend>| -> ratatui::style::Color {
         app.draw().expect("draw");
@@ -499,10 +497,9 @@ fn the_error_state_outlines_the_group_in_danger_red() {
 #[test]
 fn placeholders_show_under_empty_widgets() {
     let mut app = app();
-    app.mount("input-text").expect("mount");
-    let root = app.root_mut().expect("root");
-    root.set_attr("label", "Note");
-    root.set_attr("placeholder", "free text");
+    let el = app.mount("input-text").expect("mount");
+    app.set_attr(el, "label", "Note");
+    app.set_attr(el, "placeholder", "free text");
 
     assert!(
         screen(&mut app).contains("free text"),
@@ -520,8 +517,8 @@ fn placeholders_show_under_empty_widgets() {
 #[test]
 fn the_empty_date_shows_its_placeholder_over_the_mask() {
     let mut app = app();
-    app.mount("input-date").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "Date");
+    let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "label", "Date");
 
     let screen = screen(&mut app);
     assert!(
@@ -534,11 +531,10 @@ fn the_empty_date_shows_its_placeholder_over_the_mask() {
 #[test]
 fn the_number_rests_right_aligned_beside_its_unit() {
     let mut app = app();
-    app.mount("input-number").expect("mount");
-    let root = app.root_mut().expect("root");
-    root.set_attr("label", "Amount");
-    root.set_attr("unit", "€");
-    root.set_attr("value", "1234.5");
+    let el = app.mount("input-number").expect("mount");
+    app.set_attr(el, "label", "Amount");
+    app.set_attr(el, "unit", "€");
+    app.set_attr(el, "value", "1234.5");
 
     // At rest (blurred, like an unfocused browser input) the value sits
     // beside its unit at the right edge.
@@ -572,8 +568,8 @@ fn the_number_rests_right_aligned_beside_its_unit() {
 #[test]
 fn the_textarea_starts_at_one_line_and_grows() {
     let mut app = app();
-    app.mount("input-textarea").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "Comment");
+    let el = app.mount("input-textarea").expect("mount");
+    app.set_attr(el, "label", "Comment");
 
     let box_rows = |screen: &str| {
         let top = screen.lines().position(|l| l.contains('┌')).unwrap();
@@ -596,12 +592,10 @@ fn the_textarea_starts_at_one_line_and_grows() {
 #[test]
 fn shift_tab_walks_the_focus_backward_across_roots() {
     let mut app = app();
-    app.mount("input-text").expect("mount");
-    app.root_mut().expect("root").set_attr("label", "First");
-    app.mount("input-number").expect("mount");
-    app.root_at_mut(1)
-        .expect("root")
-        .set_attr("label", "Second");
+    let first = app.mount("input-text").expect("mount");
+    app.set_attr(first, "label", "First");
+    let second = app.mount("input-number").expect("mount");
+    app.set_attr(second, "label", "Second");
 
     let focus_ring = ratatui::style::Color::LightBlue;
     let idle = ratatui::style::Color::DarkGray;
@@ -627,4 +621,26 @@ fn shift_tab_walks_the_focus_backward_across_roots() {
     key(&mut app, KeyCode::Tab);
     key(&mut app, KeyCode::BackTab);
     assert_eq!(corner_colors(&mut app), [focus_ring, idle]);
+}
+
+#[test]
+fn the_embedded_zone_select_hugs_its_label_and_the_date_grows() {
+    let mut app = app();
+    let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "value", "2026-07-07");
+    app.set_attr(el, "show-timezone", "");
+    app.set_attr(el, "default-timezone", "Europe/Berlin");
+
+    // The select sizes to its closed label plus rat's marker cells — the
+    // catalog's fit-content — instead of a fixed twelve-cell box that cut
+    // the zone short; the date input flex-grows through the rest of the row.
+    let screen = screen(&mut app);
+    let value_row = screen
+        .lines()
+        .find(|row| row.contains("2026-07-07"))
+        .expect("the value row");
+    assert!(
+        value_row.contains("Europe/Berlin"),
+        "the full zone shows beside the date:\n{screen}"
+    );
 }

@@ -33,21 +33,19 @@ fn screen(app: &mut App<TestBackend>) -> String {
         .join("\n")
 }
 
-/// Draw before dispatching, like the real event loop: the select widget's
-/// item list syncs into its state during the render pass.
+/// Draw before dispatching, like the real event loop: the popup anchor is
+/// recorded during the paint pass.
 fn key(app: &mut App<TestBackend>, code: KeyCode) -> Control {
     app.draw().expect("draw");
     app.handle_event(&Event::Key(KeyEvent::from(code)))
 }
 
-fn events_probe(app: &mut App<TestBackend>) -> Rc<RefCell<Vec<NotifyEvent>>> {
+fn events_probe(app: &mut App<TestBackend>, index: usize) -> Rc<RefCell<Vec<NotifyEvent>>> {
     let events = Rc::new(RefCell::new(Vec::new()));
     let sink = events.clone();
-    app.root_mut()
-        .expect("mounted")
-        .on("value-changed", move |ev| {
-            sink.borrow_mut().push(ev.clone())
-        });
+    app.on(index, "value-changed", move |ev| {
+        sink.borrow_mut().push(ev.clone())
+    });
     events
 }
 
@@ -59,11 +57,12 @@ fn zone_options() -> Vec<SelectOption> {
     ]
 }
 
-fn mount_zones(app: &mut App<TestBackend>) {
+fn mount_zones(app: &mut App<TestBackend>) -> usize {
     let el = app.mount("input-select").expect("mount");
-    el.set_attr("label", "Time zone");
-    el.set_attr("value", "Europe/Amsterdam");
-    el.set_prop("options", zone_options());
+    app.set_attr(el, "label", "Time zone");
+    app.set_attr(el, "value", "Europe/Amsterdam");
+    app.set_prop(el, "options", zone_options());
+    el
 }
 
 #[test]
@@ -98,8 +97,8 @@ fn f4_opens_the_popup_with_full_labels() {
 #[test]
 fn down_opens_and_enter_commits_through_the_change_path() {
     let mut app = app();
-    mount_zones(&mut app);
-    let events = events_probe(&mut app);
+    let el = mount_zones(&mut app);
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::Down);
     key(&mut app, KeyCode::Down);
@@ -121,8 +120,8 @@ fn down_opens_and_enter_commits_through_the_change_path() {
 #[test]
 fn esc_reverts_browsing_and_a_second_esc_quits() {
     let mut app = app();
-    mount_zones(&mut app);
-    let events = events_probe(&mut app);
+    let el = mount_zones(&mut app);
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Down);
@@ -140,8 +139,8 @@ fn esc_reverts_browsing_and_a_second_esc_quits() {
 #[test]
 fn tab_commits_the_browsed_value_and_falls_through() {
     let mut app = app();
-    mount_zones(&mut app);
-    let events = events_probe(&mut app);
+    let el = mount_zones(&mut app);
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Down);
@@ -155,8 +154,8 @@ fn tab_commits_the_browsed_value_and_falls_through() {
 #[test]
 fn type_ahead_commits_while_closed() {
     let mut app = app();
-    mount_zones(&mut app);
-    let events = events_probe(&mut app);
+    let el = mount_zones(&mut app);
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::Char('p'));
 
@@ -169,10 +168,10 @@ fn type_ahead_commits_while_closed() {
 fn the_default_row_commits_null() {
     let mut app = app();
     let el = app.mount("input-select").expect("mount");
-    el.set_attr("default", "Pick a zone");
-    el.set_attr("value", "Europe/Amsterdam");
-    el.set_prop("options", zone_options());
-    let events = events_probe(&mut app);
+    app.set_attr(el, "default", "Pick a zone");
+    app.set_attr(el, "value", "Europe/Amsterdam");
+    app.set_prop(el, "options", zone_options());
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::F(4));
     let open = screen(&mut app);
@@ -189,8 +188,8 @@ fn the_default_row_commits_null() {
 fn disabled_select_ignores_the_open_keys() {
     let mut app = app();
     let el = app.mount("input-select").expect("mount");
-    el.set_attr("disabled", "");
-    el.set_prop("options", zone_options());
+    app.set_attr(el, "disabled", "");
+    app.set_prop(el, "options", zone_options());
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Down);
@@ -208,8 +207,8 @@ fn long_lists_scroll_to_the_end() {
     let options: Vec<SelectOption> = (0..15)
         .map(|i| SelectOption::new(format!("Zone/A{i:02}")))
         .collect();
-    el.set_attr("value", "Zone/A00");
-    el.set_prop("options", options);
+    app.set_attr(el, "value", "Zone/A00");
+    app.set_prop(el, "options", options);
 
     key(&mut app, KeyCode::F(4));
     let top = screen(&mut app);
@@ -228,9 +227,9 @@ fn long_lists_scroll_to_the_end() {
 fn input_timezone_serves_the_platform_zone_list() {
     let mut app = app();
     let el = app.mount("input-timezone").expect("mount");
-    el.set_attr("label", "Time zone");
-    el.set_attr("value", "Europe/Berlin");
-    let events = events_probe(&mut app);
+    app.set_attr(el, "label", "Time zone");
+    app.set_attr(el, "value", "Europe/Berlin");
+    let events = events_probe(&mut app, el);
 
     let closed = screen(&mut app);
     assert!(closed.contains("Berlin"), "short label:\n{closed}");
@@ -254,8 +253,8 @@ fn input_timezone_serves_the_platform_zone_list() {
 #[test]
 fn empty_options_render_and_commit_without_events() {
     let mut app = app();
-    app.mount("input-select").expect("mount");
-    let events = events_probe(&mut app);
+    let el = app.mount("input-select").expect("mount");
+    let events = events_probe(&mut app, el);
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Enter);

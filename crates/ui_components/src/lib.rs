@@ -4,8 +4,10 @@
 //! lit-flavored template (`date.mhtml`), its stylesheet (`date.scss`), and —
 //! for behavior the browser cannot derive — its web partial (`date.impl.ts`).
 
+pub mod demo;
 pub mod input;
 
+pub use demo::AppRoot;
 pub use input::InputDate;
 
 /// Anchors this crate's object code so `inventory` registrations survive the

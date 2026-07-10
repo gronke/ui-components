@@ -3,7 +3,7 @@
 
 use uic_core::{
     attribute_to_value, notify_events, Changed, Ctx, CustomElement, CustomElementRegistry, JsType,
-    PropertyStore, UiEvent, Value, Zoned,
+    ObjectMap, PropertyStore, UiEvent, Value, Zoned,
 };
 
 /// Exercises every derive feature in one component.
@@ -114,6 +114,40 @@ fn zoned_property_is_property_only_and_notifies_by_js_name() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].event_name, "date-changed");
     assert_eq!(events[0].value, Value::Zoned(zoned));
+}
+
+/// An object-map property — the state shape (ADR 0013).
+#[derive(CustomElement, Default)]
+#[custom_element(tag = "test-state", template = "<p>ok</p>")]
+struct TestState {
+    /// The application state.
+    #[property(notify)]
+    state: ObjectMap,
+}
+
+impl TestStateLogic for TestState {}
+
+#[test]
+fn object_property_is_property_only_and_starts_empty() {
+    let def = TestState::definition();
+    let state = def.property("state").expect("state property");
+    assert_eq!(state.js_type, JsType::Object);
+    assert_eq!(state.attribute, None, "no observed attribute");
+    assert!(!state.optional);
+    assert!(!state.reflect);
+    assert_eq!(state.default, uic_core::DefaultValue::EmptyObject);
+    assert_eq!(state.notify_event_name().as_deref(), Some("state-changed"));
+
+    // Starts as the empty object; the notify pass carries the map.
+    let mut store = PropertyStore::new(def.properties);
+    assert_eq!(store.get("state"), &Value::Object(ObjectMap::new()));
+    let next: ObjectMap = [("date", "2026-07-07")].into_iter().collect();
+    let mut changed = Changed::default();
+    changed.record("state", store.set("state", next.clone()).expect("changed"));
+    let events = notify_events(def, &changed, &store);
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].event_name, "state-changed");
+    assert_eq!(events[0].value, Value::Object(next));
 }
 
 #[test]

@@ -1,13 +1,15 @@
 //! The ReactiveElement flow on the TUI runtime: `will_update` before the
-//! commit, notify in between, `updated` after it, and follow-up cycles from
-//! `updated` writes. One test owns the shared log — the order is the point.
+//! commit, the notify dispatch in between, `updated` after it, and follow-up
+//! cycles from `updated` writes. One test owns the shared log — the order is
+//! the point. The mid-cycle observer is a DOM event listener: notify events
+//! dispatch as bubbling events during the cycle, exactly the browser's
+//! timing.
 
 use std::sync::Mutex;
 
-use ratatui::backend::TestBackend;
-use ratatui::Terminal;
 use uic_core::{Changed, Ctx, CustomElement, UiEvent};
-use uic_tui::App;
+use uic_dom::ListenerOptions;
+use uic_tui::dom::DomHost;
 
 static LOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
@@ -60,28 +62,33 @@ impl LifecycleProbeLogic for LifecycleProbe {
 #[test]
 fn the_cycle_orders_will_update_notify_commit_updated_and_follows_up() {
     ui_components::link();
-    let terminal = Terminal::new(TestBackend::new(40, 6)).expect("test terminal");
-    let mut app: App<TestBackend> = App::from_terminal(terminal);
-    let el = app.mount("lifecycle-probe").expect("mount");
-    el.on("value-changed", |event| {
-        log(format!(
-            "notify:{} {:?} was {:?}",
-            event.event_name, event.value, event.old_value
-        ));
-    });
+    let mut host = DomHost::mount("lifecycle-probe").expect("mount");
+    let root = host.doc().root();
+    host.doc_mut().add_event_listener(
+        root,
+        "value-changed",
+        ListenerOptions::default(),
+        |_doc, event| {
+            log(format!(
+                "notify:{} {:?}",
+                event.event_type(),
+                event.detail.display_text()
+            ));
+        },
+    );
     LOG.lock().expect("log lock").clear();
 
-    app.root_mut().expect("mounted").set_attr("value", "x");
+    host.set_attr("value", "x");
 
     // One external write: will_update sees the batch with the OLD value,
-    // the notify listener fires before the commit, updated runs after it —
+    // the notify event dispatches before the commit, updated runs after it —
     // and its `echoed` write drives exactly one converging follow-up cycle.
     let entries = LOG.lock().expect("log lock").clone();
     assert_eq!(
         entries,
         [
             "will_update[value] old=Some(Str(\"\"))",
-            "notify:value-changed Str(\"x\") was Str(\"\")",
+            "notify:value-changed \"x\"",
             "updated[value]",
             "will_update[echoed] old=None",
             "updated[echoed]",

@@ -35,6 +35,7 @@
 
 mod event;
 pub mod html;
+pub mod parts;
 mod serialize;
 mod sink;
 mod tree;

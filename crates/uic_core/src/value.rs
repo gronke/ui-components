@@ -5,6 +5,7 @@
 //! class in the browser.
 
 use crate::meta::{JsType, PropertyMeta};
+use crate::object::ObjectMap;
 use crate::select::SelectOption;
 use crate::zoned::Zoned;
 
@@ -19,6 +20,9 @@ pub enum Value {
     Zoned(Zoned),
     /// An object-valued select option list (`SelectOption[]` analog).
     Options(Vec<SelectOption>),
+    /// An object-valued string-keyed map (plain JS object analog), the
+    /// carrier of state-shaped properties (ADR 0013).
+    Object(ObjectMap),
 }
 
 impl Value {
@@ -31,8 +35,8 @@ impl Value {
             Value::Num(n) => *n != 0.0 && !n.is_nan(),
             Value::Bool(b) => *b,
             Value::Zoned(_) => true,
-            // Arrays are objects: truthy even when empty.
-            Value::Options(_) => true,
+            // Arrays and maps are objects: truthy even when empty.
+            Value::Options(_) | Value::Object(_) => true,
         }
     }
 
@@ -57,6 +61,13 @@ impl Value {
         }
     }
 
+    pub fn as_object(&self) -> Option<&ObjectMap> {
+        match self {
+            Value::Object(object) => Some(object),
+            _ => None,
+        }
+    }
+
     /// Text rendering for text and attribute positions.
     /// `undefined`/`null` render empty, like lit-html child parts.
     /// A zoned timestamp renders Temporal-style ISO.
@@ -67,9 +78,9 @@ impl Value {
             Value::Num(n) => format_number(*n),
             Value::Bool(b) => b.to_string(),
             Value::Zoned(z) => z.iso(),
-            // Option lists never legitimately reach text position (the
-            // derive restricts `.options` bindings); render nothing.
-            Value::Options(_) => String::new(),
+            // Option lists and object maps never legitimately reach text
+            // position (property-only shapes); render nothing.
+            Value::Options(_) | Value::Object(_) => String::new(),
         }
     }
 }
@@ -119,6 +130,12 @@ impl From<Vec<SelectOption>> for Value {
     }
 }
 
+impl From<ObjectMap> for Value {
+    fn from(object: ObjectMap) -> Self {
+        Value::Object(object)
+    }
+}
+
 impl From<i64> for Value {
     fn from(n: i64) -> Self {
         Value::Num(n as f64)
@@ -151,9 +168,11 @@ pub fn attribute_to_value(js_type: JsType, raw: Option<&str>) -> Value {
                 Value::Num(trimmed.parse().unwrap_or(f64::NAN))
             }
         }
-        // Zoned and Options properties are property-only (the derive rejects
-        // attribute options), so no attribute ever maps to them.
-        (JsType::Zoned, Some(_)) | (JsType::Options, Some(_)) => Value::Null,
+        // Zoned, Options and Object properties are property-only (the derive
+        // rejects attribute options), so no attribute ever maps to them.
+        (JsType::Zoned, Some(_)) | (JsType::Options, Some(_)) | (JsType::Object, Some(_)) => {
+            Value::Null
+        }
     }
 }
 
@@ -256,6 +275,8 @@ mod tests {
         assert!(Value::Num(2.0).truthy());
         assert!(!Value::Bool(false).truthy());
         assert!(Value::Bool(true).truthy());
+        // Objects are truthy even when empty.
+        assert!(Value::Object(ObjectMap::new()).truthy());
     }
 
     #[test]
@@ -266,6 +287,7 @@ mod tests {
         assert_eq!(Value::Num(3.0).display_text(), "3");
         assert_eq!(Value::Num(3.5).display_text(), "3.5");
         assert_eq!(Value::Bool(true).display_text(), "true");
+        assert_eq!(Value::Object(ObjectMap::new()).display_text(), "");
     }
 
     #[test]
@@ -309,5 +331,27 @@ mod tests {
         assert_eq!(store.set("value", "a"), Some(Value::Str(String::new())));
         assert_eq!(store.set("value", "a"), None);
         assert_eq!(store.set("value", "b"), Some(Value::Str("a".into())));
+    }
+
+    /// The echo brake of the state protocol: writing a deeply equal map is
+    /// no change, so no notify event fires.
+    #[test]
+    fn store_set_suppresses_equal_object_maps() {
+        static PROPS: &[PropertyMeta] = &[PropertyMeta {
+            rust_name: "state",
+            js_name: "state",
+            attribute: None,
+            js_type: JsType::Object,
+            optional: false,
+            reflect: false,
+            notify: crate::meta::Notify::Auto,
+            default: crate::meta::DefaultValue::EmptyObject,
+            doc: "",
+        }];
+        let mut store = PropertyStore::new(PROPS);
+        assert_eq!(store.get("state"), &Value::Object(ObjectMap::new()));
+        let state: ObjectMap = [("date", "2026-07-07")].into_iter().collect();
+        assert!(store.set("state", state.clone()).is_some());
+        assert_eq!(store.set("state", state), None);
     }
 }

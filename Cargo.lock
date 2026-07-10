@@ -3768,6 +3768,7 @@ dependencies = [
  "chrono",
  "chrono-tz 0.10.4",
  "inventory",
+ "serde_json",
  "thiserror 2.0.18",
  "trybuild",
  "uic_macros",
@@ -3788,7 +3789,9 @@ version = "0.1.0"
 dependencies = [
  "html5ever",
  "indextree",
+ "thiserror 2.0.18",
  "uic_core",
+ "uic_template",
 ]
 
 [[package]]
@@ -3820,7 +3823,7 @@ dependencies = [
  "thiserror 2.0.18",
  "ui_components",
  "uic_core",
- "uic_template",
+ "uic_dom",
  "unicode-width",
 ]
 

@@ -1,0 +1,5 @@
+error: Object properties are plain ObjectMap; the empty state is the empty object, not None
+ --> tests/ui/fail_object_optional.rs:7:12
+  |
+7 |     state: Option<ObjectMap>,
+  |            ^^^^^^^^^^^^^^^^^

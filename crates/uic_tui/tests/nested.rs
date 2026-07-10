@@ -80,12 +80,10 @@ fn type_str(app: &mut App<TestBackend>, text: &str) {
     }
 }
 
-fn probe(app: &mut App<TestBackend>, event: &str) -> Rc<RefCell<Vec<NotifyEvent>>> {
+fn probe(app: &mut App<TestBackend>, index: usize, event: &str) -> Rc<RefCell<Vec<NotifyEvent>>> {
     let events = Rc::new(RefCell::new(Vec::new()));
     let sink = events.clone();
-    app.root_mut()
-        .expect("mounted")
-        .on(event, move |ev| sink.borrow_mut().push(ev.clone()));
+    app.on(index, event, move |ev| sink.borrow_mut().push(ev.clone()));
     events
 }
 
@@ -93,7 +91,7 @@ fn probe(app: &mut App<TestBackend>, event: &str) -> Rc<RefCell<Vec<NotifyEvent>
 fn children_render_with_their_chrome_and_bound_state() {
     let mut app = app();
     let el = app.mount("demo-form").expect("mount");
-    el.set_attr("date-value", "2026-07-07");
+    app.set_attr(el, "date-value", "2026-07-07");
 
     let screen = screen(&mut app);
     assert!(screen.contains("Date"), "child date label:\n{screen}");
@@ -111,10 +109,10 @@ fn children_render_with_their_chrome_and_bound_state() {
 #[test]
 fn child_commit_routes_to_the_parent_handler() {
     let mut app = app();
-    app.mount("demo-form").expect("mount");
-    let events = probe(&mut app, "date-value-changed");
+    let el = app.mount("demo-form").expect("mount");
+    let events = probe(&mut app, el, "date-value-changed");
 
-    // Focus starts on the nested date widget (template order).
+    // Focus starts on the nested date widget (document order).
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
 
@@ -148,36 +146,25 @@ fn tab_traverses_into_the_next_child() {
 fn disabled_child_is_skipped_by_focus_and_input() {
     let mut app = app();
     let el = app.mount("demo-form").expect("mount");
-    el.set_attr("lock-date", "");
+    app.set_attr(el, "lock-date", "");
 
-    // The date widget (flat index 0) is disabled through the bool binding:
-    // typing has no effect, and Tab skips back around to the text child.
+    // The date widget is disabled through the bool binding: typing has no
+    // effect, and focus rests on the text child instead.
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
     let screen_before = screen(&mut app);
     assert!(
-        screen_before.contains("summary: [] []"),
-        "no commit from the locked date child:\n{screen_before}"
-    );
-
-    key(&mut app, KeyCode::Tab);
-    type_str(&mut app, "note");
-    key(&mut app, KeyCode::Enter);
-    let screen_after = screen(&mut app);
-    assert!(
-        screen_after.contains("summary: [] [note]"),
-        "focus reached the text child:\n{screen_after}"
+        screen_before.contains("summary: [] [2026-08-01]"),
+        "the typing landed in the text child, not the locked date:\n{screen_before}"
     );
 }
 
 #[test]
 fn parent_writes_sync_down_without_echo_loops() {
     let mut app = app();
-    app.mount("demo-form").expect("mount");
-    let events = probe(&mut app, "date-value-changed");
-    app.root_mut()
-        .expect("mounted")
-        .set_attr("date-value", "2026-09-09");
+    let el = app.mount("demo-form").expect("mount");
+    let events = probe(&mut app, el, "date-value-changed");
+    app.set_attr(el, "date-value", "2026-09-09");
 
     let screen = screen(&mut app);
     assert!(
@@ -191,14 +178,14 @@ fn parent_writes_sync_down_without_echo_loops() {
 fn nested_date_slot_opens_its_calendar() {
     let mut app = app();
     let el = app.mount("demo-form").expect("mount");
-    el.set_attr("date-value", "2026-07-07");
+    app.set_attr(el, "date-value", "2026-07-07");
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
     let after = screen(&mut app);
     assert!(
         after.contains("July 2026"),
-        "calendar anchored at the nested slot:\n{after}"
+        "calendar anchored at the nested widget:\n{after}"
     );
 }
 
@@ -206,9 +193,9 @@ fn nested_date_slot_opens_its_calendar() {
 fn show_timezone_embeds_the_select_inside_the_date() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("show-timezone", "");
-    el.set_attr("default-timezone", "Europe/Berlin");
-    let events = probe(&mut app, "timezone-changed");
+    app.set_attr(el, "show-timezone", "");
+    app.set_attr(el, "default-timezone", "Europe/Berlin");
+    let events = probe(&mut app, el, "timezone-changed");
 
     // The embedded select renders next to the date input inside ONE border
     // block (seamless suppresses the child's own), showing the default row's
@@ -217,8 +204,8 @@ fn show_timezone_embeds_the_select_inside_the_date() {
     let closed = screen(&mut app);
     assert!(closed.contains("▼"), "embedded select marker:\n{closed}");
     assert!(
-        closed.contains("Europe/B"),
-        "default label in the closed line:\n{closed}"
+        closed.contains("Europe/Berlin"),
+        "the closed line fits the whole default label:\n{closed}"
     );
     assert_eq!(
         closed.matches('┌').count(),
@@ -230,6 +217,7 @@ fn show_timezone_embeds_the_select_inside_the_date() {
     // path (rows clip to the narrow anchor); Enter commits and the event
     // routes up as timezone-changed.
     key(&mut app, KeyCode::Tab);
+    screen(&mut app);
     key(&mut app, KeyCode::F(4));
     let open = screen(&mut app);
     assert!(
@@ -246,14 +234,14 @@ fn show_timezone_embeds_the_select_inside_the_date() {
 }
 
 #[test]
-fn hidden_timezone_branch_keeps_indices_and_focus_stable() {
+fn hidden_timezone_branch_keeps_the_focus_stable() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    el.set_attr("value", "2026-07-07");
-    let events = probe(&mut app, "timezone-changed");
+    app.set_attr(el, "value", "2026-07-07");
+    let events = probe(&mut app, el, "timezone-changed");
 
-    // With the branch off, the child is not rendered and focus stays on the
-    // date slot: Tab wraps back to it, F4 opens the calendar (slot 0).
+    // With the branch off, the select's nodes do not exist and focus stays
+    // on the date widget: Tab wraps back to it, F4 opens the calendar.
     let closed = screen(&mut app);
     assert!(!closed.contains("▼"), "no select rendered:\n{closed}");
     key(&mut app, KeyCode::Tab);
@@ -261,9 +249,31 @@ fn hidden_timezone_branch_keeps_indices_and_focus_stable() {
     let after = screen(&mut app);
     assert!(
         after.contains("July 2026"),
-        "calendar still owns the focused slot:\n{after}"
+        "calendar still owns the focused widget:\n{after}"
     );
     assert!(events.borrow().is_empty());
+}
+
+#[test]
+fn unrendered_branches_are_unfocusable_by_construction() {
+    let mut app = app();
+    let date = app.mount("input-date").expect("mount");
+    app.set_attr(date, "value", "2026-07-07");
+    let note = app.mount("input-text").expect("mount");
+    let events = probe(&mut app, note, "value-changed");
+
+    // Without show-timezone the date owns ONE focusable: a single Tab must
+    // land on the text root — the unrendered branch's widget node does not
+    // exist, so no guard is needed to skip it.
+    screen(&mut app);
+    key(&mut app, KeyCode::Tab);
+    type_str(&mut app, "note");
+    key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        events.borrow().last().map(|ev| ev.value.display_text()),
+        Some("note".to_string()),
+        "one Tab reached the text root"
+    );
 }
 
 #[test]
@@ -289,7 +299,7 @@ fn shift_tab_returns_into_the_previous_child() {
 fn shift_tab_skips_disabled_widgets() {
     let mut app = app();
     let el = app.mount("demo-form").expect("mount");
-    el.set_attr("lock-date", "");
+    app.set_attr(el, "lock-date", "");
 
     // Focus sits on the text child (the only enabled one); the backward
     // wrap skips the locked date and lands on the text child again.

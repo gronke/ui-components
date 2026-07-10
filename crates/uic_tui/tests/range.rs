@@ -42,12 +42,10 @@ fn type_str(app: &mut App<TestBackend>, text: &str) {
     }
 }
 
-fn probe(app: &mut App<TestBackend>, event: &str) -> Rc<RefCell<Vec<NotifyEvent>>> {
+fn probe(app: &mut App<TestBackend>, index: usize, event: &str) -> Rc<RefCell<Vec<NotifyEvent>>> {
     let events = Rc::new(RefCell::new(Vec::new()));
     let sink = events.clone();
-    app.root_mut()
-        .expect("mounted")
-        .on(event, move |ev| sink.borrow_mut().push(ev.clone()));
+    app.on(index, event, move |ev| sink.borrow_mut().push(ev.clone()));
     events
 }
 
@@ -55,10 +53,10 @@ fn probe(app: &mut App<TestBackend>, event: &str) -> Rc<RefCell<Vec<NotifyEvent>
 fn the_range_renders_two_dates_under_one_chrome() {
     let mut app = app();
     let el = app.mount("input-date-range").expect("mount");
-    el.set_attr("label", "Stay");
-    el.set_attr("hint", "The end never precedes the start");
-    el.set_attr("start", "2026-07-07");
-    el.set_attr("end", "2026-07-11");
+    app.set_attr(el, "label", "Stay");
+    app.set_attr(el, "hint", "The end never precedes the start");
+    app.set_attr(el, "start", "2026-07-07");
+    app.set_attr(el, "end", "2026-07-11");
 
     let screen = screen(&mut app);
     assert!(screen.contains("Stay"), "shared label:\n{screen}");
@@ -82,9 +80,9 @@ fn the_range_renders_two_dates_under_one_chrome() {
 fn committing_a_start_beyond_the_end_pulls_the_end_along() {
     let mut app = app();
     let el = app.mount("input-date-range").expect("mount");
-    el.set_attr("end", "2026-07-15");
-    let values = probe(&mut app, "value-changed");
-    let ends = probe(&mut app, "end-changed");
+    app.set_attr(el, "end", "2026-07-15");
+    let values = probe(&mut app, el, "value-changed");
+    let ends = probe(&mut app, el, "end-changed");
 
     // Focus starts on the start child; commit a date past the end.
     screen(&mut app);
@@ -113,8 +111,8 @@ fn committing_a_start_beyond_the_end_pulls_the_end_along() {
 fn committing_an_end_before_the_start_pulls_the_start_back() {
     let mut app = app();
     let el = app.mount("input-date-range").expect("mount");
-    el.set_attr("start", "2026-07-10");
-    let starts = probe(&mut app, "start-changed");
+    app.set_attr(el, "start", "2026-07-10");
+    let starts = probe(&mut app, el, "start-changed");
 
     screen(&mut app);
     key(&mut app, KeyCode::Tab);
@@ -137,13 +135,11 @@ fn committing_an_end_before_the_start_pulls_the_start_back() {
 #[test]
 fn an_external_value_decomposes_into_both_ends() {
     let mut app = app();
-    app.mount("input-date-range").expect("mount");
-    let starts = probe(&mut app, "start-changed");
-    let ends = probe(&mut app, "end-changed");
+    let el = app.mount("input-date-range").expect("mount");
+    let starts = probe(&mut app, el, "start-changed");
+    let ends = probe(&mut app, el, "end-changed");
 
-    app.root_mut()
-        .expect("mounted")
-        .set_attr("value", "2026-01-01/2026-02-01");
+    app.set_attr(el, "value", "2026-01-01/2026-02-01");
 
     let screen = screen(&mut app);
     assert!(
@@ -157,12 +153,10 @@ fn an_external_value_decomposes_into_both_ends() {
 #[test]
 fn an_inverted_external_value_normalizes() {
     let mut app = app();
-    app.mount("input-date-range").expect("mount");
-    let values = probe(&mut app, "value-changed");
+    let el = app.mount("input-date-range").expect("mount");
+    let values = probe(&mut app, el, "value-changed");
 
-    app.root_mut()
-        .expect("mounted")
-        .set_attr("value", "2026-09-01/2026-08-01");
+    app.set_attr(el, "value", "2026-09-01/2026-08-01");
 
     let screen = screen(&mut app);
     assert_eq!(

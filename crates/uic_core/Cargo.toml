@@ -14,6 +14,11 @@ inventory.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+serde_json = { workspace = true, optional = true }
+
+[features]
+# JSON ⇄ Value conversion for transports (the wasm session, state sync).
+json = ["dep:serde_json"]
 
 [dev-dependencies]
 trybuild.workspace = true

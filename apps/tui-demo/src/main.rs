@@ -23,48 +23,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = uic_tui::App::new()?;
     let element = app.mount(&tag)?;
-    match element.tag_name() {
+    match tag.as_str() {
         "input-date" => {
-            element.set_attr("label", "Date of purchase");
-            element.set_attr("hint", "Format: YYYY-MM-DD");
-            element.set_attr("value", "2026-07-07");
-            element.set_attr("min", "2020-01-01");
-            element.set_attr("max", "2030-12-31");
-            element.set_attr("default-timezone", "Europe/Berlin");
-            element.set_attr("show-timezone", "");
+            app.set_attr(element, "label", "Date of purchase");
+            app.set_attr(element, "hint", "Format: YYYY-MM-DD");
+            app.set_attr(element, "value", "2026-07-07");
+            app.set_attr(element, "min", "2020-01-01");
+            app.set_attr(element, "max", "2030-12-31");
+            app.set_attr(element, "default-timezone", "Europe/Berlin");
+            app.set_attr(element, "show-timezone", "");
             *status.borrow_mut() =
                 "Enter commits · F4/Down opens the calendar or zone list · Esc quits".into();
         }
         "input-date-range" => {
-            element.set_attr("label", "Stay");
-            element.set_attr("hint", "The end never precedes the start");
-            element.set_attr("start", "2026-07-07");
-            element.set_attr("end", "2026-07-11");
+            app.set_attr(element, "label", "Stay");
+            app.set_attr(element, "hint", "The end never precedes the start");
+            app.set_attr(element, "start", "2026-07-07");
+            app.set_attr(element, "end", "2026-07-11");
             *status.borrow_mut() =
                 "Enter commits an end · the other follows if the range inverts · Esc quits".into();
         }
         "input-text" => {
-            element.set_attr("label", "Note");
-            element.set_attr("hint", "Trimmed on commit; empty becomes null");
-            element.set_attr("allow-null", "");
+            app.set_attr(element, "label", "Note");
+            app.set_attr(element, "hint", "Trimmed on commit; empty becomes null");
+            app.set_attr(element, "allow-null", "");
         }
         "input-number" => {
-            element.set_attr("label", "Amount");
-            element.set_attr("hint", "Comma or dot decimals; dots group thousands");
-            element.set_attr("unit", "EUR");
-            element.set_attr("allow-null", "");
+            app.set_attr(element, "label", "Amount");
+            app.set_attr(
+                element,
+                "hint",
+                "Comma or dot decimals; dots group thousands",
+            );
+            app.set_attr(element, "unit", "EUR");
+            app.set_attr(element, "allow-null", "");
         }
         "input-textarea" => {
-            element.set_attr("label", "Comment");
-            element.set_attr("hint", "Grows with its content up to max-lines");
+            app.set_attr(element, "label", "Comment");
+            app.set_attr(element, "hint", "Grows with its content up to max-lines");
             *status.borrow_mut() = "Enter adds a line, Tab commits · Esc quits".into();
         }
         "input-select" => {
-            element.set_attr("label", "Time zone");
-            element.set_attr("hint", "Empty commits null once a default is set");
-            element.set_attr("default", "Pick a zone");
-            element.set_attr("value", "Europe/Berlin");
-            element.set_prop(
+            app.set_attr(element, "label", "Time zone");
+            app.set_attr(element, "hint", "Empty commits null once a default is set");
+            app.set_attr(element, "default", "Pick a zone");
+            app.set_attr(element, "value", "Europe/Berlin");
+            app.set_prop(
+                element,
                 "options",
                 vec![
                     uic_core::SelectOption::new("Europe/Amsterdam").with_short("Amsterdam"),
@@ -77,23 +82,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "F4/Down/Space opens the list · Enter picks, Esc reverts · Esc quits".into();
         }
         "input-timezone" => {
-            element.set_attr("label", "Time zone");
-            element.set_attr("hint", "The platform zone list, UTC first");
-            element.set_attr("default", "Pick a zone");
+            app.set_attr(element, "label", "Time zone");
+            app.set_attr(element, "hint", "The platform zone list, UTC first");
+            app.set_attr(element, "default", "Pick a zone");
             *status.borrow_mut() =
                 "F4/Down/Space opens the list · Enter picks, Esc reverts · Esc quits".into();
         }
         _ => {}
     }
     let notify = status.clone();
-    element.on("value-changed", move |event| {
+    app.on(element, "value-changed", move |event| {
         *notify.borrow_mut() = format!(
             "value-changed: {:?} (was {:?})",
             event.value, event.old_value
         );
     });
     let notify = status.clone();
-    element.on("timezone-changed", move |event| {
+    app.on(element, "timezone-changed", move |event| {
         *notify.borrow_mut() = format!(
             "timezone-changed: {:?} (was {:?})",
             event.value, event.old_value

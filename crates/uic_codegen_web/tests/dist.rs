@@ -12,9 +12,12 @@ fn dist() -> PathBuf {
         .repository("https://github.com/schuhkarton/ui-components")
         .run()
         .expect("dist build succeeds");
+    // Every registered component ships, the demo composition included
+    // (ADR 0013; a dist skip-list would be a separate change).
     assert_eq!(
         root.components,
         vec![
+            "app-root",
             "input-date",
             "input-date-range",
             "input-number",
@@ -31,6 +34,9 @@ fn dist() -> PathBuf {
 fn emits_the_npm_tree() {
     let root = dist();
     for file in [
+        "components/app-root.js",
+        "components/app-root.d.ts",
+        "components/app-root.impl.js",
         "components/input-date.js",
         "components/input-date.d.ts",
         "components/input-date.impl.js",

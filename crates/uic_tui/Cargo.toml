@@ -15,7 +15,7 @@ ratatui = "0.30"
 taffy = "0.12"
 thiserror = "2"
 uic_core.workspace = true
-uic_template.workspace = true
+uic_dom.workspace = true
 unicode-width = "0.2"
 
 [dev-dependencies]
