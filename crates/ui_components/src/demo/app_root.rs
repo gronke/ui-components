@@ -9,11 +9,14 @@
 
 use uic_core::{Ctx, CustomElement, ObjectMap, PropertyStore, SelectOption, UiEvent, Value};
 
+// The demo composition serves the dev pages and the runtimes, not the
+// published package (ADR 0013).
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "app-root",
     template_file = "app_root.mhtml",
-    web_impl_file = "app_root.impl.ts"
+    web_impl_file = "app_root.impl.ts",
+    dist = false
 )]
 pub struct AppRoot {
     /// The application state: one member per form field, scalars only.

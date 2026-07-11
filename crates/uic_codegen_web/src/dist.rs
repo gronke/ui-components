@@ -60,8 +60,12 @@ impl DistBuild {
 
     pub fn run(self) -> Result<DistRoot, CodegenError> {
         // Stage the TypeScript tree next to the final output, then compile.
+        // The publish view: components with dist = false stay out.
         let staging = self.out.with_extension("gen");
-        let generated = WebCodegen::new(&staging).manifest(true).run()?;
+        let generated = WebCodegen::new(&staging)
+            .manifest(true)
+            .dist_only(true)
+            .run()?;
 
         if self.out.exists() {
             fs::remove_dir_all(&self.out)?;

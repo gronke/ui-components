@@ -23,6 +23,8 @@ web_modules = { version = "0.5.1", default-features = false, features = ["typesc
 ui_components.workspace = true
 # oxc smoke test: the emitted TypeScript must transpile.
 web_modules = { version = "0.5.1", default-features = false, features = ["typescript"] }
+# The parity fixtures convert states through the shared JSON layer.
+uic_core = { workspace = true, features = ["json"] }
 
 [[test]]
 name = "dist"

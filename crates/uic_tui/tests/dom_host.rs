@@ -5,6 +5,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use uic_core::{Ctx, CustomElement, UiEvent, Value};
 use uic_dom::ListenerOptions;
 use uic_tui::dom::DomHost;
 
@@ -145,4 +146,56 @@ fn boolean_parts_reach_children_as_absent_attributes() {
         !html.contains("<input-date disabled"),
         "the boolean cleared on the children:\n{html}"
     );
+}
+
+/// A parent binding an optional member onto a child property — the fixture
+/// of the property-part contract at the child boundary (ADR 0010).
+#[derive(CustomElement, Default)]
+#[custom_element(
+    tag = "null-flow",
+    template = "<input-text .value=${text} @value-changed=${on_text}></input-text><p>${seen}</p>"
+)]
+struct NullFlow {
+    /// The bound member: `None` resolves the hole to nothing.
+    #[property]
+    text: Option<String>,
+    /// What the child reported back, with null spelled out.
+    #[property(notify)]
+    seen: String,
+}
+
+impl NullFlowLogic for NullFlow {
+    fn on_text(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        let seen = match event.detail.as_ref() {
+            Some(Value::Null) => "null".to_string(),
+            Some(value) => value.display_text(),
+            None => "-".to_string(),
+        };
+        ctx.set("seen", seen);
+    }
+}
+
+#[test]
+fn a_nothing_hole_still_writes_null_into_the_child() {
+    let mut host = host("null-flow");
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let sink = seen.clone();
+    host.on("seen-changed", move |event| {
+        sink.borrow_mut().push(event.value.display_text())
+    });
+
+    // A real value flows down; the child commits and reports it back.
+    host.set_prop("text", "draft");
+    assert_eq!(seen.borrow().as_slice(), ["draft"]);
+
+    // The member goes null: the hole resolves to Nothing, and Nothing still
+    // WRITES — the child receives `value = null` (the browser's
+    // `el.prop = null`) and notifies. Skipping the write here would strand
+    // the child on the stale value.
+    host.set_prop("text", Value::Null);
+    assert_eq!(seen.borrow().as_slice(), ["draft", "null"]);
+
+    // An unchanged hole produces no write at all (NoChange).
+    host.set_prop("text", Value::Null);
+    assert_eq!(seen.borrow().len(), 2, "no write for an unchanged hole");
 }

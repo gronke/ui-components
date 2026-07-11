@@ -63,6 +63,19 @@ impl<'a> Ctx<'a> {
         self.store.get(rust_name)
     }
 
+    /// The property as text: the string's content, `""` for everything
+    /// else — the common read of composite derivations.
+    pub fn text(&self, rust_name: &str) -> String {
+        self.store
+            .get(rust_name)
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    /// Writes suppress equal values at the store: an unchanged property
+    /// joins no batch, re-enters no `will_update` and notifies nobody —
+    /// callers need no equality guard of their own.
     pub fn set(&mut self, rust_name: &'static str, value: impl Into<Value>) {
         if let Some(old) = self.store.set(rust_name, value) {
             self.changed.record(rust_name, old);

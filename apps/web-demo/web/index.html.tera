@@ -48,7 +48,7 @@
 </div>
 </footer>
 <script type="module">
-import { StateBridge } from '/bridge.js';
+import { wireStatePane } from '/wiring.js';
 // The state is a property (no attribute): the page owns the bootstrap.
 // These are the values the markup used to pin as attributes.
 const root = document.querySelector('app-root');
@@ -61,21 +61,19 @@ const record = (entry) => {
   log.textContent += JSON.stringify(entry) + '\n';
 };
 
-// The bridge subscribes once the component settled (children normalize
+// The wiring subscribes once the component settled (children normalize
 // empty members to null during the first update) and seeds the dedupe with
 // that settled state — loading produces no traffic and no log entries.
 await root.updateComplete;
-const bridge = new StateBridge();
-bridge.remember(root.state);
-root.addEventListener('state-changed', (e) => {
-  if (bridge.send(e.detail.value)) {
-    record({ src: 'dom', type: 'state-changed', state: e.detail.value });
-  }
+const pane = wireStatePane({
+  boot: root.state,
+  apply: (state) => {
+    root.state = state;
+  },
+  src: 'dom',
+  record,
 });
-bridge.onState((state) => {
-  root.state = state;
-  record({ src: 'dom', type: 'state-applied', state });
-});
+root.addEventListener('state-changed', (e) => pane.changed(e.detail.value));
 // The debug bar collapses to its handle; the caret points where it moves.
 const bar = document.getElementById('debug-bar');
 const toggle = document.getElementById('debug-toggle');

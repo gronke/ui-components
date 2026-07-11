@@ -3771,6 +3771,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "trybuild",
+ "uic_core",
  "uic_macros",
  "uic_template",
 ]

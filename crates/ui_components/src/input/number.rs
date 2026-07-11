@@ -160,7 +160,8 @@ impl InputNumberLogic for InputNumber {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uic_core::{notify_events, Changed};
+    use uic_core::testing::{cycle, setup};
+    use uic_core::NotifyEvent;
 
     #[test]
     fn get_float_parses_international_formats() {
@@ -190,30 +191,19 @@ mod tests {
         assert_eq!(get_fixed(0.0, 2, false), "0,00");
     }
 
-    fn commit(input: &str, attrs: &[(&str, &str)]) -> (PropertyStore, Changed) {
-        let def = InputNumber::definition();
-        let mut behavior = (def.new_behavior)();
-        let mut store = PropertyStore::new(def.properties);
-        for (name, value) in attrs {
-            let meta = def.property_by_attribute(name).expect("known attribute");
-            store.set(
-                meta.rust_name,
-                uic_core::attribute_to_value(meta.js_type, Some(value)),
-            );
-        }
-        let mut changed = Changed::default();
-        let mut ctx = Ctx::new(&mut store, &mut changed);
-        behavior.handle(&mut ctx, "on_change", &UiEvent::change(input));
-        (store, changed)
+    fn commit(input: &str) -> (PropertyStore, Vec<NotifyEvent>) {
+        let (mut store, mut behavior) = setup(InputNumber::definition());
+        let events = cycle(&mut store, &mut behavior, |b, ctx| {
+            b.handle(ctx, "on_change", &UiEvent::change(input))
+        });
+        (store, events)
     }
 
     #[test]
     fn valid_commit_parses_and_notifies_a_number() {
-        let def = InputNumber::definition();
-        let (store, changed) = commit("1.234,5", &[]);
+        let (store, events) = commit("1.234,5");
         assert_eq!(store.get("value"), &Value::Num(1234.5));
         assert_eq!(store.get("error"), &Value::Bool(false));
-        let events = notify_events(def, &changed, &store);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_name, "value-changed");
         assert_eq!(events[0].value, Value::Num(1234.5));
@@ -221,40 +211,34 @@ mod tests {
 
     #[test]
     fn empty_commit_is_zero_by_default_and_null_with_allow_null() {
-        let (store, _) = commit("", &[]);
+        let (store, _) = commit("");
         assert_eq!(store.get("value"), &Value::Num(0.0));
 
-        let def = InputNumber::definition();
-        let mut behavior = (def.new_behavior)();
-        let mut store = PropertyStore::new(def.properties);
+        let (mut store, mut behavior) = setup(InputNumber::definition());
         store.set("allow_null", true);
-        let mut changed = Changed::default();
-        let mut ctx = Ctx::new(&mut store, &mut changed);
-        behavior.handle(&mut ctx, "on_change", &UiEvent::change(""));
+        let events = cycle(&mut store, &mut behavior, |b, ctx| {
+            b.handle(ctx, "on_change", &UiEvent::change(""))
+        });
         assert_eq!(store.get("value"), &Value::Null);
-        let events = notify_events(def, &changed, &store);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].value, Value::Null);
     }
 
     #[test]
     fn invalid_commit_sets_the_error_state() {
-        let (store, changed) = commit("12x", &[]);
+        let (store, events) = commit("12x");
         assert_eq!(store.get("value"), &Value::Num(0.0), "value untouched");
         assert_eq!(
             store.get("error_message"),
             &Value::Str("Invalid number: 12x".into())
         );
         assert_eq!(store.get("error"), &Value::Bool(true));
-        let def = InputNumber::definition();
-        assert!(notify_events(def, &changed, &store).is_empty());
+        assert!(events.is_empty());
     }
 
     #[test]
     fn display_value_follows_decimals_and_optionality() {
-        let def = InputNumber::definition();
-        let behavior = (def.new_behavior)();
-        let mut store = PropertyStore::new(def.properties);
+        let (mut store, behavior) = setup(InputNumber::definition());
         assert_eq!(
             behavior.compute(&store, "display_value"),
             Value::Str("0,00".into())

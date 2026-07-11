@@ -126,7 +126,8 @@ impl InputSelectLogic for InputSelect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uic_core::{notify_events, PropertyStore};
+    use uic_core::testing::cycle;
+    use uic_core::PropertyStore;
 
     fn store_with(default: Option<&str>, options: Vec<SelectOption>) -> PropertyStore {
         let def = InputSelect::definition();
@@ -145,16 +146,11 @@ mod tests {
         ]
     }
 
-    fn commit(store: &mut PropertyStore, input: &str) -> Changed {
-        let def = InputSelect::definition();
-        let mut behavior = (def.new_behavior)();
-        let mut changed = Changed::default();
-        let mut ctx = Ctx::new(store, &mut changed);
-        behavior.handle(&mut ctx, "on_change", &UiEvent::change(input));
-        let snapshot = changed.clone();
-        let mut ctx = Ctx::new(store, &mut changed);
-        behavior.will_update(&mut ctx, &snapshot);
-        changed
+    fn commit(store: &mut PropertyStore, input: &str) -> Vec<uic_core::NotifyEvent> {
+        let mut behavior = (InputSelect::definition().new_behavior)();
+        cycle(store, &mut behavior, |b, ctx| {
+            b.handle(ctx, "on_change", &UiEvent::change(input))
+        })
     }
 
     #[test]
@@ -187,11 +183,9 @@ mod tests {
 
     #[test]
     fn commit_sets_the_picked_value_and_notifies() {
-        let def = InputSelect::definition();
         let mut store = store_with(None, zones());
-        let changed = commit(&mut store, "Europe/Berlin");
+        let events = commit(&mut store, "Europe/Berlin");
         assert_eq!(store.get("value"), &Value::Str("Europe/Berlin".into()));
-        let events = notify_events(def, &changed, &store);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_name, "value-changed");
     }
@@ -211,16 +205,12 @@ mod tests {
 
     #[test]
     fn external_empty_writes_normalize_like_the_setter() {
-        let def = InputSelect::definition();
         let mut store = store_with(Some("Pick"), zones());
         store.set("value", "Europe/Berlin");
-        let mut behavior = (def.new_behavior)();
-        let mut changed = Changed::default();
-        let mut ctx = Ctx::new(&mut store, &mut changed);
-        ctx.set("value", "");
-        let snapshot = changed.clone();
-        let mut ctx = Ctx::new(&mut store, &mut changed);
-        behavior.will_update(&mut ctx, &snapshot);
+        let mut behavior = (InputSelect::definition().new_behavior)();
+        cycle(&mut store, &mut behavior, |_, ctx| {
+            ctx.set("value", "");
+        });
         assert_eq!(store.get("value"), &Value::Null);
     }
 

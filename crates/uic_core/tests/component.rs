@@ -1,6 +1,7 @@
 //! End-to-end exercise of `#[derive(CustomElement)]` against the runtime
 //! model: metadata, registry, store, handler/computed dispatch, notify pass.
 
+use uic_core::testing::{cycle, setup};
 use uic_core::{
     attribute_to_value, notify_events, Changed, Ctx, CustomElement, CustomElementRegistry, JsType,
     ObjectMap, PropertyStore, UiEvent, Value, Zoned,
@@ -150,6 +151,21 @@ fn object_property_is_property_only_and_starts_empty() {
     assert_eq!(events[0].value, Value::Object(next));
 }
 
+/// A composition that serves the demo but stays out of the npm dist.
+#[derive(CustomElement, Default)]
+#[custom_element(tag = "test-internal", template = "<p>dev only</p>", dist = false)]
+struct TestInternal {
+    #[property]
+    note: String,
+}
+
+impl TestInternalLogic for TestInternal {}
+
+#[test]
+fn dist_false_marks_the_definition() {
+    assert!(!TestInternal::definition().dist);
+}
+
 #[test]
 fn wrapped_component_merges_chrome_and_inner_template() {
     let def = TestWrapped::definition();
@@ -189,6 +205,7 @@ fn definition_metadata() {
     assert_eq!(def.style_id, "test-box");
     assert!(def.scss.is_none());
     assert!(def.web_impl.is_none());
+    assert!(def.dist, "components ship in the dist by default");
     assert_eq!(def.properties.len(), 5);
 
     let value = def.property("value").expect("value property");
@@ -242,15 +259,10 @@ fn template_parses_lazily() {
 
 #[test]
 fn handler_dispatch_and_notify_pass() {
-    let def = TestBox::definition();
-    let mut behavior = (def.new_behavior)();
-    let mut store = PropertyStore::new(def.properties);
-    let mut changed = Changed::default();
-
-    let mut ctx = Ctx::new(&mut store, &mut changed);
-    behavior.handle(&mut ctx, "on_change", &UiEvent::change("2026"));
-
-    let events = notify_events(def, &changed, &store);
+    let (mut store, mut behavior) = setup(TestBox::definition());
+    let events = cycle(&mut store, &mut behavior, |b, ctx| {
+        b.handle(ctx, "on_change", &UiEvent::change("2026"))
+    });
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].property, "value");
     assert_eq!(events[0].event_name, "value-changed");
@@ -278,9 +290,7 @@ fn non_notify_changes_produce_no_events() {
 
 #[test]
 fn computed_dispatch() {
-    let def = TestBox::definition();
-    let behavior = (def.new_behavior)();
-    let mut store = PropertyStore::new(def.properties);
+    let (mut store, behavior) = setup(TestBox::definition());
 
     assert_eq!(
         behavior.compute(&store, "placeholder_text"),

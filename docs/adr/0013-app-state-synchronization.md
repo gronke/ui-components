@@ -28,5 +28,5 @@ A raw snapshot with last-writer-wins is the simplest protocol that a WebSocket v
 - The state contract is flat string-keyed scalars; nested objects convert but weaken the sorted-key dedupe to top level, and arrays do not travel.
 - Concurrent edits resolve last-writer-wins; a server-side arbiter would be a transport concern, not a component one.
 - Passing focus through an untouched `allow-null` input commits null into the state (the change-on-blur contract), so a pass-through Tab can produce a legitimate state change.
-- `app-root` registers like any catalog component and therefore ships in the npm dist; a dist skip-list would be a separate change.
+- `app-root` registers like any catalog component but carries `dist = false`: the dev server and the runtimes see it, the published npm package does not.
 - `uic_core` gains an optional `serde_json` dependency (feature `json`), enabled by `uic_tui_web`.

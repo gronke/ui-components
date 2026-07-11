@@ -22,6 +22,7 @@
 //! HTML comments (`<!-- … -->`) are skipped.
 //! Character entities (`&amp;` …) pass through undecoded.
 
+pub mod names;
 mod parser;
 
 use std::collections::BTreeSet;

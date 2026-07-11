@@ -93,12 +93,15 @@ fn commits_notify_like_the_terminal_demo() {
 fn json_state_drives_the_screen_like_the_session() {
     let (mut app, _out) = app(72, 50);
     let el = app.mount("app-root").unwrap();
+    // The probe records the canonical string; the session's wire format
+    // (`value_to_json(..).to_string()`) agrees for object state because the
+    // ObjectMap iterates sorted under either serde_json map flavor.
     let seen: Rc<RefCell<Vec<String>>> = Rc::default();
     {
         let seen = seen.clone();
         app.on(el, "state-changed", move |notify| {
             seen.borrow_mut()
-                .push(uic_core::json::value_to_json(&notify.value).to_string());
+                .push(uic_core::json::canonical_json(&notify.value));
         });
     }
 
@@ -159,4 +162,37 @@ fn roots_stack_and_tab_crosses_their_boundary() {
         second_row < two,
         "the second value sits inside the second root's band:\n{screen}"
     );
+}
+
+/// The option wire format of `TuiSession::set_options_json` — the deliberate
+/// array escape hatch beside the state-shaped `set_prop_json` (ADR 0006):
+/// JSON rows in through `options_from_json`, applied as the options property
+/// of a bare select.
+#[test]
+fn json_option_rows_serve_a_bare_select() {
+    let (mut app, _out) = app(60, 16);
+    let el = app.mount("input-select").unwrap();
+    app.set_attr(el, "label", "Zone");
+    app.set_attr(el, "value", "Europe/Berlin");
+    let options = uic_tui_web::options_from_json(
+        r#"[{"value":"Europe/Berlin","short":"Berlin"},{"value":"Pacific/Auckland"}]"#,
+    )
+    .unwrap();
+    app.set_prop(el, "options", options);
+    app.draw().unwrap();
+
+    let screen = app.terminal().backend().screen_text();
+    assert!(screen.contains("Berlin"), "closed short label:\n{screen}");
+
+    key(&mut app, KeyCode::F(4));
+    app.draw().unwrap();
+    let open = app.terminal().backend().screen_text();
+    assert!(open.contains("Europe/Berlin"), "full label open:\n{open}");
+    assert!(
+        open.contains("Pacific/Auckland"),
+        "the value serves as the missing label:\n{open}"
+    );
+
+    let bad = uic_tui_web::options_from_json(r#"[{"short":"nope"}]"#);
+    assert!(bad.is_err(), "rows require a value");
 }

@@ -1,55 +1,32 @@
 //! TestBackend tests: the same <input-date> definition the browser runs,
 //! rendered into an in-memory terminal and driven by key events.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod support;
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::backend::TestBackend;
-use ratatui::Terminal;
-use uic_core::{NotifyEvent, Value};
+use uic_core::Value;
 use uic_tui::{App, Control};
 
+use support::{corner_colors, key, probe, screen, type_str};
+
 fn app() -> App<TestBackend> {
-    ui_components::link();
-    let terminal = Terminal::new(TestBackend::new(50, 10)).expect("test terminal");
-    App::from_terminal(terminal)
+    support::app(50, 10)
 }
 
-/// Draws a frame and returns the visible text, row by row.
-fn screen(app: &mut App<TestBackend>) -> String {
-    app.draw().expect("draw");
-    let buffer = app.terminal().backend().buffer();
-    let area = buffer.area;
-    (0..area.height)
-        .map(|y| {
-            (0..area.width)
-                .map(|x| buffer[(x, y)].symbol())
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+/// Dispatches without painting between events: the whole edit lands in one
+/// unpainted batch and the first frame lays the grown box out around all of
+/// it. With frames between the keys the growing textarea scrolls its first
+/// line out of view instead — that grow/scroll interaction is a widget
+/// follow-up, and this flavor pins the batch semantics meanwhile.
+fn batch_key(app: &mut App<TestBackend>, code: KeyCode) {
+    app.handle_event(&Event::Key(KeyEvent::from(code)));
 }
 
-fn key(app: &mut App<TestBackend>, code: KeyCode) -> Control {
-    app.handle_event(&Event::Key(KeyEvent::from(code)))
-}
-
-fn type_str(app: &mut App<TestBackend>, text: &str) {
+fn batch_str(app: &mut App<TestBackend>, text: &str) {
     for ch in text.chars() {
-        key(app, KeyCode::Char(ch));
+        batch_key(app, KeyCode::Char(ch));
     }
-}
-
-fn events_probe(app: &mut App<TestBackend>, index: usize) -> Rc<RefCell<Vec<NotifyEvent>>> {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let sink = events.clone();
-    app.on(index, "value-changed", move |ev| {
-        sink.borrow_mut().push(ev.clone())
-    });
-    events
 }
 
 #[test]
@@ -70,7 +47,7 @@ fn renders_label_value_and_hint() {
 fn commit_updates_value_and_notifies() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     // Type in mask order (separators jump sections), commit with Enter.
     type_str(&mut app, "2026-08-01");
@@ -88,7 +65,7 @@ fn invalid_input_renders_the_error_line_and_hides_the_hint() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "hint", "Format: YYYY-MM-DD");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     type_str(&mut app, "2026-13-99");
     key(&mut app, KeyCode::Enter);
@@ -113,7 +90,7 @@ fn min_bound_is_enforced() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "min", "2020-01-01");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     type_str(&mut app, "2019-01-01");
     key(&mut app, KeyCode::Enter);
@@ -131,7 +108,7 @@ fn disabled_widget_ignores_input() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "disabled", "");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
@@ -145,7 +122,7 @@ fn text_input_renders_chrome_and_commits_trimmed() {
     let el = app.mount("input-text").expect("mount");
     app.set_attr(el, "label", "Note");
     app.set_attr(el, "hint", "Free text");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     let before = screen(&mut app);
     assert!(before.contains("Note"), "chrome label:\n{before}");
@@ -164,7 +141,7 @@ fn text_input_allow_null_commits_null_for_empty() {
     let mut app = app();
     let el = app.mount("input-text").expect("mount");
     app.set_attr(el, "allow-null", "");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::Enter);
 
@@ -192,9 +169,7 @@ fn esc_quits() {
 
 /// A taller terminal so the calendar overlay fits below the input chrome.
 fn tall_app() -> App<TestBackend> {
-    ui_components::link();
-    let terminal = Terminal::new(TestBackend::new(60, 20)).expect("test terminal");
-    App::from_terminal(terminal)
+    support::app(60, 20)
 }
 
 #[test]
@@ -223,7 +198,7 @@ fn calendar_enter_commits_through_the_change_path() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "value", "2026-07-07");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     screen(&mut app);
     key(&mut app, KeyCode::Down); // Down opens like F4
@@ -247,7 +222,7 @@ fn calendar_arrows_roll_over_month_edges() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "value", "2026-07-01");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -264,7 +239,7 @@ fn calendar_pages_by_month() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "value", "2026-07-07");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -297,7 +272,7 @@ fn calendar_commit_respects_the_min_bound() {
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "value", "2026-07-07");
     app.set_attr(el, "min", "2026-07-05");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     screen(&mut app);
     key(&mut app, KeyCode::F(4));
@@ -331,11 +306,7 @@ fn date_commit_notifies_the_zoned_date_in_the_current_timezone() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "default-timezone", "Europe/Berlin");
-    let dates = Rc::new(RefCell::new(Vec::new()));
-    let sink = dates.clone();
-    app.on(el, "date-changed", move |ev| {
-        sink.borrow_mut().push(ev.clone())
-    });
+    let dates = probe(&mut app, el, "date-changed");
 
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
@@ -360,7 +331,7 @@ fn number_commit_parses_separators_and_echoes_the_format() {
     let mut app = app();
     let el = app.mount("input-number").expect("mount");
     app.set_attr(el, "label", "Amount");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     clear_input(&mut app);
     type_str(&mut app, "1.234,5");
@@ -379,7 +350,7 @@ fn number_commit_parses_separators_and_echoes_the_format() {
 fn number_invalid_commit_shows_the_error_line() {
     let mut app = app();
     let el = app.mount("input-number").expect("mount");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     type_str(&mut app, "12x");
     key(&mut app, KeyCode::Enter);
@@ -397,7 +368,7 @@ fn number_allow_null_commits_null_for_empty() {
     let mut app = app();
     let el = app.mount("input-number").expect("mount");
     app.set_attr(el, "allow-null", "");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     clear_input(&mut app);
     key(&mut app, KeyCode::Enter);
@@ -413,11 +384,11 @@ fn textarea_enter_adds_lines_and_tab_commits() {
     let mut app = tall_app();
     let el = app.mount("input-textarea").expect("mount");
     app.set_attr(el, "label", "Comment");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
-    type_str(&mut app, "line one");
-    key(&mut app, KeyCode::Enter); // newline, not a commit
-    type_str(&mut app, "line two");
+    batch_str(&mut app, "line one");
+    batch_key(&mut app, KeyCode::Enter); // newline, not a commit
+    batch_str(&mut app, "line two");
     assert!(events.borrow().is_empty(), "Enter did not commit");
 
     let screen = screen(&mut app);
@@ -427,7 +398,7 @@ fn textarea_enter_adds_lines_and_tab_commits() {
     let second_row = screen.lines().position(|l| l.contains("line two"));
     assert!(first_row < second_row, "lines stack vertically:\n{screen}");
 
-    key(&mut app, KeyCode::Tab); // focus leave commits
+    batch_key(&mut app, KeyCode::Tab); // focus leave commits
     let events = events.borrow();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].value, Value::Str("line one\nline two".into()));
@@ -442,16 +413,6 @@ fn the_focus_ring_and_caret_follow_the_focused_root() {
     app.set_attr(second, "label", "Second");
 
     let focus_ring = ratatui::style::Color::LightBlue;
-    let corner_colors = |app: &mut App<TestBackend>| -> Vec<ratatui::style::Color> {
-        app.draw().expect("draw");
-        let buffer = app.terminal().backend().buffer();
-        let area = buffer.area;
-        (0..area.height)
-            .flat_map(|y| (0..area.width).map(move |x| (x, y)))
-            .filter(|&(x, y)| buffer[(x, y)].symbol() == "┌")
-            .map(|(x, y)| buffer[(x, y)].fg)
-            .collect()
-    };
 
     // The browser's focus outline in cells: the focused element's group is
     // ringed, the idle one stays dark gray, and Tab moves the ring.
@@ -472,26 +433,15 @@ fn the_error_state_outlines_the_group_in_danger_red() {
     let el = app.mount("input-number").expect("mount");
     app.set_attr(el, "label", "Amount");
 
-    let corner = |app: &mut App<TestBackend>| -> ratatui::style::Color {
-        app.draw().expect("draw");
-        let buffer = app.terminal().backend().buffer();
-        let area = buffer.area;
-        (0..area.height)
-            .flat_map(|y| (0..area.width).map(move |x| (x, y)))
-            .find(|&(x, y)| buffer[(x, y)].symbol() == "┌")
-            .map(|(x, y)| buffer[(x, y)].fg)
-            .expect("a bordered group")
-    };
-
     // An invalid commit wears the browser's [error] border; a valid one
     // clears it back to the focus ring.
     type_str(&mut app, "abc");
     key(&mut app, KeyCode::Tab);
-    assert_eq!(corner(&mut app), ratatui::style::Color::Red);
+    assert_eq!(corner_colors(&mut app)[0], ratatui::style::Color::Red);
     clear_input(&mut app);
     type_str(&mut app, "2,50");
     key(&mut app, KeyCode::Tab);
-    assert_eq!(corner(&mut app), ratatui::style::Color::LightBlue);
+    assert_eq!(corner_colors(&mut app)[0], ratatui::style::Color::LightBlue);
 }
 
 #[test]
@@ -544,11 +494,11 @@ fn the_number_rests_right_aligned_beside_its_unit() {
         .lines()
         .find(|l| l.contains("1234,50"))
         .expect("value row");
-    // One padding cell keeps the unit off the border, like the browser's
-    // form-control side padding.
+    // One padding cell keeps the unit off the border, and the affix's own
+    // padding (the browser's input-group-text) keeps it off the value.
     assert!(
-        row.trim_end().ends_with("1234,50 € │") || row.trim_end().ends_with("1234,50€ │"),
-        "the value sits beside its unit, one padding cell from the edge: {row:?}"
+        row.trim_end().ends_with("1234,50 € │"),
+        "the value sits one cell from its unit, one cell from the edge: {row:?}"
     );
 
     // Editing moves the text to the left, where the caret lives — one
@@ -599,16 +549,6 @@ fn shift_tab_walks_the_focus_backward_across_roots() {
 
     let focus_ring = ratatui::style::Color::LightBlue;
     let idle = ratatui::style::Color::DarkGray;
-    let corner_colors = |app: &mut App<TestBackend>| -> Vec<ratatui::style::Color> {
-        app.draw().expect("draw");
-        let buffer = app.terminal().backend().buffer();
-        let area = buffer.area;
-        (0..area.height)
-            .flat_map(|y| (0..area.width).map(move |x| (x, y)))
-            .filter(|&(x, y)| buffer[(x, y)].symbol() == "┌")
-            .map(|(x, y)| buffer[(x, y)].fg)
-            .collect()
-    };
 
     // Shift+Tab from the first root wraps backward to the last one, the
     // reverse of Tab crossing element boundaries in a document.
@@ -642,5 +582,53 @@ fn the_embedded_zone_select_hugs_its_label_and_the_date_grows() {
     assert!(
         value_row.contains("Europe/Berlin"),
         "the full zone shows beside the date:\n{screen}"
+    );
+}
+
+#[test]
+fn long_hints_wrap_and_push_the_following_flow() {
+    let mut app = support::app(40, 14);
+    let first = app.mount("input-text").expect("mount");
+    app.set_attr(first, "label", "Note");
+    app.set_attr(
+        first,
+        "hint",
+        "Trimmed on commit; the empty input becomes null once allow-null is set",
+    );
+    let second = app.mount("input-text").expect("mount");
+    app.set_attr(second, "label", "Next");
+
+    let screen = screen(&mut app);
+    let start = screen
+        .lines()
+        .position(|line| line.contains("Trimmed on commit;"))
+        .expect("hint first row");
+    assert!(
+        screen
+            .lines()
+            .nth(start + 1)
+            .is_some_and(|line| line.contains("null")),
+        "the hint wrapped onto a second row:\n{screen}"
+    );
+    let next = screen
+        .lines()
+        .position(|line| line.contains("Next"))
+        .expect("second root's label");
+    assert!(
+        next > start + 1,
+        "the wrapped hint pushed the flow below it:\n{screen}"
+    );
+
+    // The error replaces the hint in place and flows the same way.
+    app.set_attr(
+        first,
+        "error-message",
+        "The committed value does not satisfy the imaginary constraint of this test",
+    );
+    let swapped = support::screen(&mut app);
+    assert!(swapped.contains("imaginary"), "error row:\n{swapped}");
+    assert!(
+        !swapped.contains("Trimmed on commit"),
+        "hint swapped out in place:\n{swapped}"
     );
 }

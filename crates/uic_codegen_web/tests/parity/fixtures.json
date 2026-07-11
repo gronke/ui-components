@@ -1,0 +1,36 @@
+{
+  "cases": [
+    {
+      "state": {},
+      "expect": {
+        "stateLine": "",
+        "amount": 0.0,
+        "date": ""
+      }
+    },
+    {
+      "state": {
+        "date": "2026-07-07",
+        "note": "hi",
+        "amount": 12.5
+      },
+      "expect": {
+        "stateLine": "amount: 12.5 · date: 2026-07-07 · note: hi",
+        "amount": 12.5,
+        "date": "2026-07-07"
+      }
+    },
+    {
+      "state": {
+        "note": null,
+        "pick": "Europe/Berlin",
+        "zone": "UTC"
+      },
+      "expect": {
+        "stateLine": "note:  · pick: Europe/Berlin · zone: UTC",
+        "amount": 0.0,
+        "date": ""
+      }
+    }
+  ]
+}

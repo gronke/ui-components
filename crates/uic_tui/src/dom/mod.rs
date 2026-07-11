@@ -3,9 +3,11 @@
 //! paint read the tree, and events travel it.
 
 mod app;
+mod composite;
 mod host;
 mod layout;
 mod render;
+mod resolve;
 mod widget;
 
 pub use app::App;

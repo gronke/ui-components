@@ -5,60 +5,48 @@ use std::path::PathBuf;
 
 use uic_codegen_web::DistBuild;
 
-fn dist() -> PathBuf {
+fn dist() -> (Vec<&'static str>, PathBuf) {
     ui_components::link();
     let out = std::env::temp_dir().join(format!("uic-dist-{}", std::process::id()));
     let root = DistBuild::new(&out, "@schuhkarton/ui-components", "0.1.0")
         .repository("https://github.com/schuhkarton/ui-components")
         .run()
         .expect("dist build succeeds");
-    // Every registered component ships, the demo composition included
-    // (ADR 0013; a dist skip-list would be a separate change).
-    assert_eq!(
-        root.components,
-        vec![
-            "app-root",
-            "input-date",
-            "input-date-range",
-            "input-number",
-            "input-select",
-            "input-text",
-            "input-textarea",
-            "input-timezone"
-        ]
+    // The publish view: catalog components ship, the demo composition stays
+    // out (dist = false on app-root, ADR 0013). The exact catalog vector is
+    // generate.rs territory — this suite asserts the npm-tree shape.
+    assert!(root.components.contains(&"input-date"));
+    assert!(
+        !root.components.contains(&"app-root"),
+        "app-root is dist = false"
     );
-    root.root
+    (root.components.clone(), root.root)
 }
 
 #[test]
 fn emits_the_npm_tree() {
-    let root = dist();
+    let (components, root) = dist();
+    // Per component: the ESM module, its declarations, and the compiled
+    // impl twin exactly when the definition carries one.
+    for &tag in &components {
+        for file in [
+            format!("components/{tag}.js"),
+            format!("components/{tag}.d.ts"),
+        ] {
+            assert!(root.join(&file).exists(), "missing {file}");
+        }
+        let def = uic_core::CustomElementRegistry::get(tag).expect("registered component");
+        assert_eq!(
+            root.join(format!("components/{tag}.impl.js")).exists(),
+            def.web_impl.is_some(),
+            "the impl twin of {tag} follows its definition"
+        );
+    }
     for file in [
-        "components/app-root.js",
-        "components/app-root.d.ts",
-        "components/app-root.impl.js",
-        "components/input-date.js",
-        "components/input-date.d.ts",
-        "components/input-date.impl.js",
-        "components/input-date-range.js",
-        "components/input-date-range.d.ts",
-        "components/input-date-range.impl.js",
-        "components/input-number.js",
-        "components/input-number.d.ts",
-        "components/input-number.impl.js",
-        "components/input-select.js",
-        "components/input-select.d.ts",
-        "components/input-select.impl.js",
-        "components/input-text.js",
-        "components/input-text.d.ts",
-        "components/input-textarea.js",
-        "components/input-textarea.d.ts",
-        "components/input-textarea.impl.js",
-        "components/input-timezone.js",
-        "components/input-timezone.d.ts",
-        "components/input-timezone.impl.js",
         "components/uic-runtime.js",
         "components/uic-runtime.d.ts",
+        "components/uic-impl-helpers.js",
+        "components/uic-impl-helpers.d.ts",
         "elements.css",
         "custom-elements.json",
         "package.json",
@@ -66,6 +54,9 @@ fn emits_the_npm_tree() {
     ] {
         assert!(root.join(file).exists(), "missing {file}");
     }
+    // The withheld demo composition leaves no trace in the tree.
+    assert!(!root.join("components/app-root.js").exists());
+    assert!(!root.join("components/app-root.impl.js").exists());
 
     // Plain ESM: bare lit import survives, no TypeScript syntax remains.
     let js = fs::read_to_string(root.join("components/input-text.js")).unwrap();

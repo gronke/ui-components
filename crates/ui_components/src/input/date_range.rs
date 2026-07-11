@@ -30,16 +30,6 @@ pub struct InputDateRange {
     pub complete: bool,
 }
 
-fn text(ctx: &Ctx, prop: &str) -> String {
-    ctx.get(prop).as_str().unwrap_or("").to_string()
-}
-
-fn set_if_changed(ctx: &mut Ctx, prop: &'static str, value: String) {
-    if ctx.get(prop).as_str() != Some(value.as_str()) {
-        ctx.set(prop, value);
-    }
-}
-
 /// Both ends in → the ISO interval; anything less commits empty.
 fn interval(start: &str, end: &str) -> String {
     if start.is_empty() || end.is_empty() {
@@ -72,19 +62,19 @@ impl InputDateRangeLogic for InputDateRange {
     /// decomposes instead. Mirrored for the browser in `date_range.impl.ts`.
     fn will_update(&mut self, ctx: &mut Ctx, changed: &Changed) {
         if changed.has("start") || changed.has("end") {
-            let start = text(ctx, "start");
-            let end = text(ctx, "end");
+            let start = ctx.text("start");
+            let end = ctx.text("end");
             if !start.is_empty() && !end.is_empty() && end < start {
                 if changed.has("start") {
-                    set_if_changed(ctx, "end", start.clone());
+                    ctx.set("end", start.clone());
                 } else {
-                    set_if_changed(ctx, "start", end.clone());
+                    ctx.set("start", end.clone());
                 }
             }
-            let value = interval(&text(ctx, "start"), &text(ctx, "end"));
-            set_if_changed(ctx, "value", value);
+            let value = interval(&ctx.text("start"), &ctx.text("end"));
+            ctx.set("value", value);
         } else if changed.has("value") {
-            let raw = text(ctx, "value");
+            let raw = ctx.text("value");
             let (start, mut end) = match raw.split_once('/') {
                 Some((start, end)) => (start.to_string(), end.to_string()),
                 None => (String::new(), String::new()),
@@ -92,21 +82,22 @@ impl InputDateRangeLogic for InputDateRange {
             if !start.is_empty() && !end.is_empty() && end < start {
                 end.clone_from(&start);
             }
-            set_if_changed(ctx, "start", start.clone());
-            set_if_changed(ctx, "end", end.clone());
+            ctx.set("start", start.clone());
+            ctx.set("end", end.clone());
             // Normalizes malformed or inverted external writes.
-            set_if_changed(ctx, "value", interval(&start, &end));
+            ctx.set("value", interval(&start, &end));
         }
     }
 
     /// Post-commit: reflect whether the committed range is complete. The
     /// write requests a follow-up cycle, like setting a reactive property
-    /// in Lit's `updated`; the guard keeps that follow-up quiet.
+    /// in Lit's `updated`; the store's equal-write suppression keeps that
+    /// follow-up quiet.
     fn updated(&mut self, ctx: &mut Ctx, changed: &Changed) {
         if !(changed.has("start") || changed.has("end") || changed.has("value")) {
             return;
         }
-        let complete = !text(ctx, "start").is_empty() && !text(ctx, "end").is_empty();
+        let complete = !ctx.text("start").is_empty() && !ctx.text("end").is_empty();
         if ctx.get("complete") != &Value::Bool(complete) {
             ctx.set("complete", complete);
         }

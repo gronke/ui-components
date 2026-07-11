@@ -168,9 +168,10 @@ pub fn attribute_to_value(js_type: JsType, raw: Option<&str>) -> Value {
                 Value::Num(trimmed.parse().unwrap_or(f64::NAN))
             }
         }
-        // Zoned, Options and Object properties are property-only (the derive
-        // rejects attribute options), so no attribute ever maps to them.
-        (JsType::Zoned, Some(_)) | (JsType::Options, Some(_)) | (JsType::Object, Some(_)) => {
+        // Property-only types (the derive rejects attribute options): no
+        // attribute ever maps to them.
+        (js_type, Some(_)) => {
+            debug_assert!(js_type.is_property_only());
             Value::Null
         }
     }

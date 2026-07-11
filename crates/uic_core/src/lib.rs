@@ -13,6 +13,8 @@ mod notify;
 mod object;
 mod registry;
 mod select;
+#[cfg(feature = "testing")]
+pub mod testing;
 mod value;
 mod zoned;
 

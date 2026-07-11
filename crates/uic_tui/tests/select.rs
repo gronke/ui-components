@@ -1,52 +1,18 @@
 //! TestBackend tests for <input-select>: the dropdown widget, its option
 //! popup, and the commit/revert keyboard flows.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod support;
 
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::KeyCode;
 use ratatui::backend::TestBackend;
-use ratatui::Terminal;
-use uic_core::{NotifyEvent, SelectOption, Value};
+use uic_core::{SelectOption, Value};
 use uic_tui::{App, Control};
+
+use support::{key, probe, screen};
 
 /// A tall terminal, so the option popup has room below the widget.
 fn app() -> App<TestBackend> {
-    ui_components::link();
-    let terminal = Terminal::new(TestBackend::new(60, 20)).expect("test terminal");
-    App::from_terminal(terminal)
-}
-
-fn screen(app: &mut App<TestBackend>) -> String {
-    app.draw().expect("draw");
-    let buffer = app.terminal().backend().buffer();
-    let area = buffer.area;
-    (0..area.height)
-        .map(|y| {
-            (0..area.width)
-                .map(|x| buffer[(x, y)].symbol())
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Draw before dispatching, like the real event loop: the popup anchor is
-/// recorded during the paint pass.
-fn key(app: &mut App<TestBackend>, code: KeyCode) -> Control {
-    app.draw().expect("draw");
-    app.handle_event(&Event::Key(KeyEvent::from(code)))
-}
-
-fn events_probe(app: &mut App<TestBackend>, index: usize) -> Rc<RefCell<Vec<NotifyEvent>>> {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let sink = events.clone();
-    app.on(index, "value-changed", move |ev| {
-        sink.borrow_mut().push(ev.clone())
-    });
-    events
+    support::app(60, 20)
 }
 
 fn zone_options() -> Vec<SelectOption> {
@@ -98,7 +64,7 @@ fn f4_opens_the_popup_with_full_labels() {
 fn down_opens_and_enter_commits_through_the_change_path() {
     let mut app = app();
     let el = mount_zones(&mut app);
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::Down);
     key(&mut app, KeyCode::Down);
@@ -121,7 +87,7 @@ fn down_opens_and_enter_commits_through_the_change_path() {
 fn esc_reverts_browsing_and_a_second_esc_quits() {
     let mut app = app();
     let el = mount_zones(&mut app);
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Down);
@@ -140,7 +106,7 @@ fn esc_reverts_browsing_and_a_second_esc_quits() {
 fn tab_commits_the_browsed_value_and_falls_through() {
     let mut app = app();
     let el = mount_zones(&mut app);
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Down);
@@ -155,7 +121,7 @@ fn tab_commits_the_browsed_value_and_falls_through() {
 fn type_ahead_commits_while_closed() {
     let mut app = app();
     let el = mount_zones(&mut app);
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::Char('p'));
 
@@ -171,7 +137,7 @@ fn the_default_row_commits_null() {
     app.set_attr(el, "default", "Pick a zone");
     app.set_attr(el, "value", "Europe/Amsterdam");
     app.set_prop(el, "options", zone_options());
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::F(4));
     let open = screen(&mut app);
@@ -229,7 +195,7 @@ fn input_timezone_serves_the_platform_zone_list() {
     let el = app.mount("input-timezone").expect("mount");
     app.set_attr(el, "label", "Time zone");
     app.set_attr(el, "value", "Europe/Berlin");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     let closed = screen(&mut app);
     assert!(closed.contains("Berlin"), "short label:\n{closed}");
@@ -254,7 +220,7 @@ fn input_timezone_serves_the_platform_zone_list() {
 fn empty_options_render_and_commit_without_events() {
     let mut app = app();
     let el = app.mount("input-select").expect("mount");
-    let events = events_probe(&mut app, el);
+    let events = probe(&mut app, el, "value-changed");
 
     key(&mut app, KeyCode::F(4));
     key(&mut app, KeyCode::Enter);

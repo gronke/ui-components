@@ -1,7 +1,9 @@
-// The state transport of the demo: a BroadcastChannel carrying raw state
-// snapshots between the DOM <app-root> and the TUI pane on this page (and,
-// on other tabs, their panes too). One JSON object per message, no
-// envelope — a WebSocket variant can speak the identical protocol.
+// The state bridge of the demo: raw state snapshots over a transport
+// (BroadcastChannel here, a WebSocket toward a native TUI next), deduped by
+// canonical serialization so applied states do not echo back out.
+import { BroadcastChannelTransport } from './transport.js';
+import type { Transport } from './transport.js';
+
 export type AppState = Record<string, unknown>;
 
 // Canonical serialization: top-level keys sorted, matching the Rust side's
@@ -13,13 +15,13 @@ export function canon(state: AppState): string {
 }
 
 export class StateBridge {
-  private channel: BroadcastChannel;
+  private transport: Transport;
   // The last state seen anywhere (sent, received, or seeded): applying a
   // state re-fires the local state-changed, and this string stops the echo.
   private last = '';
 
-  constructor(name = 'uic-app-state') {
-    this.channel = new BroadcastChannel(name);
+  constructor(transport: Transport = new BroadcastChannelTransport('uic-app-state')) {
+    this.transport = transport;
   }
 
   // Seeds the dedupe with a state applied out-of-band (the boot state).
@@ -32,18 +34,17 @@ export class StateBridge {
     const s = canon(state);
     if (s === this.last) return false;
     this.last = s;
-    this.channel.postMessage(state);
+    this.transport.send(state);
     return true;
   }
 
   // Delivers received states that are news; echoes die here.
   onState(cb: (state: AppState) => void): void {
-    this.channel.onmessage = (ev: MessageEvent) => {
-      const state = ev.data as AppState;
+    this.transport.onMessage((state) => {
       const s = canon(state);
       if (s === this.last) return;
       this.last = s;
       cb(state);
-    };
+    });
   }
 }

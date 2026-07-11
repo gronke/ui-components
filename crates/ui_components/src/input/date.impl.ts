@@ -1,6 +1,7 @@
 // Browser behavior of <input-date>; mirrors the Rust InputDateLogic impl in
 // date.rs — keep both in sync.
 import { Temporal } from 'temporal-polyfill';
+import { detailValue } from './uic-impl-helpers.js';
 import type { InputDate } from './input-date.js';
 
 // With the timezone select shown, the placeholder hints at the zone a bare
@@ -19,8 +20,7 @@ export function timezoneDefault(el: InputDate): string {
 // Routes the embedded select's value-changed into the timezone property
 // (the catalog binds it via LitSync).
 export function onTimezoneChanged(el: InputDate, e: Event): void {
-  const detail = (e as CustomEvent).detail as { value?: string | null };
-  el.timezone = detail.value ?? null;
+  el.timezone = detailValue(e) as string | null;
 }
 
 function parseDate(raw: string): Temporal.PlainDate | null {

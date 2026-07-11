@@ -33,6 +33,7 @@ use uic_core::{ComponentDef, CustomElementRegistry, Notify, RegistryError};
 pub struct WebCodegen {
     out: PathBuf,
     manifest: bool,
+    dist_only: bool,
 }
 
 impl WebCodegen {
@@ -40,6 +41,7 @@ impl WebCodegen {
         WebCodegen {
             out: out.into(),
             manifest: false,
+            dist_only: false,
         }
     }
 
@@ -49,11 +51,35 @@ impl WebCodegen {
         self
     }
 
+    /// Emit only the components with `dist = true` — the publish view.
+    /// The default (everything) is the dev-server view.
+    pub fn dist_only(mut self, on: bool) -> Self {
+        self.dist_only = on;
+        self
+    }
+
     /// Emits the full generated root, replacing previous contents.
     pub fn run(self) -> Result<GeneratedRoot, CodegenError> {
         CustomElementRegistry::assert_valid()?;
         let mut defs: Vec<&'static ComponentDef> = CustomElementRegistry::iter().collect();
         defs.sort_by_key(|def| def.tag_name);
+        if self.dist_only {
+            defs.retain(|def| def.dist);
+            // A shipped component must not import a withheld child: the
+            // generated module of a nested registered element imports it.
+            for def in &defs {
+                for child in def.template().custom_tags() {
+                    if let Some(child_def) = CustomElementRegistry::get(child) {
+                        if !child_def.dist {
+                            return Err(CodegenError::DistBoundary {
+                                tag: def.tag_name,
+                                child: child_def.tag_name,
+                            });
+                        }
+                    }
+                }
+            }
+        }
 
         let components = self.out.join("components");
         if self.out.exists() {
@@ -110,6 +136,14 @@ impl WebCodegen {
         if any_runtime {
             fs::write(components.join("uic-runtime.ts"), ts::RUNTIME_TS)?;
         }
+        // The impl partials' shared helpers ride along whenever a partial
+        // ships.
+        if defs.iter().any(|def| def.web_impl.is_some()) {
+            fs::write(
+                components.join("uic-impl-helpers.ts"),
+                include_str!("uic-impl-helpers.ts"),
+            )?;
+        }
         if !use_names.is_empty() {
             fs::write(self.out.join("elements.scss"), elements_scss(&use_names))?;
         }
@@ -157,6 +191,11 @@ pub enum CodegenError {
     )]
     MissingImplExports { tag: &'static str, missing: String },
     #[error(
+        "the web impl of <{tag}> has mismatched signatures: {detail}; \
+         handlers take (el, event), computed properties (el)"
+    )]
+    ImplArity { tag: &'static str, detail: String },
+    #[error(
         "shared style '{id}' has differing shared_scss sources: <{first}> and <{second}> \
          must include the same file"
     )]
@@ -165,6 +204,14 @@ pub enum CodegenError {
         first: &'static str,
         second: &'static str,
     },
+    #[error(
+        "<{tag}> ships in the dist but nests <{child}>, which is dist = false; \
+         both ship or neither"
+    )]
+    DistBoundary {
+        tag: &'static str,
+        child: &'static str,
+    },
     #[cfg(feature = "dist")]
     #[error("dist: {0}")]
     Dist(String),
@@ -172,22 +219,8 @@ pub enum CodegenError {
     Io(#[from] std::io::Error),
 }
 
-/// `error_message` → `errorMessage` (JS member names of handlers/computed).
-pub(crate) fn camel_case(rust_name: &str) -> String {
-    let mut out = String::with_capacity(rust_name.len());
-    let mut upper_next = false;
-    for ch in rust_name.chars() {
-        if ch == '_' {
-            upper_next = true;
-        } else if upper_next {
-            out.extend(ch.to_uppercase());
-            upper_next = false;
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
+// JS member names of handlers/computed follow the shared naming rules.
+pub(crate) use uic_template::names::camel_case;
 
 /// Names a component's web impl must export: handlers and computed
 /// properties, as their JS member names.
@@ -197,6 +230,46 @@ fn required_impl_exports(def: &ComponentDef) -> BTreeSet<String> {
         .map(|h| camel_case(h.name))
         .chain(def.computed.iter().map(|c| camel_case(c)))
         .collect()
+}
+
+/// The parameter count of a one-line `export function <name>(…)`
+/// signature; `None` for consts, multi-line signatures and anything the
+/// heuristic cannot read — those stay name-checked only.
+pub(crate) fn exported_arity(source: &str, name: &str) -> Option<usize> {
+    for line in source.lines() {
+        let line = line.trim_start();
+        let Some(rest) = ["export function ", "export async function "]
+            .iter()
+            .find_map(|prefix| line.strip_prefix(prefix))
+        else {
+            continue;
+        };
+        let Some(rest) = rest.strip_prefix(name) else {
+            continue;
+        };
+        let Some(params) = rest.strip_prefix('(') else {
+            continue;
+        };
+        let end = params.find(')')?;
+        let params = &params[..end];
+        if params.trim().is_empty() {
+            return Some(0);
+        }
+        // Commas inside generics or nested types do not separate
+        // parameters (Map<PropertyKey, unknown>).
+        let mut depth = 0usize;
+        let mut count = 1usize;
+        for ch in params.chars() {
+            match ch {
+                '<' | '(' | '[' | '{' => depth += 1,
+                '>' | ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => count += 1,
+                _ => {}
+            }
+        }
+        return Some(count);
+    }
+    None
 }
 
 /// `export function <name>` / `export const <name>` names in a TS source.
@@ -234,12 +307,36 @@ fn check_impl_exports(def: &'static ComponentDef) -> Result<(), CodegenError> {
     };
     let exported = exported_names(web_impl);
     let missing: Vec<_> = required.difference(&exported).cloned().collect();
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        Err(CodegenError::MissingImplExports {
+    if !missing.is_empty() {
+        return Err(CodegenError::MissingImplExports {
             tag: def.tag_name,
             missing: missing.join(", "),
+        });
+    }
+    // The names cover presence; simple function signatures also pin the
+    // arity — handlers take (el, event), computed properties (el).
+    let mut wrong = Vec::new();
+    let mut check = |name: String, expected: usize| {
+        if let Some(found) = exported_arity(web_impl, &name) {
+            if found != expected {
+                wrong.push(format!(
+                    "{name} takes {found} parameters, expected {expected}"
+                ));
+            }
+        }
+    };
+    for handler in def.handlers {
+        check(camel_case(handler.name), 2);
+    }
+    for computed in def.computed {
+        check(camel_case(computed), 1);
+    }
+    if wrong.is_empty() {
+        Ok(())
+    } else {
+        Err(CodegenError::ImplArity {
+            tag: def.tag_name,
+            detail: wrong.join("; "),
         })
     }
 }
@@ -260,10 +357,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn camel_case_maps_rust_names() {
-        assert_eq!(camel_case("value"), "value");
-        assert_eq!(camel_case("error_message"), "errorMessage");
-        assert_eq!(camel_case("on_change"), "onChange");
+    fn exported_arity_reads_simple_signatures() {
+        let src = "export function none(): void {}\n\
+                   export function one(el: X): string { return ''; }\n\
+                   export function two(el: X, e: Event): void {}\n\
+                   export function generic(el: X, changed: Map<PropertyKey, unknown>): void {}\n\
+                   export const asConst = (el: X) => '';\n";
+        assert_eq!(exported_arity(src, "none"), Some(0));
+        assert_eq!(exported_arity(src, "one"), Some(1));
+        assert_eq!(exported_arity(src, "two"), Some(2));
+        assert_eq!(exported_arity(src, "generic"), Some(2));
+        assert_eq!(
+            exported_arity(src, "asConst"),
+            None,
+            "consts stay name-only"
+        );
+        assert_eq!(exported_arity(src, "absent"), None);
     }
 
     #[test]

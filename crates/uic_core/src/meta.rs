@@ -26,6 +26,27 @@ pub enum JsType {
     Object,
 }
 
+impl JsType {
+    /// The TypeScript type of the JS-facing field — the one source for the
+    /// generated class and the manifest.
+    pub fn ts_type(&self) -> &'static str {
+        match self {
+            JsType::String => "string",
+            JsType::Number => "number",
+            JsType::Boolean => "boolean",
+            JsType::Zoned => "Temporal.ZonedDateTime | null",
+            JsType::Options => "SelectOption[]",
+            JsType::Object => "Record<string, unknown>",
+        }
+    }
+
+    /// Object-valued types carry no attribute serialization: no observed
+    /// attribute, no reflection, values only through the property (ADR 0005).
+    pub fn is_property_only(&self) -> bool {
+        matches!(self, JsType::Zoned | JsType::Options | JsType::Object)
+    }
+}
+
 /// Notify behavior of a property, mirroring the catalog's `LitNotify` option.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Notify {
@@ -59,6 +80,23 @@ impl DefaultValue {
             DefaultValue::Bool(b) => Value::Bool(b),
             DefaultValue::EmptyOptions => Value::Options(Vec::new()),
             DefaultValue::EmptyObject => Value::Object(crate::object::ObjectMap::new()),
+        }
+    }
+
+    /// The TypeScript initializer literal, `None` for undefined fields — the
+    /// one source for the generated class and the manifest. Strings are
+    /// single-quoted with escapes.
+    pub fn ts_literal(&self) -> Option<String> {
+        match *self {
+            DefaultValue::Undefined => None,
+            DefaultValue::Str(s) => Some(format!(
+                "'{}'",
+                s.replace('\\', "\\\\").replace('\'', "\\'")
+            )),
+            DefaultValue::Num(n) => Some(n.to_string()),
+            DefaultValue::Bool(b) => Some(b.to_string()),
+            DefaultValue::EmptyOptions => Some("[]".to_string()),
+            DefaultValue::EmptyObject => Some("{}".to_string()),
         }
     }
 }
@@ -143,6 +181,10 @@ pub struct ComponentDef {
     pub scss: Option<&'static str>,
     /// Co-located web behavior partial (`include_str!` of the `.impl.ts`).
     pub web_impl: Option<&'static str>,
+    /// Whether the component ships in the npm dist. `dist = false` keeps
+    /// demo compositions out of the published package; the dev server and
+    /// the runtimes serve every registered component regardless.
+    pub dist: bool,
     /// Rust module that defines the component, for diagnostics.
     pub module_path: &'static str,
     /// Instantiates the Rust behavior (TUI/native targets).
@@ -261,6 +303,40 @@ mod tests {
                 .notify_event_name()
                 .as_deref(),
             Some("picked")
+        );
+    }
+
+    /// The capability table: what each JS-facing type can do lives here,
+    /// not in per-consumer match arms.
+    #[test]
+    fn the_capability_table_describes_each_type_once() {
+        assert_eq!(JsType::String.ts_type(), "string");
+        assert_eq!(JsType::Zoned.ts_type(), "Temporal.ZonedDateTime | null");
+        assert_eq!(JsType::Object.ts_type(), "Record<string, unknown>");
+        assert!(JsType::Zoned.is_property_only());
+        assert!(JsType::Options.is_property_only());
+        assert!(JsType::Object.is_property_only());
+        assert!(!JsType::String.is_property_only());
+        assert!(!JsType::Number.is_property_only());
+        assert!(!JsType::Boolean.is_property_only());
+
+        assert_eq!(DefaultValue::Undefined.ts_literal(), None);
+        assert_eq!(
+            DefaultValue::Str("it's").ts_literal().as_deref(),
+            Some("'it\\'s'")
+        );
+        assert_eq!(DefaultValue::Num(4.0).ts_literal().as_deref(), Some("4"));
+        assert_eq!(
+            DefaultValue::Bool(false).ts_literal().as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            DefaultValue::EmptyOptions.ts_literal().as_deref(),
+            Some("[]")
+        );
+        assert_eq!(
+            DefaultValue::EmptyObject.ts_literal().as_deref(),
+            Some("{}")
         );
     }
 }

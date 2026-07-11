@@ -19,11 +19,12 @@ use std::rc::Rc;
 
 use uic_core::{
     attribute_to_value, notify_events, Behavior, Changed, ComponentDef, Ctx, CustomElementRegistry,
-    NotifyEvent, PropertyStore, UiEvent, Value,
+    NotifyEvent, PropertyStore, Value,
 };
 use uic_dom::parts::{CompiledTemplate, EventBinding, PartValue, TemplateInstance};
 use uic_dom::{Event as DomEvent, NodeId};
 
+use super::resolve;
 use super::widget::WidgetBox;
 use super::DomDocument;
 use crate::Error;
@@ -45,7 +46,23 @@ fn compiled(def: &'static ComponentDef) -> Rc<CompiledTemplate> {
     })
 }
 
-type Listener = Box<dyn FnMut(&NotifyEvent)>;
+pub(super) type Listener = Box<dyn FnMut(&NotifyEvent)>;
+
+/// Delivers notify events to every subscribed listener whose key matches —
+/// the one listener loop behind [`DomHost`] and [`super::App`].
+pub(super) fn deliver<K>(
+    listeners: &mut [(K, Listener)],
+    events: &[NotifyEvent],
+    matches: impl Fn(&K, &NotifyEvent) -> bool,
+) {
+    for event in events {
+        for (key, listener) in listeners.iter_mut() {
+            if matches(key, event) {
+                listener(event);
+            }
+        }
+    }
+}
 
 /// A document hosting one mounted component tree.
 pub struct DomHost {
@@ -65,12 +82,12 @@ pub(crate) struct Mount {
     instance: TemplateInstance,
     /// `@event=${handler}` bindings, template-declared; grows when
     /// conditional branches instantiate.
-    bindings: Vec<EventBinding>,
+    pub(super) bindings: Vec<EventBinding>,
     /// Child component mounts, keyed by their custom-tag node.
-    children: HashMap<NodeId, Mount>,
+    pub(super) children: HashMap<NodeId, Mount>,
     /// The attribute set last synced from the host node, per child — the
     /// diff drives `attribute_changed` on the way down.
-    synced_attrs: HashMap<NodeId, HashMap<String, String>>,
+    pub(super) synced_attrs: HashMap<NodeId, HashMap<String, String>>,
     cascade: u8,
 }
 
@@ -148,13 +165,9 @@ impl DomHost {
     }
 
     fn publish(&mut self, events: Vec<NotifyEvent>) {
-        for event in &events {
-            for (name, listener) in self.listeners.iter_mut() {
-                if name == &event.event_name {
-                    listener(event);
-                }
-            }
-        }
+        deliver(&mut self.listeners, &events, |name, event| {
+            name == &event.event_name
+        });
     }
 }
 
@@ -167,7 +180,7 @@ impl Mount {
         Mount::bind(doc, host, def)
     }
 
-    fn create_at(doc: &mut DomDocument, host: NodeId) -> Result<Mount, Error> {
+    pub(super) fn create_at(doc: &mut DomDocument, host: NodeId) -> Result<Mount, Error> {
         let tag = doc
             .tag_name(host)
             .map(|t| t.to_string())
@@ -290,13 +303,20 @@ impl Mount {
     /// child components, attribute commits sync down as
     /// `attribute_changed`, `.prop` writes apply to child stores, and
     /// `.value`/`.options` writes sync the widgets in the node payloads.
+    ///
+    /// Cost model: resolution is O(all holes) per commit — every hole
+    /// re-evaluates (computed getters included) and the per-part `PartialEq`
+    /// dedupe in the parts engine keeps the tree writes minimal. A
+    /// changed-properties filter over the holes would cut the resolution
+    /// work; it becomes worthwhile when repeated template instances multiply
+    /// the hole count.
     fn commit(&mut self, doc: &mut DomDocument) -> Vec<NotifyEvent> {
         let values: Vec<PartValue> = self
             .template
             .clone()
             .holes()
             .iter()
-            .map(|expr| resolve_hole(expr, &self.store, self.behavior.as_ref()))
+            .map(|expr| resolve::resolve_hole(expr, &self.store, self.behavior.as_ref()))
             .collect();
         let template = self.template.clone();
         let effects = template.commit(&mut self.instance, doc, &values);
@@ -312,8 +332,8 @@ impl Mount {
             routed.extend(self.route_child_events(doc, node, events));
         }
         for write in effects.property_writes {
+            let value = resolve::part_value_to_value(&write.value);
             if self.children.contains_key(&write.node) {
-                let value = part_value_to_value(&write.value);
                 let events = self
                     .children
                     .get_mut(&write.node)
@@ -324,21 +344,7 @@ impl Mount {
             }
             // Writes onto plain `data-tui` elements feed the widget living
             // in the node payload.
-            let value = part_value_to_value(&write.value);
-            if let Some(widget) = doc
-                .element_mut(write.node)
-                .and_then(|el| el.data.widget.as_mut())
-            {
-                match write.name.as_str() {
-                    "value" => widget.sync_value(&value),
-                    "options" => {
-                        if let Value::Options(options) = value {
-                            widget.options = options;
-                        }
-                    }
-                    _ => {}
-                }
-            }
+            resolve::apply_widget_write(doc, write.node, &write.name, value);
         }
         routed
     }
@@ -365,155 +371,6 @@ impl Mount {
                 }
             }
         }
-    }
-
-    /// Mounts registered custom tags that appeared in the instance subtree
-    /// (fresh instantiation or a conditional branch) and drops mounts whose
-    /// nodes a branch teardown destroyed.
-    fn adopt_new_children(&mut self, doc: &mut DomDocument) {
-        self.children.retain(|node, _| doc.node(*node).is_some());
-        self.synced_attrs
-            .retain(|node, _| doc.node(*node).is_some());
-        let descendants: Vec<NodeId> = doc.descendants(self.host).skip(1).collect();
-        for node in descendants {
-            if self.children.contains_key(&node) {
-                continue;
-            }
-            let Some(tag) = doc.tag_name(node).map(|t| t.to_string()) else {
-                continue;
-            };
-            if !tag.contains('-') || CustomElementRegistry::get(&tag).is_none() {
-                continue;
-            }
-            // Children of mounted children belong to those mounts.
-            if self.owned_by_child(doc, node) {
-                continue;
-            }
-            if let Ok(mut child) = Mount::create_at(doc, node) {
-                let events = child.update_cycle(doc, |behavior, ctx| behavior.connected(ctx));
-                self.children.insert(node, child);
-                let synced = self.sync_child_attrs(doc, node);
-                let mut all = events;
-                all.extend(synced);
-                // Mount-time events have no listeners yet on the way up;
-                // route them so template bindings still observe them.
-                let routed = self.route_child_events(doc, node, all);
-                drop(routed);
-            }
-        }
-    }
-
-    fn owned_by_child(&self, doc: &DomDocument, node: NodeId) -> bool {
-        let mut current = doc.parent(node);
-        while let Some(ancestor) = current {
-            if ancestor == self.host {
-                return false;
-            }
-            if self.children.contains_key(&ancestor) {
-                return true;
-            }
-            current = doc.parent(ancestor);
-        }
-        false
-    }
-
-    /// Diffs the child's host-node attributes against the last synced set
-    /// and applies the changes as observed-attribute updates — additions,
-    /// changes AND removals (a boolean part clearing `?disabled` arrives as
-    /// an absent attribute).
-    fn sync_child_attrs(&mut self, doc: &mut DomDocument, node: NodeId) -> Vec<NotifyEvent> {
-        let Some(child) = self.children.get_mut(&node) else {
-            return Vec::new();
-        };
-        let current: HashMap<String, String> = doc
-            .element(node)
-            .map(|el| {
-                el.attrs()
-                    .map(|(name, value)| (name.to_string(), value.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let last = self.synced_attrs.entry(node).or_default();
-        let mut events = Vec::new();
-        for (name, value) in &current {
-            if last.get(name).map(String::as_str) != Some(value.as_str()) {
-                events.extend(child.set_attr(doc, name, Some(value)));
-            }
-        }
-        let removed: Vec<String> = last
-            .keys()
-            .filter(|name| !current.contains_key(*name))
-            .cloned()
-            .collect();
-        for name in removed {
-            events.extend(child.set_attr(doc, &name, None));
-        }
-        *last = current;
-        events
-    }
-
-    /// A child's notify events reach this mount through the `@event`
-    /// bindings its custom tag declares, becoming handler calls — the
-    /// browser's addEventListener-per-binding, resolved statically.
-    fn route_child_events(
-        &mut self,
-        doc: &mut DomDocument,
-        node: NodeId,
-        events: Vec<NotifyEvent>,
-    ) -> Vec<NotifyEvent> {
-        let mut own = Vec::new();
-        for event in events {
-            let handlers: Vec<String> = self
-                .bindings
-                .iter()
-                .filter(|binding| binding.node == node && binding.event == event.event_name)
-                .map(|binding| binding.handler.clone())
-                .collect();
-            for handler in handlers {
-                let ui_event = UiEvent::notify(&event);
-                own.extend(self.update_cycle(doc, |behavior, ctx| {
-                    behavior.handle(ctx, &handler, &ui_event);
-                }));
-            }
-        }
-        own
-    }
-
-    /// Routes a widget's commit into the `@change` binding its template
-    /// declares, descending into the child mount that owns the node.
-    pub(crate) fn dispatch_widget_change(
-        &mut self,
-        doc: &mut DomDocument,
-        node: NodeId,
-        text: &str,
-    ) -> Vec<NotifyEvent> {
-        let handlers: Vec<String> = self
-            .bindings
-            .iter()
-            .filter(|binding| binding.node == node && binding.event == "change")
-            .map(|binding| binding.handler.clone())
-            .collect();
-        if !handlers.is_empty() {
-            let mut events = Vec::new();
-            for handler in handlers {
-                let ui_event = UiEvent::change(text.to_string());
-                events.extend(self.update_cycle(doc, |behavior, ctx| {
-                    behavior.handle(ctx, &handler, &ui_event);
-                }));
-            }
-            return events;
-        }
-        let child_hosts: Vec<NodeId> = self.children.keys().copied().collect();
-        for host in child_hosts {
-            if host == node || doc.ancestors(node).any(|ancestor| ancestor == host) {
-                let events = {
-                    let child = self.children.get_mut(&host).expect("listed");
-                    child.dispatch_widget_change(doc, node, text)
-                };
-                return self.route_child_events(doc, host, events);
-            }
-        }
-        Vec::new()
     }
 
     pub(crate) fn set_attr(
@@ -547,66 +404,5 @@ impl Mount {
         self.update_cycle(doc, |_, ctx| {
             ctx.set(rust_name, value);
         })
-    }
-
-    /// Runs `f` on the mount whose host node is `node`, anywhere below.
-    fn with_mount_at(
-        &mut self,
-        node: NodeId,
-        doc: &mut DomDocument,
-        f: &mut dyn FnMut(&mut Mount, &mut DomDocument) -> Vec<NotifyEvent>,
-    ) -> Vec<NotifyEvent> {
-        if self.host == node {
-            return f(self, doc);
-        }
-        let child_nodes: Vec<NodeId> = self.children.keys().copied().collect();
-        for child_node in child_nodes {
-            if child_node == node {
-                let events = {
-                    let child = self.children.get_mut(&child_node).expect("listed");
-                    f(child, doc)
-                };
-                return self.route_child_events(doc, child_node, events);
-            }
-            let routed = {
-                let child = self.children.get_mut(&child_node).expect("listed");
-                child.with_mount_at(node, doc, f)
-            };
-            if !routed.is_empty() {
-                return self.route_child_events(doc, child_node, routed);
-            }
-        }
-        Vec::new()
-    }
-}
-
-/// `ident` reads the store or dispatches to a computed getter; `!ident`
-/// negates its truthiness — the template expression language, resolved to
-/// part values. Null and undefined clear their part, like lit's `nothing`.
-fn resolve_hole(expr: &str, store: &PropertyStore, behavior: &dyn Behavior) -> PartValue {
-    let (negated, ident) = match expr.strip_prefix('!') {
-        Some(ident) => (true, ident),
-        None => (false, expr),
-    };
-    let base = if store.has(ident) {
-        store.get(ident).clone()
-    } else {
-        behavior.compute(store, ident)
-    };
-    if negated {
-        return PartValue::Bool(!base.truthy());
-    }
-    match base {
-        Value::Undefined | Value::Null => PartValue::Nothing,
-        value => PartValue::Value(value),
-    }
-}
-
-fn part_value_to_value(value: &PartValue) -> Value {
-    match value {
-        PartValue::Text(text) => Value::Str(text.clone()),
-        PartValue::Bool(b) => Value::Bool(*b),
-        PartValue::Value(value) => value.clone(),
-        PartValue::Nothing | PartValue::NoChange => Value::Null,
     }
 }

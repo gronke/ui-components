@@ -38,6 +38,44 @@ pub fn value_to_json(value: &Value) -> serde_json::Value {
     }
 }
 
+/// Renders a value as its canonical JSON string: compact, keys sorted at
+/// every level. [`value_to_json`] keeps object maps sorted on its own (the
+/// [`ObjectMap`] iterates sorted), but serde_json's map flavor is a build
+/// property — feature unification anywhere in the graph can flip it to
+/// insertion order (`preserve_order`), which reorders the option rows and
+/// any hand-built `json!` literal. Snapshot identities and test expectations
+/// compare this string instead of `to_string`, so byte equality never
+/// depends on the build. Numbers render as serde_json does (`1.0` keeps its
+/// point) — canonical across builds, not across languages.
+pub fn canonical_json(value: &Value) -> String {
+    canonical_string(&value_to_json(value))
+}
+
+fn canonical_string(json: &serde_json::Value) -> String {
+    match json {
+        serde_json::Value::Array(items) => {
+            let items: Vec<String> = items.iter().map(canonical_string).collect();
+            format!("[{}]", items.join(","))
+        }
+        serde_json::Value::Object(members) => {
+            let mut members: Vec<(&String, &serde_json::Value)> = members.iter().collect();
+            members.sort_by_key(|(key, _)| *key);
+            let members: Vec<String> = members
+                .iter()
+                .map(|(key, value)| {
+                    format!(
+                        "{}:{}",
+                        serde_json::Value::String((*key).clone()),
+                        canonical_string(value)
+                    )
+                })
+                .collect();
+            format!("{{{}}}", members.join(","))
+        }
+        scalar => scalar.to_string(),
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum FromJsonError {
     #[error("array values are unsupported; option lists are data, not state (ADR 0006)")]
@@ -87,12 +125,33 @@ mod tests {
         let state: ObjectMap = [("zone", Value::from("UTC")), ("date", "2026-07-07".into())]
             .into_iter()
             .collect();
-        let json = value_to_json(&Value::Object(state.clone()));
+        let value = Value::Object(state.clone());
         assert_eq!(
-            serde_json::to_string(&json).unwrap(),
+            canonical_json(&value),
             r#"{"date":"2026-07-07","zone":"UTC"}"#
         );
-        assert_eq!(value_from_json(&json).unwrap(), Value::Object(state));
+        assert_eq!(
+            value_from_json(&value_to_json(&value)).unwrap(),
+            Value::Object(state)
+        );
+    }
+
+    #[test]
+    fn canonical_json_sorts_keys_at_every_level() {
+        // The option rows are built in value/short/label order; the
+        // canonical form sorts them regardless of the map flavor.
+        let options = vec![SelectOption::new("UTC")];
+        assert_eq!(
+            canonical_json(&Value::Options(options)),
+            r#"[{"label":null,"short":null,"value":"UTC"}]"#
+        );
+        let nested: ObjectMap = [("b", Value::from(1.5)), ("a", "x".into())]
+            .into_iter()
+            .collect();
+        assert_eq!(
+            canonical_json(&Value::Object(nested)),
+            r#"{"a":"x","b":1.5}"#
+        );
     }
 
     #[test]

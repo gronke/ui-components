@@ -2,3 +2,4 @@
 /dist
 /apps/web-demo/web-tui
 .*.swp
+/crates/uic_codegen_web/tests/parity/build

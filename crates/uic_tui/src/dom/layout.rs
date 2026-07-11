@@ -8,7 +8,6 @@ use unicode_width::UnicodeWidthStr;
 
 use uic_dom::NodeData;
 
-use super::widget::WidgetState;
 use super::DomDocument;
 
 /// A document node with its computed absolute cell rectangle.
@@ -61,11 +60,21 @@ pub(crate) fn compute(doc: &DomDocument, area: Rect) -> Vec<LaidNode> {
             width: AvailableSpace::Definite(area.width as f32),
             height: AvailableSpace::Definite(area.height as f32),
         },
-        |known, _available, _id, context, _style| match context {
-            Some(Measured::Text(text)) => Size {
-                width: known.width.unwrap_or(text.width() as f32),
-                height: known.height.unwrap_or(1.0),
-            },
+        |known, available, _id, context, _style| match context {
+            Some(Measured::Text(text)) => {
+                let intrinsic = text.width() as f32;
+                let width = known.width.unwrap_or(match available.width {
+                    AvailableSpace::Definite(limit) => intrinsic.min(limit),
+                    AvailableSpace::MinContent => longest_word(text),
+                    AvailableSpace::MaxContent => intrinsic,
+                });
+                Size {
+                    width,
+                    height: known
+                        .height
+                        .unwrap_or_else(|| wrapped_lines(text, width) as f32),
+                }
+            }
             Some(Measured::Widget(intrinsic)) => Size {
                 width: known
                     .width
@@ -206,19 +215,11 @@ fn widget_height(doc: &DomDocument, node: uic_dom::NodeId) -> u16 {
     let Some(widget) = doc.element(node).and_then(|el| el.data.widget.as_ref()) else {
         return 1;
     };
-    match &widget.state {
-        WidgetState::TextArea(state) => {
-            let max_lines = component_attr(doc, node, "max-lines")
-                .and_then(|value| value.parse::<u16>().ok())
-                .filter(|lines| *lines >= 1)
-                .unwrap_or(10);
-            // rat's text is newline-terminated: the count includes an empty
-            // tail line that never shows in the browser.
-            let lines = (state.len_lines() as u16).saturating_sub(1).max(1);
-            lines.clamp(1, max_lines.max(1))
-        }
-        _ => 1,
-    }
+    let max_lines = component_attr(doc, node, "max-lines")
+        .and_then(|value| value.parse::<u16>().ok())
+        .filter(|lines| *lines >= 1)
+        .unwrap_or(10);
+    widget.adapter.intrinsic_height(max_lines)
 }
 
 /// Intrinsic width of a widget leaf that sizes to content the way the
@@ -226,19 +227,7 @@ fn widget_height(doc: &DomDocument, node: uic_dom::NodeId) -> u16 {
 /// cells; the text-editing widgets keep the flex default.
 fn widget_width(doc: &DomDocument, node: uic_dom::NodeId) -> Option<u16> {
     let widget = doc.element(node).and_then(|el| el.data.widget.as_ref())?;
-    match &widget.state {
-        WidgetState::Select(state) => {
-            let value = state.value();
-            let closed = widget
-                .options
-                .iter()
-                .find(|option| option.value == value)
-                .map(|option| option.short_label())
-                .unwrap_or_default();
-            Some((closed.width() as u16).saturating_add(3))
-        }
-        _ => None,
-    }
+    widget.adapter.intrinsic_width()
 }
 
 /// The coarse Bootstrap-class → CSS mapping shared with the browser target.
@@ -271,9 +260,18 @@ fn container_style(classes: &[String]) -> Style {
                 }
             }
             "align-self-center" => style.align_self = Some(AlignItems::CENTER),
-            // Bootstrap's fractional-row spacers round down in cells: mt-1
-            // is a quarter rem in the browser, less than any terminal row.
-            "mt-1" => {}
+            // Bootstrap's spacers in rows (a terminal row reads like
+            // ~1.5rem): 1 and 2 stay sub-row, 3 and 4 round to one row,
+            // 5 to two — the margins push the following flow down, like
+            // the browser's.
+            "mt-1" | "mt-2" | "mb-0" | "mb-1" | "mb-2" => {}
+            "mt-3" | "mt-4" => style.margin.top = length(1.0_f32),
+            "mb-3" | "mb-4" => style.margin.bottom = length(1.0_f32),
+            "mt-5" => style.margin.top = length(2.0_f32),
+            "mb-5" => style.margin.bottom = length(2.0_f32),
+            // The browser pads the input-group affix (the number's unit);
+            // one cell keeps it off the value.
+            "input-group-text" => style.padding.left = length(1.0_f32),
             "p-0" => style.padding = taffy::geometry::Rect::zero(),
             _ => {}
         }
@@ -349,6 +347,44 @@ fn collect(
 
 pub(crate) fn collapse_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Greedy word wrap in cells, the reservation behind ratatui's trimmed
+/// `Wrap`: words fill each line up to the width and an oversized word
+/// breaks across lines.
+fn wrapped_lines(text: &str, width: f32) -> u16 {
+    let width = width.round().max(1.0) as usize;
+    let mut lines: u16 = 1;
+    let mut used = 0usize;
+    for word in text.split_whitespace() {
+        let len = word.width();
+        if used > 0 && used + 1 + len <= width {
+            used += 1 + len;
+            continue;
+        }
+        if used == 0 && len <= width {
+            used = len;
+            continue;
+        }
+        if used > 0 {
+            lines += 1;
+        }
+        let mut rest = len;
+        while rest > width {
+            lines += 1;
+            rest -= width;
+        }
+        used = rest;
+    }
+    lines
+}
+
+/// The widest single word — the narrowest a text can measure (MinContent).
+fn longest_word(text: &str) -> f32 {
+    text.split_whitespace()
+        .map(|word| word.width())
+        .max()
+        .unwrap_or(0) as f32
 }
 
 /// Rounds to whole cells and clips to the drawable area (rounding lives here

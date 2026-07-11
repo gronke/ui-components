@@ -2,58 +2,18 @@
 //! the form children, child commits folding back into `state`, and the
 //! echo-free `state-changed` contract (ADR 0013).
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod support;
 
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::KeyCode;
 use ratatui::backend::TestBackend;
-use ratatui::Terminal;
-use uic_core::{NotifyEvent, ObjectMap, Value};
-use uic_tui::{App, Control};
+use uic_core::{ObjectMap, Value};
+use uic_tui::App;
+
+use support::{key, probe, screen, type_str};
 
 /// Tall enough for the whole form plus the select popup.
 fn app() -> App<TestBackend> {
-    ui_components::link();
-    let terminal = Terminal::new(TestBackend::new(72, 50)).expect("test terminal");
-    App::from_terminal(terminal)
-}
-
-fn screen(app: &mut App<TestBackend>) -> String {
-    app.draw().expect("draw");
-    let buffer = app.terminal().backend().buffer();
-    let area = buffer.area;
-    (0..area.height)
-        .map(|y| {
-            (0..area.width)
-                .map(|x| buffer[(x, y)].symbol())
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Draw before dispatching, like the real event loop: widget state and
-/// popup anchors sync during the paint pass.
-fn key(app: &mut App<TestBackend>, code: KeyCode) -> Control {
-    app.draw().expect("draw");
-    app.handle_event(&Event::Key(KeyEvent::from(code)))
-}
-
-fn type_str(app: &mut App<TestBackend>, text: &str) {
-    for ch in text.chars() {
-        key(app, KeyCode::Char(ch));
-    }
-}
-
-fn probe(app: &mut App<TestBackend>, index: usize) -> Rc<RefCell<Vec<NotifyEvent>>> {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let sink = events.clone();
-    app.on(index, "state-changed", move |ev| {
-        sink.borrow_mut().push(ev.clone())
-    });
-    events
+    support::app(72, 50)
 }
 
 fn state(entries: &[(&str, Value)]) -> ObjectMap {
@@ -105,7 +65,7 @@ fn child_commit_updates_state_once_and_keeps_siblings() {
     let mut app = app();
     let el = app.mount("app-root").expect("mount");
     app.set_prop(el, "state", state(&[("note", "hello".into())]));
-    let events = probe(&mut app, el);
+    let events = probe(&mut app, el, "state-changed");
 
     // Focus starts on the date widget (document order).
     type_str(&mut app, "2026-08-01");
@@ -130,7 +90,7 @@ fn child_commit_updates_state_once_and_keeps_siblings() {
 fn select_pick_lands_in_state() {
     let mut app = app();
     let el = app.mount("app-root").expect("mount");
-    let events = probe(&mut app, el);
+    let events = probe(&mut app, el, "state-changed");
 
     // Document order: date, its embedded timezone select, range start and
     // end, note, amount — the sixth Tab reaches the pick select.
@@ -163,7 +123,7 @@ fn select_pick_lands_in_state() {
 fn external_equal_state_is_suppressed() {
     let mut app = app();
     let el = app.mount("app-root").expect("mount");
-    let events = probe(&mut app, el);
+    let events = probe(&mut app, el, "state-changed");
 
     let snapshot = state(&[("date", "2026-07-07".into()), ("note", "x".into())]);
     app.set_prop(el, "state", snapshot.clone());
@@ -180,7 +140,7 @@ fn external_equal_state_is_suppressed() {
 fn sparse_state_leaves_child_defaults_and_stays_silent() {
     let mut app = app();
     let el = app.mount("app-root").expect("mount");
-    let events = probe(&mut app, el);
+    let events = probe(&mut app, el, "state-changed");
 
     let screen = screen(&mut app);
     assert!(
@@ -201,7 +161,7 @@ fn sparse_state_leaves_child_defaults_and_stays_silent() {
 fn range_inversion_heals_through_the_child_back_into_state() {
     let mut app = app();
     let el = app.mount("app-root").expect("mount");
-    let events = probe(&mut app, el);
+    let events = probe(&mut app, el, "state-changed");
 
     // The template pushes start before end, so the inverted end pulls the
     // start along (the range's will_update rule for an end-only change).
@@ -216,4 +176,32 @@ fn range_inversion_heals_through_the_child_back_into_state() {
     let healed = healed.as_object().expect("object state");
     assert_eq!(healed.get("start"), healed.get("end"), "coherent interval");
     assert_eq!(healed.get("end"), Some(&Value::Str("2026-07-10".into())));
+}
+
+#[test]
+fn bootstrap_margins_separate_the_stacked_controls() {
+    let mut app = app();
+    app.mount("app-root").expect("mount");
+
+    // The mb-4 on each control pushes the next one down, like the browser:
+    // a blank margin row stands between the date's hint and the range's
+    // label.
+    let screen = screen(&mut app);
+    let hint = screen
+        .lines()
+        .position(|line| line.contains("Format: YYYY-MM-DD"))
+        .expect("date hint row");
+    let next = screen
+        .lines()
+        .position(|line| line.trim_start().starts_with("Stay"))
+        .expect("range label row");
+    assert!(
+        next >= hint + 2,
+        "a margin row separates the controls:\n{screen}"
+    );
+    assert_eq!(
+        screen.lines().nth(hint + 1).map(str::trim),
+        Some(""),
+        "the margin row is blank:\n{screen}"
+    );
 }

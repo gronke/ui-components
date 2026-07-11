@@ -216,15 +216,20 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
 }
 
 fn property_options(prop: &PropertyMeta) -> String {
-    // Object-valued properties: no converter runs (attribute: false) and the
-    // default `!==` hasChanged applies — reference semantics like the catalog.
-    let mut options = match prop.js_type {
-        JsType::Zoned | JsType::Options | JsType::Object => {
-            vec!["attribute: false".to_string()]
-        }
-        JsType::String => vec!["type: String".to_string()],
-        JsType::Number => vec!["type: Number".to_string()],
-        JsType::Boolean => vec!["type: Boolean".to_string()],
+    // Property-only (object-valued) properties: no converter runs
+    // (attribute: false) and the default `!==` hasChanged applies —
+    // reference semantics like the catalog.
+    let mut options = if prop.js_type.is_property_only() {
+        vec!["attribute: false".to_string()]
+    } else {
+        // The Lit converter of the attribute-carrying scalars.
+        let lit_type = match prop.js_type {
+            JsType::String => "String",
+            JsType::Number => "Number",
+            JsType::Boolean => "Boolean",
+            _ => unreachable!("property-only types carry no converter"),
+        };
+        vec![format!("type: {lit_type}")]
     };
     // Lit's default attribute is the lowercased property name; only spell
     // out deviations (the dash-case of multi-word properties).
@@ -245,29 +250,19 @@ fn property_options(prop: &PropertyMeta) -> String {
 }
 
 fn field_declaration(prop: &PropertyMeta) -> String {
-    let ts_type = match prop.js_type {
-        JsType::String => "string",
-        JsType::Number => "number",
-        JsType::Boolean => "boolean",
-        JsType::Zoned => "Temporal.ZonedDateTime | null",
-        JsType::Options => "SelectOption[]",
-        JsType::Object => "Record<string, unknown>",
+    let ts_type = prop.js_type.ts_type();
+    let Some(initializer) = prop.default.ts_literal() else {
+        return format!("{}?: {ts_type};", prop.js_name);
     };
-    let initializer = match prop.default {
-        DefaultValue::Undefined => return format!("{}?: {ts_type};", prop.js_name),
-        DefaultValue::Str(s) => format!("'{}'", escape_single_quoted(s)),
-        DefaultValue::Num(n) => n.to_string(),
-        DefaultValue::Bool(b) => b.to_string(),
-        // A bare `[]` would infer `never[]`; spell the element type.
-        DefaultValue::EmptyOptions => return format!("{}: {ts_type} = [];", prop.js_name),
-        // A bare `{}` would infer the empty object type; spell the record.
-        DefaultValue::EmptyObject => return format!("{}: {ts_type} = {{}};", prop.js_name),
-    };
-    if prop.optional {
+    match prop.default {
+        // A bare `[]`/`{}` would infer `never[]`/the empty object type;
+        // spell the declared type at the initialized field.
+        DefaultValue::EmptyOptions | DefaultValue::EmptyObject => {
+            format!("{}: {ts_type} = {initializer};", prop.js_name)
+        }
         // Optional with a default: nullable field, initialized.
-        format!("{}: {ts_type} | null = {initializer};", prop.js_name)
-    } else {
-        format!("{} = {initializer};", prop.js_name)
+        _ if prop.optional => format!("{}: {ts_type} | null = {initializer};", prop.js_name),
+        _ => format!("{} = {initializer};", prop.js_name),
     }
 }
 
@@ -297,10 +292,6 @@ fn escape_lit_text(text: &str) -> String {
     text.replace('\\', "\\\\")
         .replace('`', "\\`")
         .replace("${", "\\${")
-}
-
-fn escape_single_quoted(text: &str) -> String {
-    text.replace('\\', "\\\\").replace('\'', "\\'")
 }
 
 fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {

@@ -8,4 +8,4 @@ mod session;
 
 pub use backend::{Output, XtermBackend};
 pub use keymap::{translate_key, translate_mouse};
-pub use session::TuiSession;
+pub use session::{options_from_json, TuiSession};

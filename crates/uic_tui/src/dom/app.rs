@@ -3,11 +3,9 @@
 //! it — focus is a node, not an index into template order, and unrendered
 //! conditional branches are unfocusable because their nodes do not exist.
 
-use chrono::{Datelike, Days, Months};
 use crossterm::event::{
     Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
-use rat_widget::event::{CalOutcome, HandleEvent, Regular};
 use ratatui::backend::Backend;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::Style;
@@ -16,13 +14,11 @@ use ratatui::Terminal;
 use uic_core::{NotifyEvent, Value};
 use uic_dom::{Event as DomEvent, NodeId};
 
-use super::host::Mount;
+use super::host::{deliver, Listener, Mount};
 use super::render;
-use super::widget::{WidgetBox, WidgetState};
+use super::widget::{OverlayOutcome, WidgetBox};
 use super::DomDocument;
 use crate::{Control, Error};
-
-type Listener = Box<dyn FnMut(&NotifyEvent)>;
 
 /// Hosts mounted component trees on a terminal, rendering from the retained
 /// document. Roots stack vertically like block elements in a document; Tab
@@ -35,7 +31,7 @@ pub struct App<B: Backend> {
     /// Focus parked outside every element (a click into nothing): no ring,
     /// no caret, until the next key or widget click.
     blurred: bool,
-    listeners: Vec<(usize, String, Listener)>,
+    listeners: Vec<((usize, String), Listener)>,
     status: Option<Box<dyn Fn() -> String>>,
 }
 
@@ -121,9 +117,15 @@ impl<B: Backend> App<B> {
     }
 
     /// Subscribes to a mounted root's notify events.
+    ///
+    /// Listeners run synchronously inside the update, under the `&mut self`
+    /// borrow — a callback must not call back into the app (no draw, no
+    /// set_prop). The wasm session's borrow guard enforces this in the
+    /// browser; native embedders queue follow-up work instead (the
+    /// BroadcastChannel pattern: deliver, return, apply asynchronously).
     pub fn on(&mut self, index: usize, event: &str, listener: impl FnMut(&NotifyEvent) + 'static) {
         self.listeners
-            .push((index, event.to_string(), Box::new(listener)));
+            .push(((index, event.to_string()), Box::new(listener)));
     }
 
     /// The document, for assertions.
@@ -336,7 +338,7 @@ impl<B: Backend> App<B> {
             self.doc
                 .element(node)
                 .and_then(|el| el.data.widget.as_ref())
-                .is_some_and(|widget| widget.state.area().contains(position))
+                .is_some_and(|widget| widget.adapter.area().contains(position))
         })
     }
 
@@ -356,57 +358,30 @@ impl<B: Backend> App<B> {
 
     fn focused_multiline(&self) -> bool {
         self.focused_widget()
-            .is_some_and(|widget| widget.state.is_multiline())
+            .is_some_and(|widget| widget.adapter.is_multiline())
     }
 
     /// True when the focused widget owns an overlay F4/Down may open (the
     /// date's calendar, the select's option list). Disabled widgets never
     /// hold focus, so no separate guard is needed.
     fn focused_opens_overlay(&self) -> bool {
-        self.focused_widget().is_some_and(|widget| {
-            matches!(
-                widget.state,
-                WidgetState::Date { .. } | WidgetState::Select(_)
-            )
-        })
+        self.focused_widget()
+            .is_some_and(|widget| widget.adapter.opens_overlay())
     }
 
     /// Forwards the event to the focused widget's own handling; true when
     /// the widget requests a commit.
     fn forward_to_focused(&mut self, event: &Event) -> bool {
         self.focused_widget_mut()
-            .is_some_and(|widget| widget.state.handle(true, event))
+            .is_some_and(|widget| widget.adapter.handle(true, event))
     }
 
-    /// Places the caret under the pointer for the focused text-bearing
-    /// widget (a drag extends the selection), or opens a select's list —
-    /// the click semantics of the browser. rat's own mouse path stays
-    /// unused everywhere: its click arming reads the system clock, which
-    /// wasm32 does not have.
+    /// Places the caret under the pointer, extends the selection on drag,
+    /// or opens a select's list — the click semantics of the browser,
+    /// dispatched to the focused widget's adapter.
     fn place_cursor(&mut self, column: u16, row: u16, extend: bool) {
-        let Some(widget) = self.focused_widget_mut() else {
-            return;
-        };
-        match &mut widget.state {
-            WidgetState::Date { input, .. } => {
-                let x = column as i16 - input.widget.area.x as i16;
-                input.widget.set_screen_cursor(x, extend);
-            }
-            WidgetState::Text(state) | WidgetState::Number(state) => {
-                let x = column as i16 - state.area.x as i16;
-                state.set_screen_cursor(x, extend);
-            }
-            WidgetState::TextArea(state) => {
-                let x = column as i16 - state.area.x as i16;
-                let y = row as i16 - state.area.y as i16;
-                state.set_screen_cursor((x, y), extend);
-            }
-            WidgetState::Select(state) => {
-                if !extend && !state.is_popup_active() {
-                    state.set_popup_active(true);
-                    state.scroll_to_selected();
-                }
-            }
+        if let Some(widget) = self.focused_widget_mut() {
+            widget.adapter.place_cursor(column, row, extend);
         }
     }
 
@@ -414,60 +389,25 @@ impl<B: Backend> App<B> {
     /// open.
     fn popup_open(&self) -> bool {
         self.focused_widget()
-            .is_some_and(|widget| match &widget.state {
-                WidgetState::Date { popup, .. } => popup.core.is_active(),
-                WidgetState::Select(state) => state.is_popup_active(),
-                _ => false,
-            })
+            .is_some_and(|widget| widget.adapter.overlay_open())
     }
 
-    /// Opens the focused widget's overlay: the calendar seeded from the
-    /// widget's current date (falling back to today), or the option list
-    /// scrolled to the current selection.
     fn open_popup(&mut self) {
-        let Some(widget) = self.focused_widget_mut() else {
-            return;
-        };
-        match &mut widget.state {
-            WidgetState::Date { input, popup } => {
-                let seed = input
-                    .value()
-                    .ok()
-                    .unwrap_or_else(|| chrono::Local::now().date_naive());
-                popup.month.set_start_date(seed);
-                popup.month.select_date(seed);
-                popup.month.focus.set(true);
-                popup.core.set_active(true);
-            }
-            WidgetState::Select(state) => {
-                state.set_popup_active(true);
-                state.scroll_to_selected();
-            }
-            _ => {}
+        if let Some(widget) = self.focused_widget_mut() {
+            widget.adapter.open_overlay();
         }
     }
 
     fn close_popup(&mut self) {
-        let Some(widget) = self.focused_widget_mut() else {
-            return;
-        };
-        match &mut widget.state {
-            WidgetState::Date { popup, .. } => {
-                popup.core.set_active(false);
-                popup.month.focus.set(false);
-                popup.core.clear_areas();
-            }
-            WidgetState::Select(state) => {
-                state.set_popup_active(false);
-                state.popup.clear_areas();
-            }
-            _ => {}
+        if let Some(widget) = self.focused_widget_mut() {
+            widget.adapter.close_overlay();
         }
     }
 
     /// Routes a key press while an overlay is open (overlays are modal).
-    /// Returns whether the event was consumed; Tab closes and reports
-    /// unconsumed so the global commit-and-focus handling still runs.
+    /// Returns whether the event was consumed; the adapter's outcome
+    /// decides — a pick commits, Tab reports unconsumed so the global
+    /// commit-and-focus handling still runs.
     fn handle_popup_event(&mut self, event: &Event) -> bool {
         if let Event::Mouse(mouse) = event {
             return self.handle_popup_mouse(*mouse);
@@ -478,259 +418,33 @@ impl<B: Backend> App<B> {
         if key.kind != KeyEventKind::Press {
             return true;
         }
-        let select_open = matches!(
-            self.focused_widget(),
-            Some(widget) if matches!(widget.state, WidgetState::Select(_))
-        );
-        if select_open {
-            return self.handle_select_popup_event(event, key.code);
-        }
-        match key.code {
-            KeyCode::Esc => {
-                self.close_popup();
-                true
-            }
-            KeyCode::Tab => {
-                self.close_popup();
-                false
-            }
-            KeyCode::Enter => {
-                let mut picked = false;
-                if let Some(widget) = self.focused_widget_mut() {
-                    if let WidgetState::Date { input, popup } = &mut widget.state {
-                        if let Some(date) = popup.month.selected_date() {
-                            input.set_value(date);
-                            picked = true;
-                        }
-                    }
-                }
-                self.close_popup();
-                if picked {
-                    self.commit_focused();
-                }
-                true
-            }
-            KeyCode::PageUp => {
-                self.shift_popup_month(-1);
-                true
-            }
-            KeyCode::PageDown => {
-                self.shift_popup_month(1);
-                true
-            }
-            code @ (KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down) => {
-                let Some(widget) = self.focused_widget_mut() else {
-                    return true;
-                };
-                let WidgetState::Date { popup, .. } = &mut widget.state else {
-                    return true;
-                };
-                if popup.month.handle(event, Regular) == CalOutcome::Continue {
-                    // The month widget stops at its edges; roll over into the
-                    // neighboring month like the browser's date picker.
-                    if let Some(selected) = popup.month.selected_date() {
-                        let target = match code {
-                            KeyCode::Left => selected.checked_sub_days(Days::new(1)),
-                            KeyCode::Right => selected.checked_add_days(Days::new(1)),
-                            KeyCode::Up => selected.checked_sub_days(Days::new(7)),
-                            KeyCode::Down => selected.checked_add_days(Days::new(7)),
-                            _ => None,
-                        };
-                        if let Some(target) = target {
-                            popup.month.set_start_date(target);
-                            popup.month.select_date(target);
-                        }
-                    }
-                }
-                true
-            }
-            _ => {
-                if let Some(widget) = self.focused_widget_mut() {
-                    if let WidgetState::Date { popup, .. } = &mut widget.state {
-                        let _ = popup.month.handle(event, Regular);
-                    }
-                }
-                true
-            }
-        }
-    }
-
-    /// Routes the pointer while an overlay is open: a click picks the day or
-    /// option under it (committing like Enter), the wheel and drags browse,
-    /// and a press outside dismisses the overlay and reports unconsumed so
-    /// the click still focuses whatever it landed on.
-    fn handle_popup_mouse(&mut self, mouse: MouseEvent) -> bool {
-        enum Overlay {
-            Date,
-            Select,
-        }
-        let position = Position::new(mouse.column, mouse.row);
-        let (overlay, inside) = match self.focused_widget() {
-            Some(widget) => match &widget.state {
-                WidgetState::Date { popup, .. } => {
-                    (Overlay::Date, popup.core.area.contains(position))
-                }
-                WidgetState::Select(state) => {
-                    (Overlay::Select, state.popup.area.contains(position))
-                }
-                _ => return false,
-            },
-            None => return false,
-        };
-        if !inside {
-            if matches!(mouse.kind, MouseEventKind::Down(_)) {
-                if matches!(overlay, Overlay::Select) {
-                    self.revert_select();
-                }
-                self.close_popup();
-                return false;
-            }
+        let Some(widget) = self.focused_widget_mut() else {
             return true;
-        }
-        // Picks resolve against the overlay's published geometry (day rects,
-        // option rows) instead of rat's mouse handling — see [`Self::place_cursor`].
-        match overlay {
-            Overlay::Date => match mouse.kind {
-                MouseEventKind::Down(_) => {
-                    let mut picked = false;
-                    if let Some(widget) = self.focused_widget_mut() {
-                        if let WidgetState::Date { input, popup } = &mut widget.state {
-                            let start = popup.month.start_date();
-                            let date = popup
-                                .month
-                                .area_days
-                                .iter()
-                                .position(|day| day.contains(position))
-                                .and_then(|index| start.with_day(index as u32 + 1));
-                            if let Some(date) = date {
-                                input.set_value(date);
-                                picked = true;
-                            }
-                        }
-                    }
-                    if picked {
-                        self.close_popup();
-                        self.commit_focused();
-                    }
-                    true
-                }
-                MouseEventKind::ScrollUp => {
-                    self.shift_popup_month(-1);
-                    true
-                }
-                MouseEventKind::ScrollDown => {
-                    self.shift_popup_month(1);
-                    true
-                }
-                _ => true,
-            },
-            Overlay::Select => match mouse.kind {
-                MouseEventKind::Down(_) => {
-                    let mut picked = false;
-                    if let Some(widget) = self.focused_widget_mut() {
-                        if let WidgetState::Select(state) = &mut widget.state {
-                            if let Some(row) = state
-                                .item_areas
-                                .iter()
-                                .position(|item| item.contains(position))
-                            {
-                                let _ = state.select(state.offset() + row);
-                                picked = true;
-                            }
-                        }
-                    }
-                    if picked {
-                        self.close_popup();
-                        self.commit_focused();
-                    }
-                    true
-                }
-                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
-                    // The wheel scrolls the list window without moving the
-                    // selection, like the browser's open dropdown.
-                    if let Some(widget) = self.focused_widget_mut() {
-                        if let WidgetState::Select(state) = &mut widget.state {
-                            let offset = state.offset();
-                            let target = if matches!(mouse.kind, MouseEventKind::ScrollUp) {
-                                offset.saturating_sub(1)
-                            } else {
-                                offset.saturating_add(1)
-                            };
-                            let _ = state.set_offset(target);
-                        }
-                    }
-                    true
-                }
-                _ => true,
-            },
-        }
-    }
-
-    /// Routes a key press while the option list is open. Browsing (arrows,
-    /// paging, type-ahead) mutates the widget value silently; Enter commits,
-    /// Esc reverts to the bound value, Tab closes and falls through so the
-    /// global handling commits the browsed value and advances focus.
-    fn handle_select_popup_event(&mut self, event: &Event, code: KeyCode) -> bool {
-        match code {
-            KeyCode::Esc => {
-                self.revert_select();
-                self.close_popup();
-                true
-            }
-            KeyCode::Tab => {
-                self.close_popup();
-                false
-            }
-            KeyCode::Enter => {
-                self.close_popup();
+        };
+        match widget.adapter.overlay_key(event) {
+            OverlayOutcome::Consumed => true,
+            OverlayOutcome::Pass => false,
+            OverlayOutcome::Commit => {
                 self.commit_focused();
                 true
             }
-            _ => {
-                if let Some(widget) = self.focused_widget_mut() {
-                    if let WidgetState::Select(state) = &mut widget.state {
-                        let _ = rat_widget::choice::handle_events(state, true, event);
-                    }
-                }
+        }
+    }
+
+    /// Routes the pointer while an overlay is open: picks commit like
+    /// Enter, and a press outside dismisses the overlay and reports
+    /// unconsumed so the click still focuses whatever it landed on.
+    fn handle_popup_mouse(&mut self, mouse: MouseEvent) -> bool {
+        let Some(widget) = self.focused_widget_mut() else {
+            return false;
+        };
+        match widget.adapter.overlay_mouse(mouse) {
+            OverlayOutcome::Consumed => true,
+            OverlayOutcome::Pass => false,
+            OverlayOutcome::Commit => {
+                self.commit_focused();
                 true
             }
-        }
-    }
-
-    /// Restores the focused select's widget value from its bound property —
-    /// rat's browsing mutates the value continuously, so Esc reverts like
-    /// the browser's dropdown.
-    fn revert_select(&mut self) {
-        let Some(widget) = self.focused_widget_mut() else {
-            return;
-        };
-        let bound = widget.last_synced_text();
-        if let WidgetState::Select(state) = &mut widget.state {
-            state.set_value(bound);
-        }
-    }
-
-    /// Pages the open calendar by whole months, keeping the selected
-    /// day-of-month (clamped to the target month's length).
-    fn shift_popup_month(&mut self, months: i32) {
-        let Some(widget) = self.focused_widget_mut() else {
-            return;
-        };
-        let WidgetState::Date { popup, .. } = &mut widget.state else {
-            return;
-        };
-        let base = popup
-            .month
-            .selected_date()
-            .unwrap_or_else(|| popup.month.start_date());
-        let target = if months < 0 {
-            base.checked_sub_months(Months::new(months.unsigned_abs()))
-        } else {
-            base.checked_add_months(Months::new(months as u32))
-        };
-        if let Some(target) = target {
-            popup.month.set_start_date(target);
-            popup.month.select_date(target);
         }
     }
 
@@ -745,7 +459,7 @@ impl<B: Backend> App<B> {
             .doc
             .element(node)
             .and_then(|el| el.data.widget.as_ref())
-            .map(|widget| widget.state.committed_text())
+            .map(|widget| widget.adapter.committed_text())
         else {
             return;
         };
@@ -768,12 +482,8 @@ impl<B: Backend> App<B> {
     }
 
     fn publish(&mut self, index: usize, events: Vec<NotifyEvent>) {
-        for event in &events {
-            for (root, name, listener) in self.listeners.iter_mut() {
-                if *root == index && name == &event.event_name {
-                    listener(event);
-                }
-            }
-        }
+        deliver(&mut self.listeners, &events, |(root, name), event| {
+            *root == index && name == &event.event_name
+        });
     }
 }

@@ -1,5 +1,6 @@
 // Browser behavior of <app-root>; mirrors the Rust AppRootLogic impl in
 // app_root.rs — keep both in sync.
+import { detailValue } from './uic-impl-helpers.js';
 import type { AppRoot } from './app-root.js';
 import type { SelectOption } from './uic-runtime.js';
 
@@ -65,7 +66,7 @@ export function stateLine(el: AppRoot): string {
 // The guard matters: Lit's dirty check is reference-based, so an
 // unconditional spread would re-fire state-changed on every child echo.
 function setMember(el: AppRoot, key: string, e: Event): void {
-  const value = (e as CustomEvent).detail.value ?? null;
+  const value = detailValue(e);
   if (el.state[key] === value) {
     return;
   }

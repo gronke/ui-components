@@ -54,27 +54,24 @@ impl InputTextareaLogic for InputTextarea {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uic_core::{notify_events, Changed, PropertyStore};
+    use uic_core::testing::{cycle, setup};
+    use uic_core::{NotifyEvent, PropertyStore};
 
-    fn commit(input: &str, allow_null: bool) -> (PropertyStore, Changed) {
-        let def = InputTextarea::definition();
-        let mut behavior = (def.new_behavior)();
-        let mut store = PropertyStore::new(def.properties);
+    fn commit(input: &str, allow_null: bool) -> (PropertyStore, Vec<NotifyEvent>) {
+        let (mut store, mut behavior) = setup(InputTextarea::definition());
         if allow_null {
             store.set("allow_null", true);
         }
-        let mut changed = Changed::default();
-        let mut ctx = Ctx::new(&mut store, &mut changed);
-        behavior.handle(&mut ctx, "on_change", &UiEvent::change(input));
-        (store, changed)
+        let events = cycle(&mut store, &mut behavior, |b, ctx| {
+            b.handle(ctx, "on_change", &UiEvent::change(input))
+        });
+        (store, events)
     }
 
     #[test]
     fn commits_trimmed_multiline_text() {
-        let def = InputTextarea::definition();
-        let (store, changed) = commit("  line one\nline two  ", false);
+        let (store, events) = commit("  line one\nline two  ", false);
         assert_eq!(store.get("value"), &Value::Str("line one\nline two".into()));
-        let events = notify_events(def, &changed, &store);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_name, "value-changed");
     }

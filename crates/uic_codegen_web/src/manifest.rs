@@ -2,7 +2,7 @@
 //! artifact describing every generated component.
 
 use serde_json::{json, Value as Json};
-use uic_core::{ComponentDef, DefaultValue, JsType, PropertyMeta};
+use uic_core::{ComponentDef, PropertyMeta};
 
 pub fn custom_elements_json(defs: &[&'static ComponentDef]) -> String {
     let modules: Vec<Json> = defs.iter().map(|def| module_json(def)).collect();
@@ -70,28 +70,12 @@ fn module_json(def: &'static ComponentDef) -> Json {
 }
 
 fn member_json(prop: &PropertyMeta) -> Json {
-    let ts_type = match prop.js_type {
-        JsType::String => "string",
-        JsType::Number => "number",
-        JsType::Boolean => "boolean",
-        JsType::Zoned => "Temporal.ZonedDateTime | null",
-        JsType::Options => "SelectOption[]",
-        JsType::Object => "Record<string, unknown>",
-    };
     let mut member = json!({
         "kind": "field",
         "name": prop.js_name,
-        "type": { "text": ts_type },
+        "type": { "text": prop.js_type.ts_type() },
     });
-    let default = match prop.default {
-        DefaultValue::Undefined => None,
-        DefaultValue::Str(s) => Some(format!("'{s}'")),
-        DefaultValue::Num(n) => Some(n.to_string()),
-        DefaultValue::Bool(b) => Some(b.to_string()),
-        DefaultValue::EmptyOptions => Some("[]".to_string()),
-        DefaultValue::EmptyObject => Some("{}".to_string()),
-    };
-    if let Some(default) = default {
+    if let Some(default) = prop.default.ts_literal() {
         member["default"] = json!(default);
     }
     if !prop.doc.is_empty() {

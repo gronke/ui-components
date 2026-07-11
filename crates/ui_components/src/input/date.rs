@@ -134,15 +134,11 @@ impl InputDateLogic for InputDate {
                 Some(zoned) => zoned.date_naive().format("%Y-%m-%d").to_string(),
                 None => String::new(),
             };
-            if ctx.get("value").as_str() != Some(value.as_str()) {
-                ctx.set("value", value);
-            }
+            ctx.set("value", value);
         } else if changed.has("value") {
             let raw = ctx.get("value").as_str().unwrap_or("").to_string();
             if raw.is_empty() {
-                if ctx.get("date") != &Value::Null {
-                    ctx.set("date", Value::Null);
-                }
+                ctx.set("date", Value::Null);
                 ctx.set("error_message", Value::Undefined);
                 ctx.set("error", false);
             } else if let Some(date) = parse_date(&raw) {
@@ -206,33 +202,7 @@ impl InputDateLogic for InputDate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uic_core::notify_events;
-
-    /// Replicates the runtime's update cycle: handler, then `will_update`
-    /// over the same batch, then the notify pass.
-    fn cycle(
-        store: &mut PropertyStore,
-        behavior: &mut Box<dyn uic_core::Behavior>,
-        f: impl FnOnce(&mut dyn uic_core::Behavior, &mut Ctx),
-    ) -> Vec<uic_core::NotifyEvent> {
-        let def = InputDate::definition();
-        let mut changed = Changed::default();
-        {
-            let mut ctx = Ctx::new(store, &mut changed);
-            f(behavior.as_mut(), &mut ctx);
-        }
-        let snapshot = changed.clone();
-        {
-            let mut ctx = Ctx::new(store, &mut changed);
-            behavior.will_update(&mut ctx, &snapshot);
-        }
-        notify_events(def, &changed, store)
-    }
-
-    fn setup() -> (PropertyStore, Box<dyn uic_core::Behavior>) {
-        let def = InputDate::definition();
-        (PropertyStore::new(def.properties), (def.new_behavior)())
-    }
+    use uic_core::testing::{cycle, setup};
 
     fn commit(
         store: &mut PropertyStore,
@@ -246,7 +216,7 @@ mod tests {
 
     #[test]
     fn valid_commit_sets_value_and_date_and_notifies_both() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         let events = commit(&mut store, &mut behavior, "2026-8-1");
         assert_eq!(store.get("value"), &Value::Str("2026-08-01".into()));
         assert_eq!(store.get("error"), &Value::Bool(false));
@@ -260,7 +230,7 @@ mod tests {
 
     #[test]
     fn timezone_fallback_chain_applies() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         store.set("default_timezone", "Europe/Berlin");
         commit(&mut store, &mut behavior, "2026-07-07");
         assert_eq!(
@@ -279,7 +249,7 @@ mod tests {
 
     #[test]
     fn external_value_write_derives_the_date() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         cycle(&mut store, &mut behavior, |_, ctx| {
             ctx.set("value", "2026-07-07");
         });
@@ -297,7 +267,7 @@ mod tests {
 
     #[test]
     fn external_date_write_derives_the_value() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         let zoned = start_of_day(NaiveDate::from_ymd_opt(2026, 7, 9).unwrap(), chrono_tz::UTC);
         let events = cycle(&mut store, &mut behavior, |_, ctx| {
             ctx.set("date", zoned.clone());
@@ -310,7 +280,7 @@ mod tests {
 
     #[test]
     fn timezone_only_change_is_inert() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         commit(&mut store, &mut behavior, "2026-07-07");
         let before = store.get("date").clone();
         let events = cycle(&mut store, &mut behavior, |_, ctx| {
@@ -324,7 +294,7 @@ mod tests {
 
     #[test]
     fn invalid_external_value_sets_the_error_message() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         cycle(&mut store, &mut behavior, |_, ctx| {
             ctx.set("value", "not-a-date");
         });
@@ -347,7 +317,7 @@ mod tests {
     fn commit_batch_is_echo_free() {
         // on_change sets value AND date; will_update prefers date and derives
         // the identical value string — nothing oscillates.
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         let events = commit(&mut store, &mut behavior, "2026-07-07");
         assert_eq!(store.get("value"), &Value::Str("2026-07-07".into()));
         assert_eq!(
@@ -361,7 +331,7 @@ mod tests {
 
     #[test]
     fn invalid_input_sets_error_and_keeps_value() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         let events = commit(&mut store, &mut behavior, "2026-13-99");
         assert_eq!(store.get("value"), &Value::Str(String::new()));
         assert_eq!(
@@ -374,7 +344,7 @@ mod tests {
 
     #[test]
     fn empty_input_clears_value_date_and_error() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         commit(&mut store, &mut behavior, "2026-07-07");
         commit(&mut store, &mut behavior, "  ");
         assert_eq!(store.get("value"), &Value::Str(String::new()));
@@ -385,7 +355,7 @@ mod tests {
 
     #[test]
     fn valid_commit_clears_a_previous_error() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         commit(&mut store, &mut behavior, "nonsense");
         assert_eq!(store.get("error"), &Value::Bool(true));
         commit(&mut store, &mut behavior, "2026-06-15");
@@ -395,7 +365,7 @@ mod tests {
 
     #[test]
     fn min_max_are_enforced() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         store.set("min", "2026-01-01");
         store.set("max", "2026-12-31");
         commit(&mut store, &mut behavior, "2025-12-31");
@@ -453,7 +423,7 @@ mod tests {
 
     #[test]
     fn timezone_changed_events_route_into_the_property() {
-        let (mut store, mut behavior) = setup();
+        let (mut store, mut behavior) = setup(InputDate::definition());
         let picked = UiEvent {
             name: "value-changed".to_string(),
             target_value: Some("Europe/Berlin".to_string()),

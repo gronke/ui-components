@@ -1,5 +1,6 @@
 // Browser behavior of <input-date-range>; mirrors the Rust
 // InputDateRangeLogic impl in date_range.rs — keep both in sync.
+import { detailString } from './uic-impl-helpers.js';
 import type { InputDateRange } from './input-date-range.js';
 
 // The children draw their own borders; the shared chrome's group renders
@@ -10,14 +11,12 @@ export function connected(el: InputDateRange): void {
 
 // Routed from the start child's value-changed binding.
 export function onStartChanged(el: InputDateRange, e: Event): void {
-  const detail = (e as CustomEvent).detail as { value?: string | null };
-  el.start = detail.value ?? '';
+  el.start = detailString(e);
 }
 
 // Routed from the end child's value-changed binding.
 export function onEndChanged(el: InputDateRange, e: Event): void {
-  const detail = (e as CustomEvent).detail as { value?: string | null };
-  el.end = detail.value ?? '';
+  el.end = detailString(e);
 }
 
 // Both ends in → the ISO interval; anything less commits empty.

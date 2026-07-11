@@ -1,14 +1,14 @@
 //! TestBackend tests for nested custom elements: a parent component hosting
 //! `<input-date>` and `<input-text>` children through template bindings.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod support;
 
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::KeyCode;
 use ratatui::backend::TestBackend;
-use ratatui::Terminal;
-use uic_core::{Ctx, CustomElement, NotifyEvent, PropertyStore, UiEvent, Value};
+use uic_core::{Ctx, CustomElement, PropertyStore, UiEvent, Value};
 use uic_tui::App;
+
+use support::{key, probe, screen, type_str};
 
 /// A composite element: bound date child, free-standing text child, computed
 /// summary line.
@@ -49,42 +49,7 @@ impl DemoFormLogic for DemoForm {
 }
 
 fn app() -> App<TestBackend> {
-    ui_components::link();
-    let terminal = Terminal::new(TestBackend::new(60, 24)).expect("test terminal");
-    App::from_terminal(terminal)
-}
-
-fn screen(app: &mut App<TestBackend>) -> String {
-    app.draw().expect("draw");
-    let buffer = app.terminal().backend().buffer();
-    let area = buffer.area;
-    (0..area.height)
-        .map(|y| {
-            (0..area.width)
-                .map(|x| buffer[(x, y)].symbol())
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn key(app: &mut App<TestBackend>, code: KeyCode) {
-    app.handle_event(&Event::Key(KeyEvent::from(code)));
-}
-
-fn type_str(app: &mut App<TestBackend>, text: &str) {
-    for ch in text.chars() {
-        key(app, KeyCode::Char(ch));
-    }
-}
-
-fn probe(app: &mut App<TestBackend>, index: usize, event: &str) -> Rc<RefCell<Vec<NotifyEvent>>> {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let sink = events.clone();
-    app.on(index, event, move |ev| sink.borrow_mut().push(ev.clone()));
-    events
+    support::app(60, 24)
 }
 
 #[test]

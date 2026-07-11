@@ -11,3 +11,7 @@ rust-version.workspace = true
 uic_core.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+
+[dev-dependencies]
+# The component unit tests replay the runtime's update cycle.
+uic_core = { workspace = true, features = ["testing"] }

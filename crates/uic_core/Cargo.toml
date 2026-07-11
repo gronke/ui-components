@@ -19,9 +19,13 @@ serde_json = { workspace = true, optional = true }
 [features]
 # JSON ⇄ Value conversion for transports (the wasm session, state sync).
 json = ["dep:serde_json"]
+# Unit-test helpers replicating the runtime's update cycle.
+testing = []
 
 [dev-dependencies]
 trybuild.workspace = true
 uic_template.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+# The crate's own tests use the testing helpers.
+uic_core = { workspace = true, features = ["testing"] }

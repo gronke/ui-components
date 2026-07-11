@@ -82,6 +82,7 @@ fn emits_the_full_generated_root() {
         "components/input-timezone.impl.ts",
         "components/_input-default.scss",
         "components/uic-runtime.ts",
+        "components/uic-impl-helpers.ts",
         "elements.scss",
         "custom-elements.json",
     ] {
@@ -176,6 +177,7 @@ fn generated_typescript_transpiles_with_oxc() {
         "components/input-textarea.ts",
         "components/input-timezone.ts",
         "components/uic-runtime.ts",
+        "components/uic-impl-helpers.ts",
     ] {
         let source = fs::read_to_string(root.join(file)).unwrap();
         let js = web_modules::typescript::compile_str(&source, Path::new(file))
@@ -184,15 +186,36 @@ fn generated_typescript_transpiles_with_oxc() {
     }
 }
 
+/// The manifest module of one component, looked up by path — positional
+/// indices shift whenever a component joins the catalog.
+fn module_by_path<'a>(manifest: &'a serde_json::Value, path: &str) -> &'a serde_json::Value {
+    manifest["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|module| module["path"] == path)
+        .unwrap_or_else(|| panic!("no module {path} in the manifest"))
+}
+
 #[test]
 fn manifest_describes_the_component() {
     let root = generate("manifest");
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root.join("custom-elements.json")).unwrap())
             .unwrap();
-    // Modules sort by tag: app-root first, then the inputs.
-    let module = &manifest["modules"][1];
-    assert_eq!(module["path"], "components/input-date.ts");
+    // Modules sort by tag; the order is asserted as a property, the entries
+    // are found by path.
+    let tags: Vec<&str> = manifest["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|module| module["declarations"][0]["tagName"].as_str().unwrap())
+        .collect();
+    let mut sorted = tags.clone();
+    sorted.sort_unstable();
+    assert_eq!(tags, sorted, "modules sort by tag");
+
+    let module = module_by_path(&manifest, "components/input-date.ts");
     let declaration = &module["declarations"][0];
     assert_eq!(declaration["tagName"], "input-date");
     let events = declaration["events"].as_array().unwrap();
@@ -216,8 +239,7 @@ fn manifest_describes_the_component() {
     );
 
     // The Options property is typed and property-only as well.
-    let select = &manifest["modules"][4];
-    assert_eq!(select["path"], "components/input-select.ts");
+    let select = module_by_path(&manifest, "components/input-select.ts");
     let declaration = &select["declarations"][0];
     assert_eq!(declaration["tagName"], "input-select");
     let members = declaration["members"].as_array().unwrap();
@@ -234,8 +256,7 @@ fn manifest_describes_the_component() {
     );
 
     // The Object property (app-root's state) is typed and property-only.
-    let app_root = &manifest["modules"][0];
-    assert_eq!(app_root["path"], "components/app-root.ts");
+    let app_root = module_by_path(&manifest, "components/app-root.ts");
     let declaration = &app_root["declarations"][0];
     assert_eq!(declaration["tagName"], "app-root");
     let members = declaration["members"].as_array().unwrap();

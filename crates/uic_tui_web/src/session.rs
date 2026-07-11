@@ -87,25 +87,12 @@ impl TuiSession {
     }
 
     /// Replays an option list property as JSON rows of
-    /// `{value, short?, label?}` — options are data (ADR 0006).
+    /// `{value, short?, label?}` — options are data (ADR 0006). This is the
+    /// deliberate array escape hatch beside `set_prop_json`, whose state
+    /// converter rejects arrays: a host mounting a bare `<input-select>`
+    /// feeds the rows through here.
     pub fn set_options_json(&mut self, index: u32, json: &str) -> Result<(), JsError> {
-        #[derive(serde::Deserialize)]
-        struct Row {
-            value: String,
-            #[serde(default)]
-            short: Option<String>,
-            #[serde(default)]
-            label: Option<String>,
-        }
-        let rows: Vec<Row> = serde_json::from_str(json).map_err(js_err)?;
-        let options: Vec<SelectOption> = rows
-            .into_iter()
-            .map(|row| SelectOption {
-                value: row.value,
-                short: row.short,
-                label: row.label,
-            })
-            .collect();
+        let options = options_from_json(json).map_err(js_err)?;
         self.app.set_prop(index as usize, "options", options);
         Ok(())
     }
@@ -190,4 +177,26 @@ impl TuiSession {
     pub fn screen_text(&self) -> String {
         self.app.terminal().backend().screen_text()
     }
+}
+
+/// Parses JSON rows of `{value, short?, label?}` into option data
+/// (ADR 0006) — the wire format of [`TuiSession::set_options_json`].
+pub fn options_from_json(json: &str) -> Result<Vec<SelectOption>, serde_json::Error> {
+    #[derive(serde::Deserialize)]
+    struct Row {
+        value: String,
+        #[serde(default)]
+        short: Option<String>,
+        #[serde(default)]
+        label: Option<String>,
+    }
+    let rows: Vec<Row> = serde_json::from_str(json)?;
+    Ok(rows
+        .into_iter()
+        .map(|row| SelectOption {
+            value: row.value,
+            short: row.short,
+            label: row.label,
+        })
+        .collect())
 }
