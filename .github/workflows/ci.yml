@@ -43,10 +43,22 @@ jobs:
           cache-target: "true"
           lockfiles: "**/Cargo.toml"
 
-      # fmt · clippy -D warnings · test, the shared org QA policy.
+      # fmt · clippy -D warnings · test, the shared org QA policy, over the
+      # full feature universe (dist/json/testing are feature-gated).
       # Building uic_web_demo vendors the npm dependencies (network access).
       - name: Lint and test
         uses: gronke/rust-ci/.github/actions/lint-and-test@main
+        with:
+          features: "--all-features"
+
+      # The dist suite hides behind its required-features gate.
+      - name: Dist build test
+        run: cargo test -p uic_codegen_web --features dist
+
+      # The workspace run staged the compiled twin and the Rust fixtures;
+      # node replays them — the cross-target parity gate.
+      - name: Cross-target parity
+        run: node scripts/parity-check.mjs
 
   # The TUI stack keeps compiling for the browser; this is what the crossterm
   # mirror pin exists for.
@@ -73,3 +85,8 @@ jobs:
 
       - name: Lint the browser TUI on wasm
         run: cargo clippy -p uic_tui_web -p uic_dom --target wasm32-unknown-unknown -- -D warnings
+
+      # The shippable artifact must actually build: the wasm profile plus
+      # wasm-bindgen glue (the script pins the CLI to the locked version).
+      - name: Build the browser TUI bundle
+        run: ./scripts/build-wasm.sh

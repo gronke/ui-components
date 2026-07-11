@@ -1,10 +1,4 @@
-# 10. Templates compile to parts
-
-Date: 2026-07-09
-
-## Status
-
-Accepted
+# ADR 0010: Templates compile to parts
 
 ## Context
 

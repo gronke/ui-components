@@ -30,7 +30,10 @@ fn main() {
         specs: &specs,
         roots: &[web, generated.root],
         out: &out.join("dist"),
-        mount: "/web_modules",
+        // Document-relative importmap addresses: index.html always sits at
+        // the site root, so the same baked dist serves the dev server, the
+        // embedded binary and a GitHub project page under /<repo>/.
+        mount: "./web_modules",
         html: "",
         template: None,
         processors: Default::default(),

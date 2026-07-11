@@ -1,4 +1,4 @@
-# 12. The paint migration
+# ADR 0012: The paint migration
 
 Date: 2026-07-10
 

@@ -18,7 +18,7 @@ const ROWS = 50;
 async function boot(): Promise<void> {
   let glue: any;
   try {
-    glue = await import('/tui/uic_tui_web.js');
+    glue = await import('./tui/uic_tui_web.js');
     await glue.default();
   } catch {
     return;

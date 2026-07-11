@@ -1,10 +1,4 @@
-# 11. Components mount on the DOM
-
-Date: 2026-07-10
-
-## Status
-
-Accepted
+# ADR 0011: Components mount on the DOM
 
 ## Context
 

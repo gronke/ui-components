@@ -1,0 +1,85 @@
+name: Pages
+
+# The demo as a static site: build.rs bakes everything the dev server
+# serves (vendored modules, compiled TypeScript, rendered index.html), the
+# wasm bundle joins under /tui, and the result deploys to GitHub Pages.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        with:
+          targets: wasm32-unknown-unknown
+
+      # Pure consumer: restore the registry and target the warmup saves from
+      # main; this workflow saves nothing.
+      - name: Rust cache
+        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        with:
+          prefix: wasm-1
+          save: "false"
+          cache-target: "true"
+          lockfiles: "**/Cargo.toml"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+        with:
+          # First run enables Pages (source: GitHub Actions) on the repo.
+          enablement: true
+
+      - name: Build the browser TUI bundle
+        run: ./scripts/build-wasm.sh
+
+      # build.rs bakes the whole static site (document-relative addresses)
+      # into the crate's OUT_DIR.
+      - name: Bake the demo
+        id: bake
+        uses: gronke/rust-ci/.github/actions/cargo-out-dir@main
+        with:
+          package: uic_web_demo
+
+      - name: Assemble the site
+        run: |
+          mkdir -p site
+          cp -r "${{ steps.bake.outputs.out-dir }}/dist"/. site/
+          cp -r apps/web-demo/web-tui site/tui
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

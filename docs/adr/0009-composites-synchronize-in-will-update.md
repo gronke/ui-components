@@ -1,10 +1,4 @@
-# 9. Composites synchronize in will_update
-
-Date: 2026-07-09
-
-## Status
-
-Accepted
+# ADR 0009: Composites synchronize in will_update
 
 ## Context
 

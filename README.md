@@ -8,7 +8,7 @@ One Rust definition per component — reactive properties, a lit-flavored templa
 - Terminal: a runtime interpreting the same template IR with ratatui, laid out by taffy (real CSS flexbox/block over terminal cells) and rat-widget input primitives.
 
 Component registration mirrors `customElements.define` through the `inventory` crate; properties follow the catalog's `LitNotify` vocabulary (`notify` → `<name>-changed` events).
-Design decisions live in [docs/adr](docs/adr); the plan and milestones in [issue #1](https://github.com/schuhkarton/ui-components/issues/1).
+The crate map and runtime overview live in [docs/architecture.md](docs/architecture.md), the decisions in [docs/adr](docs/adr); the plan and milestones in [issue #1](https://github.com/schuhkarton/ui-components/issues/1).
 
 ## Defining a component
 
@@ -73,7 +73,7 @@ Format: YYYY-MM-DD
 ## Development
 
 ```sh
-cargo run -p uic_web_demo             # http://127.0.0.1:8080, live reload for web/
+cargo run -p uic_web_demo             # http://127.0.0.1:8080, live reload for web/ (UIC_WEB_DEMO_ADDR=host:port moves it)
 cargo run -p uic_tui_demo             # terminal demo (Enter commits, F4/Down or a click opens pickers, clicks focus, Esc quits)
 cargo run -p uic_tui_demo input-text  # any registered tag
 cargo run -p uic_tui --example screen # print one rendered terminal frame
@@ -91,8 +91,15 @@ Releases: bump `workspace.package.version`, merge, tag `vX.Y.Z` — the release 
 `web-demo/build.rs` regenerates the TypeScript from the Rust catalog on every build; the generated tree (including `custom-elements.json`) lands in `$OUT_DIR/gen_web`.
 Refresh the codegen snapshot after intentional output changes with `UPDATE_EXPECTED=1 cargo test -p uic_codegen_web`.
 
-QA before committing:
+QA before committing (the CI gauntlet):
 
 ```sh
-cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+rustup update stable
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo clippy -p uic_tui_web -p uic_dom --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace
+cargo test -p uic_codegen_web --features dist
+node scripts/parity-check.mjs
+./scripts/build-wasm.sh
 ```

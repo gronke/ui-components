@@ -1,10 +1,4 @@
-# 8. A retained DOM for the TUI
-
-Date: 2026-07-09
-
-## Status
-
-Accepted
+# ADR 0008: A retained DOM for the TUI
 
 ## Context
 

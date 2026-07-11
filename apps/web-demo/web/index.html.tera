@@ -6,12 +6,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ui-components · web demo</title>
-<link rel="stylesheet" href="/web_modules/bootstrap/dist/css/bootstrap.min.css">
-<link rel="stylesheet" href="/web_modules/@xterm/xterm/css/xterm.css">
-<link rel="stylesheet" href="/elements.css">
-<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="./web_modules/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="./web_modules/@xterm/xterm/css/xterm.css">
+<link rel="stylesheet" href="./elements.css">
+<link rel="stylesheet" href="./styles.css">
 {{ importmap | safe }}
-<script type="module" src="/app.js"></script>
+<script type="module" src="./app.js"></script>
 </head>
 <!-- Only the top padding is a utility: the bottom clears the debug bar and
      follows its collapsed state from the stylesheet. -->
@@ -48,7 +48,7 @@
 </div>
 </footer>
 <script type="module">
-import { wireStatePane } from '/wiring.js';
+import { wireStatePane } from './wiring.js';
 // The state is a property (no attribute): the page owns the bootstrap.
 // These are the values the markup used to pin as attributes.
 const root = document.querySelector('app-root');
@@ -83,6 +83,6 @@ toggle.addEventListener('click', () => {
   toggle.setAttribute('aria-expanded', String(!collapsed));
 });
 </script>
-<script type="module" src="/tui.js"></script>
+<script type="module" src="./tui.js"></script>
 </body>
 </html>
