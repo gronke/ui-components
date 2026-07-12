@@ -1,0 +1,10 @@
+<!-- The bar is one childless list: the browser impl fills it with button
+     rows, the terminal mounts its tab-row widget on it. Both targets pick
+     through the shared @input binding. -->
+<ul class="nav nav-tabs"
+  role="tablist"
+  data-tui="tab-bar"
+  data-qa="tab-bar"
+  .value=${value}
+  .options=${options}
+  @input=${on_input}></ul>

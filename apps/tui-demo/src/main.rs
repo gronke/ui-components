@@ -27,6 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "input-date" => {
             app.set_attr(element, "label", "Date of purchase");
             app.set_attr(element, "hint", "Format: YYYY-MM-DD");
+            app.set_attr(element, "hide-time", "");
             app.set_attr(element, "value", "2026-07-07");
             app.set_attr(element, "min", "2020-01-01");
             app.set_attr(element, "max", "2030-12-31");
@@ -88,6 +89,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             *status.borrow_mut() =
                 "F4/Down/Space opens the list · Enter picks, Esc reverts · Esc quits".into();
         }
+        "input-suggestion" => {
+            app.set_attr(element, "label", "Word");
+            app.set_attr(element, "hint", "Typeahead: a host answers query-changed");
+            app.set_attr(element, "placeholder", "start typing");
+            app.set_attr(element, "allow-null", "");
+            // A standalone mount has no host answering queries (listeners
+            // must not re-enter the app), so fixed rows demonstrate the
+            // popup; `app-root` wires the live pool in-component.
+            app.set_prop(
+                element,
+                "suggestions",
+                vec![
+                    uic_core::SelectOption::new("apple"),
+                    uic_core::SelectOption::new("apricot"),
+                    uic_core::SelectOption::new("avocado"),
+                ],
+            );
+            *status.borrow_mut() =
+                "F4/Down opens the fixed rows · app-root wires the pool · Esc quits".into();
+        }
+        "nav-tabs" => {
+            app.set_attr(element, "value", "form");
+            app.set_prop(
+                element,
+                "options",
+                vec![
+                    uic_core::SelectOption::new("form").with_short("Form"),
+                    uic_core::SelectOption::new("about").with_short("About"),
+                    uic_core::SelectOption::new("settings").with_short("Settings"),
+                ],
+            );
+            *status.borrow_mut() =
+                "Left/Right or a click switches the tab · panes are the host's job · Esc quits"
+                    .into();
+        }
         _ => {}
     }
     let notify = status.clone();
@@ -103,6 +139,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "timezone-changed: {:?} (was {:?})",
             event.value, event.old_value
         );
+    });
+    let notify = status.clone();
+    app.on(element, "query-changed", move |event| {
+        *notify.borrow_mut() = format!("query-changed: {:?}", event.value);
     });
 
     let line = status.clone();

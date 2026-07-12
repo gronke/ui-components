@@ -271,8 +271,9 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
 }
 
 /// `.options` bindings carry option lists (ADR 0006): they belong on
-/// `<select>` elements — whose children then come from the data — or on
-/// custom elements, which receive the list as a property.
+/// `<select>` elements — whose children then come from the data — on custom
+/// elements, which receive the list as a property, or on `data-tui` widgets,
+/// whose adapters store the rows (ADR 0015).
 fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String> {
     use uic_template::{Attribute, Node};
     for node in nodes {
@@ -282,10 +283,13 @@ fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String>
                     .attrs
                     .iter()
                     .any(|attr| matches!(attr, Attribute::Prop { name, .. } if name == "options"));
-                if has_options && el.tag != "select" && !el.is_custom() {
+                let is_widget = el.attrs.iter().any(
+                    |attr| matches!(attr, Attribute::Static { name, .. } if name == "data-tui"),
+                );
+                if has_options && el.tag != "select" && !el.is_custom() && !is_widget {
                     return Err(format!(
-                        "'.options' bindings belong on <select> elements or custom elements, \
-                         not <{}>",
+                        "'.options' bindings belong on <select> elements, data-tui widgets \
+                         or custom elements, not <{}>",
                         el.tag
                     ));
                 }

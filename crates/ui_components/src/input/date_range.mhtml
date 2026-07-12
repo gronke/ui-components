@@ -1,15 +1,41 @@
-<!-- Two whole date inputs share the row under one chrome; the composite is
-     seamless because each child draws its own border. -->
-<div class="d-flex flex-nowrap flex-grow-1 gap-2" data-qa="range-row">
-  <input-date data-qa="start-input"
-    class="flex-grow-1"
-    .value=${start}
-    ?disabled=${disabled}
-    @value-changed=${on_start_changed}></input-date>
-  <span class="align-self-center text-body-secondary flex-grow-0">–</span>
-  <input-date data-qa="end-input"
-    class="flex-grow-1"
-    .value=${end}
-    ?disabled=${disabled}
-    @value-changed=${on_end_changed}></input-date>
+<!-- The catalog's one-group range: the shared chrome's input-group carries
+     the single border, the seamless children render borderless inside it,
+     and the two segments wrap onto their own lines when the row runs out
+     of room. -->
+<div class="d-flex flex-wrap w-100 gap-0" data-qa="range-row">
+  <div class="d-flex flex-nowrap flex-grow-1 flex-shrink-0 gap-0">
+    <input-date data-qa="start-input"
+      class="flex-grow-1"
+      seamless
+      default-timezone=${range_timezone}
+      ?hide-time=${hide_time}
+      ?hide-seconds=${hide_seconds}
+      .value=${start}
+      ?disabled=${disabled}
+      @value-changed=${on_start_changed}></input-date>
+  </div>
+  <div class="d-flex flex-nowrap flex-grow-1 flex-shrink-0 gap-0">
+    <span class="input-group-text text-body-secondary" data-qa="range-separator">-</span>
+    <input-date data-qa="end-input"
+      class="flex-grow-1"
+      seamless
+      end-of
+      default-timezone=${range_timezone}
+      ?hide-time=${hide_time}
+      ?hide-seconds=${hide_seconds}
+      .value=${end}
+      ?disabled=${disabled}
+      @value-changed=${on_end_changed}></input-date>
+  </div>
+  <template if=${show_timezone}>
+    <!-- The disabled binding keeps focus out of the unrendered branch. -->
+    <input-timezone data-qa="range-timezone"
+      class="flex-shrink-0 w-auto"
+      embedded
+      seamless
+      ?disabled=${!show_timezone}
+      .value=${timezone}
+      .default=${timezone_default}
+      @value-changed=${on_timezone_changed}></input-timezone>
+  </template>
 </div>

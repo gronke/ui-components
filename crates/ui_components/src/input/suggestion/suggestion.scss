@@ -1,0 +1,9 @@
+// The typeahead's dropdown: Bootstrap's menu anchored under the control —
+// the chrome's position-relative .input-target is the positioning context,
+// no Popper involved. `.show` visibility and row styling stay Bootstrap's.
+.el-input-suggestion .dropdown-menu {
+  position: absolute;
+  inset: 100% 0 auto 0;
+  max-height: 15rem;
+  overflow-y: auto;
+}

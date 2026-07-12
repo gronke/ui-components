@@ -9,11 +9,11 @@ use ratatui::backend::TestBackend;
 use uic_core::{ObjectMap, Value};
 use uic_tui::App;
 
-use support::{key, probe, screen, type_str};
+use support::{click, key, locate, probe, screen, type_str};
 
-/// Tall enough for the whole form plus the select popup.
+/// Tall enough for the whole carded form plus the select popup.
 fn app() -> App<TestBackend> {
-    support::app(72, 50)
+    support::app(72, 60)
 }
 
 fn state(entries: &[(&str, Value)]) -> ObjectMap {
@@ -21,6 +21,15 @@ fn state(entries: &[(&str, Value)]) -> ObjectMap {
         .iter()
         .map(|(key, value)| (key.to_string(), value.clone()))
         .collect()
+}
+
+/// The text inside the card border, trimmed — row probes stay readable
+/// although every form row now starts and ends with the card's `│`.
+fn inner(line: &str) -> &str {
+    line.trim()
+        .trim_start_matches('│')
+        .trim_end_matches('│')
+        .trim()
 }
 
 #[test]
@@ -67,7 +76,9 @@ fn child_commit_updates_state_once_and_keeps_siblings() {
     app.set_prop(el, "state", state(&[("note", "hello".into())]));
     let events = probe(&mut app, el, "state-changed");
 
-    // Focus starts on the date widget (document order).
+    // Focus starts on the tab bar (document order); one Tab reaches the
+    // date widget.
+    key(&mut app, KeyCode::Tab);
     type_str(&mut app, "2026-08-01");
     key(&mut app, KeyCode::Enter);
 
@@ -76,8 +87,8 @@ fn child_commit_updates_state_once_and_keeps_siblings() {
     let state = events[0].value.as_object().expect("object state");
     assert_eq!(
         state.get("date"),
-        Some(&Value::Str("2026-08-01".into())),
-        "the committed date joined the state"
+        Some(&Value::Str("2026-08-01 00:00:00".into())),
+        "the committed datetime joined the state"
     );
     assert_eq!(
         state.get("note"),
@@ -92,9 +103,10 @@ fn select_pick_lands_in_state() {
     let el = app.mount("app-root").expect("mount");
     let events = probe(&mut app, el, "state-changed");
 
-    // Document order: date, its embedded timezone select, range start and
-    // end, note, amount — the sixth Tab reaches the pick select.
-    for _ in 0..6 {
+    // Document order: the tab bar, date, its embedded timezone select,
+    // range start and end, note, amount — the seventh Tab reaches the pick
+    // select.
+    for _ in 0..7 {
         key(&mut app, KeyCode::Tab);
     }
     key(&mut app, KeyCode::F(4));
@@ -179,6 +191,37 @@ fn range_inversion_heals_through_the_child_back_into_state() {
 }
 
 #[test]
+fn the_word_pool_answers_typing_through_the_suggestion_child() {
+    let mut app = app();
+    let el = app.mount("app-root").expect("mount");
+    let events = probe(&mut app, el, "state-changed");
+
+    // Click into the word input (its placeholder locates it) and type a
+    // prefix: the in-component pool answers within the same cycle, so the
+    // popup fills without any host round-trip (ADR 0014).
+    let (x, y) = locate(&mut app, "start typing");
+    click(&mut app, x, y);
+    type_str(&mut app, "ap");
+    let open = screen(&mut app);
+    assert!(open.contains("apple"), "pool rows in the popup:\n{open}");
+    assert!(open.contains("apricot"), "both matches:\n{open}");
+
+    // Down to apple, Down to apricot, Enter picks and commits into state.
+    key(&mut app, KeyCode::Down);
+    key(&mut app, KeyCode::Down);
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    let state = events
+        .last()
+        .expect("the pick commits")
+        .value
+        .as_object()
+        .expect("object state");
+    assert_eq!(state.get("word"), Some(&Value::Str("apricot".into())));
+}
+
+#[test]
 fn bootstrap_margins_separate_the_stacked_controls() {
     let mut app = app();
     app.mount("app-root").expect("mount");
@@ -189,19 +232,165 @@ fn bootstrap_margins_separate_the_stacked_controls() {
     let screen = screen(&mut app);
     let hint = screen
         .lines()
-        .position(|line| line.contains("Format: YYYY-MM-DD"))
+        .position(|line| line.contains("Partials complete"))
         .expect("date hint row");
     let next = screen
         .lines()
-        .position(|line| line.trim_start().starts_with("Stay"))
+        .position(|line| inner(line).starts_with("Stay"))
         .expect("range label row");
     assert!(
         next >= hint + 2,
         "a margin row separates the controls:\n{screen}"
     );
     assert_eq!(
-        screen.lines().nth(hint + 1).map(str::trim),
+        screen.lines().nth(hint + 1).map(inner),
         Some(""),
         "the margin row is blank:\n{screen}"
+    );
+
+    // The textarea carries the same class as its siblings: the timezone
+    // label keeps its distance from the textarea's hint.
+    let hint = screen
+        .lines()
+        .position(|line| line.contains("Grows with its content"))
+        .expect("textarea hint row");
+    let next = screen
+        .lines()
+        .position(|line| inner(line).starts_with("Default time zone"))
+        .expect("timezone label row");
+    assert!(
+        next >= hint + 2,
+        "a margin row separates the textarea from the timezone:\n{screen}"
+    );
+    assert_eq!(
+        screen.lines().nth(hint + 1).map(inner),
+        Some(""),
+        "the margin row is blank:\n{screen}"
+    );
+}
+
+#[test]
+fn tabs_switch_the_pane_and_land_in_state() {
+    let mut app = app();
+    let el = app.mount("app-root").expect("mount");
+    app.set_prop(el, "state", state(&[("note", "hello".into())]));
+    let events = probe(&mut app, el, "state-changed");
+
+    // The About pane replaces the form; the pick joins the state beside
+    // the untouched members.
+    let (x, y) = locate(&mut app, "About");
+    click(&mut app, x, y);
+    let about = screen(&mut app);
+    assert!(
+        !about.contains("Date of purchase"),
+        "the form pane tore down:\n{about}"
+    );
+    assert!(
+        about.contains("defined once in Rust"),
+        "the about prose renders:\n{about}"
+    );
+    assert!(
+        about.contains("note: hello · tab: about"),
+        "the pick joined the state line:\n{about}"
+    );
+    {
+        let events = events.borrow();
+        let state = events.last().expect("the pick").value.as_object().unwrap();
+        assert_eq!(state.get("tab"), Some(&Value::Str("about".into())));
+        assert_eq!(state.get("note"), Some(&Value::Str("hello".into())));
+    }
+
+    // Back to the form: the branch re-mounts and the members re-sync.
+    let (x, y) = locate(&mut app, "Form");
+    click(&mut app, x, y);
+    let form = screen(&mut app);
+    assert!(
+        form.contains("Date of purchase"),
+        "the form pane returned:\n{form}"
+    );
+    assert!(
+        form.contains("hello"),
+        "the note member survived the round trip:\n{form}"
+    );
+}
+
+#[test]
+fn arrow_keys_switch_the_tab_from_the_bar() {
+    let mut app = app();
+    app.mount("app-root").expect("mount");
+
+    // Focus starts on the tab bar (document order).
+    key(&mut app, KeyCode::Right);
+    let about = screen(&mut app);
+    assert!(
+        about.contains("defined once in Rust"),
+        "Right flips to the about pane:\n{about}"
+    );
+
+    key(&mut app, KeyCode::Left);
+    let form = screen(&mut app);
+    assert!(
+        form.contains("Date of purchase"),
+        "Left returns to the form:\n{form}"
+    );
+}
+
+#[test]
+fn external_tab_state_flips_the_pane() {
+    let mut app = app();
+    let el = app.mount("app-root").expect("mount");
+
+    app.set_prop(el, "state", state(&[("tab", "about".into())]));
+    let about = screen(&mut app);
+    assert!(
+        about.contains("defined once in Rust"),
+        "the external tab member selects the pane:\n{about}"
+    );
+    assert!(
+        !about.contains("Date of purchase"),
+        "the form is gone:\n{about}"
+    );
+
+    app.set_prop(el, "state", state(&[("tab", "form".into())]));
+    let form = screen(&mut app);
+    assert!(
+        form.contains("Date of purchase"),
+        "the external write brings the form back:\n{form}"
+    );
+}
+
+#[test]
+fn the_card_frames_the_panes_with_a_static_border() {
+    let mut app = app();
+    app.mount("app-root").expect("mount");
+
+    let frame = screen(&mut app);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert!(
+        lines[0].starts_with('┌') && lines[0].ends_with('┐'),
+        "the card's top border spans the first row:\n{frame}"
+    );
+    assert!(
+        inner(lines[1]).starts_with("Form") && lines[1].contains("About"),
+        "the tab bar sits in the card header:\n{frame}"
+    );
+    let bottom = lines
+        .iter()
+        .position(|line| line.starts_with('└'))
+        .expect("card bottom border");
+    let state_line = lines
+        .iter()
+        .position(|line| line.contains("state ·"))
+        .expect("state line");
+    assert!(
+        state_line > bottom,
+        "the state line stays outside the card:\n{frame}"
+    );
+
+    // The boot state stays empty: no member sneaks in through the bar's
+    // mount-time sync (the value-changed echo brake).
+    assert!(
+        !frame.contains("tab:"),
+        "no boot write into the state:\n{frame}"
     );
 }

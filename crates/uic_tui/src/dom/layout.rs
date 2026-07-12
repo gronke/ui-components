@@ -246,6 +246,7 @@ fn container_style(classes: &[String]) -> Style {
             "flex-column" => style.flex_direction = FlexDirection::Column,
             "flex-row" => style.flex_direction = FlexDirection::Row,
             "flex-nowrap" => style.flex_wrap = FlexWrap::NoWrap,
+            "flex-wrap" => style.flex_wrap = FlexWrap::Wrap,
             "flex-grow-0" => style.flex_grow = 0.0,
             "flex-grow-1" => style.flex_grow = 1.0,
             "flex-shrink-0" => style.flex_shrink = 0.0,
@@ -272,9 +273,25 @@ fn container_style(classes: &[String]) -> Style {
             // The browser pads the input-group affix (the number's unit);
             // one cell keeps it off the value.
             "input-group-text" => style.padding.left = length(1.0_f32),
+            // One blank row between the card's cap and its content, the
+            // closest cell to the body's inset (ADR 0017).
+            "card-body" => style.padding.top = length(1.0_f32),
             "p-0" => style.padding = taffy::geometry::Rect::zero(),
             _ => {}
         }
+    }
+    if classes.iter().any(|c| c == "card") {
+        // The card is the generic bordered container (ADR 0017): reserve
+        // the border cells plus one cell of horizontal padding, mirroring
+        // the input group's treatment below.
+        style.border = taffy::geometry::Rect {
+            left: length(1.0_f32),
+            right: length(1.0_f32),
+            top: length(1.0_f32),
+            bottom: length(1.0_f32),
+        };
+        style.padding.left = length(1.0_f32);
+        style.padding.right = length(1.0_f32);
     }
     if classes.iter().any(|c| c == "input-group") {
         // The input group draws a border block; reserve the cells, plus one

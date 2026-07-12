@@ -5,7 +5,7 @@
 Option lists are a closed object-valued property type: `uic_core::SelectOption { value, short, label }`, `Value::Options(Vec<SelectOption>)`, `JsType::Options`, browser type `SelectOption[]` (exported from the generated runtime module).
 Options properties are property-only in the Zoned mold (ADR 0005) — the derive rejects `reflect`, `attribute` and `default`, requires a plain `Vec<SelectOption>`, and the list always starts empty (`DefaultValue::EmptyOptions`); the Lit declaration is `{ attribute: false }` with reference change detection.
 Templates bind the list with the existing property syntax: a `<select .options=${name}>` takes no children — the web generator expands the binding into the `<option>` map inside the emitted html literal, and the terminal runtime feeds the resolved list to its dropdown widget (`data-tui="select"`, rat-widget `Choice`).
-The derive validates placement: `.options` bindings belong on `<select>` elements or custom elements, nowhere else.
+The derive validates placement: `.options` bindings belong on `<select>` elements, on custom elements, or on `data-tui` widgets whose adapters store the rows (the third placement arrived with ADR 0015).
 
 ## Why
 

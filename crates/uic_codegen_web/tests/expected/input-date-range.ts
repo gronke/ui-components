@@ -4,6 +4,7 @@ import { LitElement, html, nothing } from 'lit';
 import { notifyProperties } from './uic-runtime.js';
 import * as impl from './input-date-range.impl.js';
 import './input-date.js';
+import './input-timezone.js';
 
 export class InputDateRange extends LitElement {
   static tagName = 'input-date-range';
@@ -13,6 +14,11 @@ export class InputDateRange extends LitElement {
     start: { type: String, notify: true },
     end: { type: String, notify: true },
     complete: { type: Boolean, reflect: true },
+    timezone: { type: String, notify: true },
+    defaultTimezone: { type: String, attribute: 'default-timezone' },
+    showTimezone: { type: Boolean, attribute: 'show-timezone', reflect: true },
+    hideTime: { type: Boolean, attribute: 'hide-time', reflect: true },
+    hideSeconds: { type: Boolean, attribute: 'hide-seconds', reflect: true },
     label: { type: String },
     hint: { type: String },
     errorMessage: { type: String, attribute: 'error-message' },
@@ -28,6 +34,11 @@ export class InputDateRange extends LitElement {
   start = '';
   end = '';
   complete = false;
+  timezone?: string;
+  defaultTimezone?: string;
+  showTimezone = false;
+  hideTime = false;
+  hideSeconds = false;
   label?: string;
   hint?: string;
   errorMessage?: string;
@@ -47,7 +58,6 @@ export class InputDateRange extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.classList.add('el-input-default', 'el-input-date-range');
-    impl.connected(this);
   }
 
   // Optional lifecycle hook, present in the impl partial.
@@ -68,12 +78,24 @@ export class InputDateRange extends LitElement {
     notifyProperties(this, InputDateRange.properties, changed);
   }
 
+  private get rangeTimezone() {
+    return impl.rangeTimezone(this);
+  }
+
+  private get timezoneDefault() {
+    return impl.timezoneDefault(this);
+  }
+
   private onEndChanged(e: Event): void {
     impl.onEndChanged(this, e);
   }
 
   private onStartChanged(e: Event): void {
     impl.onStartChanged(this, e);
+  }
+
+  private onTimezoneChanged(e: Event): void {
+    impl.onTimezoneChanged(this, e);
   }
 
   render() {
@@ -83,10 +105,18 @@ export class InputDateRange extends LitElement {
 <div class="input-target p-0 position-relative d-flex flex-grow-1 flex-shrink-0">
   <div class="input-group w-100 flex-nowrap">
     
-<div class="d-flex flex-nowrap flex-grow-1 gap-2" data-qa="range-row">
-  <input-date data-qa="start-input" class="flex-grow-1" .value=${this.start} ?disabled=${this.disabled} @value-changed=${this.onStartChanged}></input-date>
-  <span class="align-self-center text-body-secondary flex-grow-0">–</span>
-  <input-date data-qa="end-input" class="flex-grow-1" .value=${this.end} ?disabled=${this.disabled} @value-changed=${this.onEndChanged}></input-date>
+<div class="d-flex flex-wrap w-100 gap-0" data-qa="range-row">
+  <div class="d-flex flex-nowrap flex-grow-1 flex-shrink-0 gap-0">
+    <input-date data-qa="start-input" class="flex-grow-1" seamless default-timezone=${this.rangeTimezone} ?hide-time=${this.hideTime} ?hide-seconds=${this.hideSeconds} .value=${this.start} ?disabled=${this.disabled} @value-changed=${this.onStartChanged}></input-date>
+  </div>
+  <div class="d-flex flex-nowrap flex-grow-1 flex-shrink-0 gap-0">
+    <span class="input-group-text text-body-secondary" data-qa="range-separator">-</span>
+    <input-date data-qa="end-input" class="flex-grow-1" seamless end-of default-timezone=${this.rangeTimezone} ?hide-time=${this.hideTime} ?hide-seconds=${this.hideSeconds} .value=${this.end} ?disabled=${this.disabled} @value-changed=${this.onEndChanged}></input-date>
+  </div>
+  ${this.showTimezone ? html`
+    
+    <input-timezone data-qa="range-timezone" class="flex-shrink-0 w-auto" embedded seamless ?disabled=${!this.showTimezone} .value=${this.timezone} .default=${this.timezoneDefault} @value-changed=${this.onTimezoneChanged}></input-timezone>
+  ` : nothing}
 </div>
 
   </div>

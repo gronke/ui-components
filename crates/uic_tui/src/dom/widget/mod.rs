@@ -7,6 +7,10 @@
 //! focus glue, measurement, painting, event translation and the overlay
 //! protocol live beside each other instead of as parallel match arms across
 //! the runtime.
+//!
+//! Beyond the built-in kinds, components register their co-located widget
+//! twins through [`WidgetRegistration`] (ADR 0015) — the runtime needs no
+//! edit for a new `data-tui` kind.
 
 mod date;
 mod select;
@@ -31,26 +35,48 @@ pub struct WidgetPayload {
 /// A mounted terminal widget beside its sync bookkeeping.
 pub(crate) struct WidgetBox {
     pub adapter: Box<dyn WidgetAdapter>,
+    /// The variant flags the widget was built with (the date's mask follows
+    /// hide-time/hide-seconds); a flipped flag recreates the widget.
+    pub(crate) variant: (bool, bool),
     /// The value last pushed into the widget — the lit-style dirty check, so
     /// uncommitted typing survives unrelated updates and computed bindings
     /// re-sync only when their result actually changes.
     last_synced: Option<Value>,
 }
 
+/// Registers a widget adapter for a `data-tui` kind from outside the
+/// runtime — the co-located TUI twin of a component (ADR 0015). Collected
+/// through `inventory`; `WidgetBox::new` consults the registry after the
+/// built-in kinds.
+pub struct WidgetRegistration {
+    /// The `data-tui` attribute value the registration serves.
+    pub kind: &'static str,
+    /// Builds a fresh adapter for one mounted element.
+    pub build: fn() -> Box<dyn WidgetAdapter>,
+}
+
+uic_core::inventory::collect!(WidgetRegistration);
+
 impl WidgetBox {
-    pub(crate) fn new(kind: &str) -> Result<Self, Error> {
+    pub(crate) fn new(kind: &str, hide_time: bool, hide_seconds: bool) -> Result<Self, Error> {
         let adapter: Box<dyn WidgetAdapter> = match kind {
-            "date-input" => Box::new(date::DateAdapter::new()?),
+            "date-input" => Box::new(date::DateAdapter::new(hide_time, hide_seconds)?),
             // Number is a plain text widget in the terminal: parsing and
             // comma-decimal formatting are the component's job, like the
             // browser's `type="text"` numeric input.
             "text-input" | "number-input" => Box::new(text::TextAdapter::new()),
             "text-area" => Box::new(textarea::TextAreaAdapter::new()),
             "select" => Box::new(select::SelectAdapter::new()),
-            _ => return Err(Error::UnknownWidget(kind.to_string())),
+            _ => match uic_core::inventory::iter::<WidgetRegistration>()
+                .find(|registration| registration.kind == kind)
+            {
+                Some(registration) => (registration.build)(),
+                None => return Err(Error::UnknownWidget(kind.to_string())),
+            },
         };
         Ok(WidgetBox {
             adapter,
+            variant: (hide_time, hide_seconds),
             last_synced: None,
         })
     }
@@ -66,7 +92,7 @@ impl WidgetBox {
 }
 
 /// What an overlay did with an event, for the host to act on.
-pub(crate) enum OverlayOutcome {
+pub enum OverlayOutcome {
     /// The overlay consumed the event.
     Consumed,
     /// Not consumed — the global handling continues (Tab closes and falls
@@ -79,7 +105,7 @@ pub(crate) enum OverlayOutcome {
 
 /// The terminal widget behind a `data-tui` leaf: rat state, its data, and
 /// every per-widget behavior the runtime dispatches.
-pub(crate) trait WidgetAdapter {
+pub trait WidgetAdapter {
     fn set_focus(&mut self, focused: bool);
 
     /// The screen cells the widget covered in the last paint, for pointer
@@ -101,6 +127,14 @@ pub(crate) trait WidgetAdapter {
     /// when the widget changed its committed value and wants a commit (a
     /// closed select's type-ahead).
     fn handle(&mut self, focused: bool, event: &Event) -> bool;
+
+    /// The live text after the widget's own handling changed it, consumed
+    /// once — the host routes it into the template's `@input` binding, the
+    /// browser's per-keystroke `input` event. Only widgets with live-text
+    /// behavior report it.
+    fn take_input(&mut self) -> Option<String> {
+        None
+    }
 
     /// True when the widget consumes Enter itself (newline instead of
     /// commit); such widgets commit on focus leave, like `@change` on blur.

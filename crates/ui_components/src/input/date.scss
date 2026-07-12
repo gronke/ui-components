@@ -11,9 +11,26 @@
     --explicit-input-width: 10ch;
   }
 
+  // The datetime variants widen to their format (the catalog keeps the
+  // explicit width at 19ch for hide-seconds).
+  input[type="text"].form-control:not([hide-time]) {
+    min-width: 19ch;
+    --explicit-input-width: 19ch;
+  }
+
+  input[type="text"].form-control:not([hide-time])[hide-seconds] {
+    min-width: 16ch;
+  }
+
   // The children render borderless inside the wrapper's one border, so the
   // error state colors the wrapper instead of the input.
   &[error] .input-date-wrapper {
     border-color: var(--bs-danger) !important;
+  }
+
+  // Inside a seamless embedding (the range), the wrapper border yields to
+  // the host group's single border.
+  &[seamless] .input-date-wrapper {
+    border: none !important;
   }
 }

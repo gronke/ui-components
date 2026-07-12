@@ -18,3 +18,7 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0011](0011-components-mount-on-the-dom.md) | Components mount on the DOM |
 | [0012](0012-the-paint-migration.md) | The paint migration |
 | [0013](0013-app-state-synchronization.md) | App state is an object property, synchronized over a broadcast channel |
+| [0014](0014-data-connectors.md) | Async data sources are connectors behind one query interface |
+| [0015](0015-component-directories.md) | A component's directory holds all of its targets |
+| [0016](0016-tui-compatibility-lint.md) | A linked lint validates TUI compatibility |
+| [0017](0017-nav-tabs-and-the-card.md) | nav-tabs is a value-driven bar; the card is the bordered block |

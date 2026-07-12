@@ -52,7 +52,7 @@ import { wireStatePane } from './wiring.js';
 // The state is a property (no attribute): the page owns the bootstrap.
 // These are the values the markup used to pin as attributes.
 const root = document.querySelector('app-root');
-root.state = { date: '2026-07-07', start: '2026-07-07', end: '2026-07-11' };
+root.state = { date: '2026-07-07 00:00:00', start: '2026-07-07', end: '2026-07-11' };
 
 const log = document.getElementById('events');
 window.__events = [];

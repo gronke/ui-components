@@ -14,6 +14,7 @@ fn generate(test: &str) -> PathBuf {
     let out = std::env::temp_dir().join(format!("uic-codegen-{test}-{}", std::process::id()));
     let root = WebCodegen::new(&out)
         .manifest(true)
+        .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
         .run()
         .expect("codegen succeeds");
     assert_eq!(
@@ -24,9 +25,11 @@ fn generate(test: &str) -> PathBuf {
             "input-date-range",
             "input-number",
             "input-select",
+            "input-suggestion",
             "input-text",
             "input-textarea",
-            "input-timezone"
+            "input-timezone",
+            "nav-tabs"
         ]
     );
     assert_eq!(root.module_path("input-date"), "components/input-date.js");
@@ -67,12 +70,16 @@ fn emits_the_full_generated_root() {
         "components/_input-date.scss",
         "components/input-date-range.ts",
         "components/input-date-range.impl.ts",
+        "components/_input-date-range.scss",
         "components/input-number.ts",
         "components/input-number.impl.ts",
         "components/_input-number.scss",
         "components/input-select.ts",
         "components/input-select.impl.ts",
         "components/_input-select.scss",
+        "components/input-suggestion.ts",
+        "components/input-suggestion.impl.ts",
+        "components/_input-suggestion.scss",
         "components/input-text.ts",
         "components/input-text.impl.ts",
         "components/input-textarea.ts",
@@ -80,9 +87,13 @@ fn emits_the_full_generated_root() {
         "components/_input-textarea.scss",
         "components/input-timezone.ts",
         "components/input-timezone.impl.ts",
+        "components/nav-tabs.ts",
+        "components/nav-tabs.impl.ts",
+        "components/_nav-tabs.scss",
         "components/_input-default.scss",
         "components/uic-runtime.ts",
         "components/uic-impl-helpers.ts",
+        "components/uic-connectors.ts",
         "elements.scss",
         "custom-elements.json",
     ] {
@@ -130,6 +141,13 @@ fn generated_date_range_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_suggestion_class_matches_the_snapshot() {
+    let root = generate("snapshot-suggestion");
+    let generated = fs::read_to_string(root.join("components/input-suggestion.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-suggestion.ts");
+}
+
+#[test]
 fn generated_text_class_matches_the_snapshot() {
     let root = generate("snapshot-text");
     let generated = fs::read_to_string(root.join("components/input-text.ts")).unwrap();
@@ -165,6 +183,13 @@ fn generated_timezone_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_nav_tabs_class_matches_the_snapshot() {
+    let root = generate("snapshot-nav-tabs");
+    let generated = fs::read_to_string(root.join("components/nav-tabs.ts")).unwrap();
+    assert_matches_snapshot(&generated, "nav-tabs.ts");
+}
+
+#[test]
 fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
     for file in [
@@ -173,11 +198,14 @@ fn generated_typescript_transpiles_with_oxc() {
         "components/input-date-range.ts",
         "components/input-number.ts",
         "components/input-select.ts",
+        "components/input-suggestion.ts",
         "components/input-text.ts",
         "components/input-textarea.ts",
         "components/input-timezone.ts",
+        "components/nav-tabs.ts",
         "components/uic-runtime.ts",
         "components/uic-impl-helpers.ts",
+        "components/uic-connectors.ts",
     ] {
         let source = fs::read_to_string(root.join(file)).unwrap();
         let js = web_modules::typescript::compile_str(&source, Path::new(file))
@@ -249,6 +277,33 @@ fn manifest_describes_the_component() {
         .expect("options member");
     assert_eq!(options["type"]["text"], "SelectOption[]");
     assert_eq!(options["default"], "[]");
+    let attributes = declaration["attributes"].as_array().unwrap();
+    assert!(
+        attributes.iter().all(|a| a["fieldName"] != "options"),
+        "no attribute for the options property"
+    );
+
+    // The suggestion input notifies both its commit and its live query.
+    let suggestion = module_by_path(&manifest, "components/input-suggestion.ts");
+    let declaration = &suggestion["declarations"][0];
+    assert_eq!(declaration["tagName"], "input-suggestion");
+    let events = declaration["events"].as_array().unwrap();
+    let names: Vec<_> = events.iter().map(|e| e["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["value-changed", "query-changed"]);
+
+    // The tab bar notifies its pick; its rows are property-only options.
+    let nav_tabs = module_by_path(&manifest, "components/nav-tabs.ts");
+    let declaration = &nav_tabs["declarations"][0];
+    assert_eq!(declaration["tagName"], "nav-tabs");
+    let events = declaration["events"].as_array().unwrap();
+    let names: Vec<_> = events.iter().map(|e| e["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["value-changed"]);
+    let members = declaration["members"].as_array().unwrap();
+    let options = members
+        .iter()
+        .find(|m| m["name"] == "options")
+        .expect("options member");
+    assert_eq!(options["type"]["text"], "SelectOption[]");
     let attributes = declaration["attributes"].as_array().unwrap();
     assert!(
         attributes.iter().all(|a| a["fieldName"] != "options"),

@@ -29,14 +29,14 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
       - name: Install Rust toolchain
-        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
         with:
           components: rustfmt clippy
 
       # Pure consumer: restore the registry and target the warmup saves from
       # main; PR-scoped saves would only duplicate them out of reach.
       - name: Rust cache
-        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        uses: gronke/rust-ci/.github/actions/rust-cache@v0.0.5
         with:
           prefix: qa-1
           save: "false"
@@ -47,7 +47,7 @@ jobs:
       # full feature universe (dist/json/testing are feature-gated).
       # Building uic_web_demo vendors the npm dependencies (network access).
       - name: Lint and test
-        uses: gronke/rust-ci/.github/actions/lint-and-test@main
+        uses: gronke/rust-ci/.github/actions/lint-and-test@v0.0.5
         with:
           features: "--all-features"
 
@@ -69,14 +69,14 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
         with:
           targets: wasm32-unknown-unknown
 
       # Pure consumer: restore the registry and target the warmup saves from
       # main; PR-scoped saves would only duplicate them out of reach.
       - name: Rust cache
-        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        uses: gronke/rust-ci/.github/actions/rust-cache@v0.0.5
         with:
           prefix: wasm-1
           save: "false"

@@ -9,6 +9,7 @@
 //! ├── components/<tag>.ts          one Lit class per component
 //! ├── components/<tag>.impl.ts     co-located behavior partial, copied
 //! ├── components/uic-runtime.ts    LitNotify port, emitted once
+//! ├── components/uic-*.ts          extra shared modules (the connectors)
 //! ├── components/_<tag>.scss       component stylesheet (grass partial)
 //! ├── elements.scss                aggregator, compiled to /elements.css
 //! └── custom-elements.json         optional Custom Elements Manifest
@@ -34,6 +35,7 @@ pub struct WebCodegen {
     out: PathBuf,
     manifest: bool,
     dist_only: bool,
+    extra_modules: Vec<(String, &'static str)>,
 }
 
 impl WebCodegen {
@@ -42,6 +44,7 @@ impl WebCodegen {
             out: out.into(),
             manifest: false,
             dist_only: false,
+            extra_modules: Vec::new(),
         }
     }
 
@@ -55,6 +58,14 @@ impl WebCodegen {
     /// The default (everything) is the dev-server view.
     pub fn dist_only(mut self, on: bool) -> Self {
         self.dist_only = on;
+        self
+    }
+
+    /// Emits an additional hand-written module into `components/` — shared
+    /// TS twins that are not component partials, like the data connectors
+    /// (`ui_components::connect::WEB_TS`, ADR 0014).
+    pub fn extra_module(mut self, file_name: impl Into<String>, source: &'static str) -> Self {
+        self.extra_modules.push((file_name.into(), source));
         self
     }
 
@@ -143,6 +154,9 @@ impl WebCodegen {
                 components.join("uic-impl-helpers.ts"),
                 include_str!("uic-impl-helpers.ts"),
             )?;
+        }
+        for (name, source) in &self.extra_modules {
+            fs::write(components.join(name), source)?;
         }
         if !use_names.is_empty() {
             fs::write(self.out.join("elements.scss"), elements_scss(&use_names))?;

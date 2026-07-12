@@ -10,6 +10,7 @@ fn dist() -> (Vec<&'static str>, PathBuf) {
     let out = std::env::temp_dir().join(format!("uic-dist-{}", std::process::id()));
     let root = DistBuild::new(&out, "@schuhkarton/ui-components", "0.1.0")
         .repository("https://github.com/schuhkarton/ui-components")
+        .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
         .run()
         .expect("dist build succeeds");
     // The publish view: catalog components ship, the demo composition stays
@@ -47,6 +48,8 @@ fn emits_the_npm_tree() {
         "components/uic-runtime.d.ts",
         "components/uic-impl-helpers.js",
         "components/uic-impl-helpers.d.ts",
+        "components/uic-connectors.js",
+        "components/uic-connectors.d.ts",
         "elements.css",
         "custom-elements.json",
         "package.json",
@@ -93,9 +96,12 @@ fn emits_the_npm_tree() {
     assert!(css.contains(".el-input-default[error]"));
     assert!(css.contains(".el-input-default[seamless]"));
     assert!(css.contains(".el-input-number"));
+    assert!(css.contains(".el-input-date-range .input-group-text"));
     assert!(css.contains(".el-input-select"));
     assert!(css.contains(".el-input-select .input-back"));
+    assert!(css.contains(".el-input-suggestion .dropdown-menu"));
     assert!(css.contains(".el-input-textarea"));
+    assert!(css.contains(".el-nav-tabs"));
 
     let package: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root.join("package.json")).unwrap()).unwrap();
@@ -107,6 +113,13 @@ fn emits_the_npm_tree() {
         package["exports"]["./input-date.js"]["default"],
         "./components/input-date.js"
     );
+    // The connectors ship as their own public export (ADR 0014).
+    assert_eq!(
+        package["exports"]["./uic-connectors.js"]["default"],
+        "./components/uic-connectors.js"
+    );
+    let connectors_dts = fs::read_to_string(root.join("components/uic-connectors.d.ts")).unwrap();
+    assert!(connectors_dts.contains("QuerySource"));
     assert_eq!(package["customElements"], "custom-elements.json");
 
     // Publish metadata (the release workflow rehearses `npm publish`).

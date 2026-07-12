@@ -88,6 +88,7 @@ fn a_click_picks_a_calendar_day() {
     let mut app = app(50, 16);
     let el = app.mount("input-date").expect("mount");
     app.set_attr(el, "label", "Date");
+    app.set_attr(el, "hide-time", "");
     app.set_attr(el, "value", "2026-07-07");
     let committed = probe(&mut app, el, "value-changed");
 

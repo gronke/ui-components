@@ -7,7 +7,43 @@
 //! `state-changed` hands the snapshot to whatever transport hosts the
 //! component (ADR 0013).
 
+use std::sync::LazyLock;
+
 use uic_core::{Ctx, CustomElement, ObjectMap, PropertyStore, SelectOption, UiEvent, Value};
+
+use crate::connect::{InMemorySource, QuerySource};
+
+/// The demo's static data source: a pool of words behind the shared query
+/// interface (ADR 0014). Keep in sync with `WORDS` in `app_root.impl.ts` —
+/// the parity fixtures replay both sides (public for that harness).
+pub static WORD_POOL: LazyLock<InMemorySource> = LazyLock::new(|| {
+    InMemorySource::from_words([
+        "apple",
+        "apricot",
+        "avocado",
+        "banana",
+        "blueberry",
+        "cherry",
+        "cranberry",
+        "date",
+        "elderberry",
+        "fig",
+        "grape",
+        "grapefruit",
+        "guava",
+        "kiwi",
+        "lemon",
+        "lime",
+        "mango",
+        "melon",
+        "orange",
+        "papaya",
+        "peach",
+        "pear",
+        "plum",
+        "raspberry",
+    ])
+});
 
 // The demo composition serves the dev pages and the runtimes, not the
 // published package (ADR 0013).
@@ -22,6 +58,10 @@ pub struct AppRoot {
     /// The application state: one member per form field, scalars only.
     #[property(notify)]
     pub state: ObjectMap,
+    /// The suggestion rows the pool resolved for the word input's live
+    /// query — transient UI data beside the state, not a member of it.
+    #[property]
+    pub word_suggestions: Vec<SelectOption>,
 }
 
 /// `state[key]`, or the child's own default when the member is absent.
@@ -85,6 +125,34 @@ impl AppRootLogic for AppRoot {
         member(store, "zone", "".into())
     }
 
+    fn word(&self, store: &PropertyStore) -> Value {
+        member(store, "word", "".into())
+    }
+
+    /// The missing member stays empty — the bar's fallback-to-first shows
+    /// the Form tab, and the value-changed echo of a mount-time push would
+    /// otherwise write `tab` into every boot state.
+    fn tab(&self, store: &PropertyStore) -> Value {
+        member(store, "tab", "".into())
+    }
+
+    /// Keep in sync with `tabOptions` in `app_root.impl.ts`.
+    fn tab_options(&self, _store: &PropertyStore) -> Value {
+        Value::Options(vec![
+            SelectOption::new("form").with_short("Form"),
+            SelectOption::new("about").with_short("About"),
+        ])
+    }
+
+    /// Unknown tab values show the form — the bar's fallback-to-first rule.
+    fn show_about(&self, store: &PropertyStore) -> Value {
+        Value::Bool(member(store, "tab", "".into()) == Value::Str("about".into()))
+    }
+
+    fn show_form(&self, store: &PropertyStore) -> Value {
+        Value::Bool(!self.show_about(store).truthy())
+    }
+
     /// Keep in sync with `pickOptions` in `app_root.impl.ts`.
     fn pick_options(&self, _store: &PropertyStore) -> Value {
         Value::Options(vec![
@@ -139,5 +207,22 @@ impl AppRootLogic for AppRoot {
 
     fn on_zone(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         set_member(ctx, "zone", detail(event));
+    }
+
+    fn on_word(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        set_member(ctx, "word", detail(event));
+    }
+
+    fn on_tab(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        set_member(ctx, "tab", detail(event));
+    }
+
+    /// The slim wrapper (ADR 0014): the word input's live query, answered
+    /// by the pool. The in-memory source delivers within this cycle, so the
+    /// terminal popup fills in the same frame; the browser twin awaits the
+    /// same interface asynchronously.
+    fn on_word_query(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        let text = event.target_value.clone().unwrap_or_default();
+        WORD_POOL.query(&text, Box::new(|rows| ctx.set("word_suggestions", rows)));
     }
 }

@@ -16,7 +16,10 @@ taffy = "0.12"
 thiserror = "2"
 uic_core.workspace = true
 uic_dom.workspace = true
+uic_template.workspace = true
 unicode-width = "0.2"
 
 [dev-dependencies]
-ui_components.workspace = true
+# With the tui feature: the integration tests mount components whose widget
+# twins live in the catalog (ADR 0015).
+ui_components = { workspace = true, features = ["tui"] }

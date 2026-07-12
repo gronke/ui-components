@@ -2,7 +2,7 @@
 //! plus a `Month` in a popup, seeded from the current value and paged with
 //! browser date-picker semantics.
 
-use chrono::{Datelike, Days, Months, NaiveDate};
+use chrono::{Datelike, Days, Months, NaiveDate, NaiveDateTime};
 use crossterm::event::{Event, KeyCode, MouseEvent, MouseEventKind};
 use rat_widget::calendar::{selection::SingleSelection, Month, MonthState};
 use rat_widget::date_input::{DateInput, DateInputState};
@@ -20,6 +20,11 @@ use crate::Error;
 
 pub(super) struct DateAdapter {
     input: DateInputState,
+    /// The variant's chrono pattern; rat builds the mask from it, and the
+    /// adapter owns the value round-trip (rat's own value()/set_value are
+    /// date-only).
+    pattern: &'static str,
+    hide_time: bool,
     /// `core.is_active()` is the open flag; the anchor is the widget rect
     /// recorded during the paint pass.
     core: PopupCoreState,
@@ -28,15 +33,62 @@ pub(super) struct DateAdapter {
 }
 
 impl DateAdapter {
-    pub(super) fn new() -> Result<Self, Error> {
+    pub(super) fn new(hide_time: bool, hide_seconds: bool) -> Result<Self, Error> {
+        let pattern = if hide_time {
+            "%Y-%m-%d"
+        } else if hide_seconds {
+            "%Y-%m-%d %H:%M"
+        } else {
+            "%Y-%m-%d %H:%M:%S"
+        };
         Ok(DateAdapter {
             input: DateInputState::new()
-                .with_pattern("%Y-%m-%d")
+                .with_pattern(pattern)
                 .map_err(|err| Error::Pattern(err.to_string()))?,
+            pattern,
+            hide_time,
             core: PopupCoreState::new(),
             month: MonthState::new(),
             anchor: Rect::default(),
         })
+    }
+
+    /// The mask text as the variant's local datetime, when it parses.
+    fn parse_text(&self, text: &str) -> Option<NaiveDateTime> {
+        if self.hide_time {
+            NaiveDate::parse_from_str(text, self.pattern)
+                .ok()
+                .and_then(|date| date.and_hms_opt(0, 0, 0))
+        } else {
+            NaiveDateTime::parse_from_str(text, self.pattern).ok()
+        }
+    }
+
+    /// Writes a local datetime into the mask in the variant's format.
+    fn set_text(&mut self, local: NaiveDateTime) {
+        self.input
+            .widget
+            .set_text(local.format(self.pattern).to_string());
+    }
+
+    /// The mask's date part: the parsed date, or today for the calendar.
+    fn date_part(&self) -> Option<NaiveDate> {
+        self.parse_text(self.input.widget.text())
+            .map(|dt| dt.date())
+    }
+
+    /// A calendar pick keeps the typed time (midnight when none parses).
+    fn pick_date(&mut self, date: NaiveDate) {
+        let time = self
+            .parse_text(self.input.widget.text())
+            .map(|dt| dt.time())
+            .unwrap_or_else(|| chrono::NaiveTime::from_hms_opt(0, 0, 0).expect("midnight"));
+        self.set_text(date.and_time(time));
+        // An open calendar follows the pick.
+        if self.core.is_active() {
+            self.month.set_start_date(date);
+            self.month.select_date(date);
+        }
     }
 
     /// Pages the open calendar by whole months, keeping the selected
@@ -67,16 +119,17 @@ impl WidgetAdapter for DateAdapter {
         self.input.widget.area
     }
 
-    /// The normalized date, or the digit-bearing raw text — the pristine
-    /// mask is all zeros and commits as empty, like an untouched browser
-    /// input fires no change.
+    /// The normalized local datetime, or the digit-bearing raw mask text —
+    /// the component's parser completes partials (`2024-00-00 00:00:00`
+    /// clamps to `2024-01-01 00:00:00`), and the pristine all-zero mask
+    /// commits as empty, like an untouched browser input fires no change.
     fn committed_text(&self) -> String {
-        match self.input.value() {
-            Ok(date) => date.format("%Y-%m-%d").to_string(),
-            Err(_) => {
+        match self.parse_text(self.input.widget.text()) {
+            Some(local) => local.format(self.pattern).to_string(),
+            None => {
                 let raw = self.input.widget.text();
                 if raw.chars().any(|c| c.is_ascii_digit() && c != '0') {
-                    raw.split_whitespace().collect::<Vec<_>>().join("")
+                    raw.trim().to_string()
                 } else {
                     String::new()
                 }
@@ -87,16 +140,25 @@ impl WidgetAdapter for DateAdapter {
     fn sync(&mut self, value: &Value) {
         match value {
             Value::Str(text) if !text.is_empty() => {
-                match NaiveDate::parse_from_str(text, "%Y-%m-%d") {
-                    Ok(date) => {
-                        self.input.set_value(date);
+                // The canonical format first; a date-only external write
+                // fills midnight into a datetime mask.
+                let local = self.parse_text(text).or_else(|| {
+                    NaiveDate::parse_from_str(text, "%Y-%m-%d")
+                        .ok()
+                        .and_then(|date| date.and_hms_opt(0, 0, 0))
+                });
+                match local {
+                    Some(local) => {
+                        self.set_text(local);
                         // An open calendar follows external value writes.
                         if self.core.is_active() {
-                            self.month.set_start_date(date);
-                            self.month.select_date(date);
+                            self.month.set_start_date(local.date());
+                            self.month.select_date(local.date());
                         }
                     }
-                    Err(_) => self.input.widget.set_text(text.clone()),
+                    // Partials stay as written, like the browser's raw
+                    // value string.
+                    None => self.input.widget.set_text(text.clone()),
                 }
             }
             _ => self.input.clear(),
@@ -138,9 +200,7 @@ impl WidgetAdapter for DateAdapter {
     /// back to today (the system clock — the wasm host shims it).
     fn open_overlay(&mut self) {
         let seed = self
-            .input
-            .value()
-            .ok()
+            .date_part()
             .unwrap_or_else(|| chrono::Local::now().date_naive());
         self.month.set_start_date(seed);
         self.month.select_date(seed);
@@ -170,7 +230,7 @@ impl WidgetAdapter for DateAdapter {
             KeyCode::Enter => {
                 let picked = self.month.selected_date();
                 if let Some(date) = picked {
-                    self.input.set_value(date);
+                    self.pick_date(date);
                 }
                 self.close_overlay();
                 if picked.is_some() {
@@ -237,7 +297,7 @@ impl WidgetAdapter for DateAdapter {
                     .position(|day| day.contains(position))
                     .and_then(|index| start.with_day(index as u32 + 1));
                 if let Some(date) = date {
-                    self.input.set_value(date);
+                    self.pick_date(date);
                     self.close_overlay();
                     return OverlayOutcome::Commit;
                 }

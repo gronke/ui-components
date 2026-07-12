@@ -1,0 +1,14 @@
+<input type="text"
+  class="form-control text-start w-100"
+  data-tui="suggestion-input"
+  data-qa="suggestion-input"
+  role="combobox"
+  aria-autocomplete="list"
+  .value=${value}
+  .options=${suggestions}
+  placeholder=${placeholder}
+  autocomplete="one-time-code"
+  ?disabled=${disabled}
+  @input=${on_input}
+  @change=${on_change} />
+<ul class="dropdown-menu" data-qa="suggestion-list"></ul>

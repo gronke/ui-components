@@ -5,7 +5,10 @@
       "expect": {
         "stateLine": "",
         "amount": 0.0,
-        "date": ""
+        "date": "",
+        "tab": "",
+        "showForm": true,
+        "showAbout": false
       }
     },
     {
@@ -17,7 +20,10 @@
       "expect": {
         "stateLine": "amount: 12.5 · date: 2026-07-07 · note: hi",
         "amount": 12.5,
-        "date": "2026-07-07"
+        "date": "2026-07-07",
+        "tab": "",
+        "showForm": true,
+        "showAbout": false
       }
     },
     {
@@ -29,8 +35,56 @@
       "expect": {
         "stateLine": "note:  · pick: Europe/Berlin · zone: UTC",
         "amount": 0.0,
-        "date": ""
+        "date": "",
+        "tab": "",
+        "showForm": true,
+        "showAbout": false
       }
+    },
+    {
+      "state": {
+        "tab": "about",
+        "note": "hi"
+      },
+      "expect": {
+        "stateLine": "note: hi · tab: about",
+        "amount": 0.0,
+        "date": "",
+        "tab": "about",
+        "showForm": false,
+        "showAbout": true
+      }
+    }
+  ],
+  "suggest": [
+    {
+      "query": "",
+      "expect": []
+    },
+    {
+      "query": "a",
+      "expect": [
+        "apple",
+        "apricot",
+        "avocado"
+      ]
+    },
+    {
+      "query": "AP",
+      "expect": [
+        "apple",
+        "apricot"
+      ]
+    },
+    {
+      "query": "apple",
+      "expect": [
+        "apple"
+      ]
+    },
+    {
+      "query": "zzz",
+      "expect": []
     }
   ]
 }

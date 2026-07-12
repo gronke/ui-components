@@ -18,6 +18,7 @@ fn main() {
 
     let generated = uic_codegen_web::WebCodegen::new(out.join("gen_web"))
         .manifest(true)
+        .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
         .run()
         .expect("generate web components from the Rust catalog");
 

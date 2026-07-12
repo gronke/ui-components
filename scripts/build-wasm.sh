@@ -24,4 +24,10 @@ wasm-bindgen --target web --no-typescript \
     --out-dir apps/web-demo/web-tui \
     target/wasm32-unknown-unknown/wasm/uic_tui_web.wasm
 
+# The registry must survive the linker: a bundle whose data section lost the
+# component tags boots into "unknown custom element" (see ui_components::link).
+if ! grep -aq 'input-date' apps/web-demo/web-tui/uic_tui_web_bg.wasm; then
+    echo "the bundle lost the component registry (linker dropped the registrations)" >&2
+    exit 1
+fi
 echo "browser TUI built into apps/web-demo/web-tui (served as /tui)"

@@ -1,17 +1,20 @@
-//! `<input-date-range>` — one element around two `<input-date>` children.
+//! `<input-date-range>` — one bordered group around two `<input-date>`
+//! children, the catalog's `[ from | - | to | tz ▼ ]`.
 //!
 //! The composite listens to both children's `value-changed` events, keeps
 //! the ends ordered and derives the combined `value` in `will_update`, and
 //! reflects `complete` after the commit in `updated` — the ReactiveElement
-//! flow, identical on both render targets.
+//! flow, identical on both render targets. The group owns the timezone
+//! select; the children receive the picked zone as their default.
 
-use uic_core::{input_shared, Changed, Ctx, CustomElement, UiEvent, Value};
+use uic_core::{input_shared, Changed, Ctx, CustomElement, PropertyStore, UiEvent, Value};
 
 #[input_shared]
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-date-range",
     template_file = "date_range.mhtml",
+    scss_file = "date_range.scss",
     web_impl_file = "date_range.impl.ts"
 )]
 pub struct InputDateRange {
@@ -28,6 +31,21 @@ pub struct InputDateRange {
     /// Reflects once both ends are committed; set post-commit in `updated`.
     #[property(reflect)]
     pub complete: bool,
+    /// IANA timezone override the group's select committed.
+    #[property(notify)]
+    pub timezone: Option<String>,
+    /// Fallback timezone when `timezone` is unset.
+    #[property]
+    pub default_timezone: Option<String>,
+    /// Renders the timezone select at the group's end.
+    #[property(reflect)]
+    pub show_timezone: bool,
+    /// Hides the time on both ends: the interval carries dates only.
+    #[property(reflect)]
+    pub hide_time: bool,
+    /// Hides the seconds on both ends.
+    #[property(reflect)]
+    pub hide_seconds: bool,
 }
 
 /// Both ends in → the ISO interval; anything less commits empty.
@@ -40,10 +58,32 @@ fn interval(start: &str, end: &str) -> String {
 }
 
 impl InputDateRangeLogic for InputDateRange {
-    fn connected(&mut self, ctx: &mut Ctx) {
-        // The children draw their own borders; the shared chrome's group
-        // renders borderless around them.
-        ctx.set("seamless", true);
+    /// The zone the children interpret bare dates in: the picked timezone,
+    /// falling back to the default; null clears the children's attribute.
+    fn range_timezone(&self, store: &PropertyStore) -> Value {
+        for prop in ["timezone", "default_timezone"] {
+            if let Value::Str(id) = store.get(prop) {
+                if !id.is_empty() {
+                    return Value::Str(id.clone());
+                }
+            }
+        }
+        Value::Null
+    }
+
+    /// The embedded timezone select's `default` binding: the catalog passes
+    /// `defaultTimezone ?? ""` so its null option always exists.
+    fn timezone_default(&self, store: &PropertyStore) -> Value {
+        match store.get("default_timezone") {
+            Value::Str(id) => Value::Str(id.clone()),
+            _ => Value::Str(String::new()),
+        }
+    }
+
+    /// Routes the group select's `value-changed` into the `timezone`
+    /// property.
+    fn on_timezone_changed(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        ctx.set("timezone", event.detail.clone().unwrap_or(Value::Null));
     }
 
     /// Routed from the start child's `value-changed` binding.
@@ -101,5 +141,50 @@ impl InputDateRangeLogic for InputDateRange {
         if ctx.get("complete") != &Value::Bool(complete) {
             ctx.set("complete", complete);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uic_core::testing::{cycle, setup};
+
+    #[test]
+    fn the_group_timezone_falls_back_and_notifies() {
+        let (mut store, mut behavior) = setup(InputDateRange::definition());
+        assert_eq!(
+            behavior.compute(&store, "range_timezone"),
+            Value::Null,
+            "no zone set, the children's attribute clears"
+        );
+
+        store.set("default_timezone", "Europe/Berlin");
+        assert_eq!(
+            behavior.compute(&store, "range_timezone"),
+            Value::Str("Europe/Berlin".into())
+        );
+        assert_eq!(
+            behavior.compute(&store, "timezone_default"),
+            Value::Str("Europe/Berlin".into())
+        );
+
+        // The select's commit routes into `timezone` and wins the fallback.
+        let events = cycle(&mut store, &mut behavior, |b, ctx| {
+            b.handle(
+                ctx,
+                "on_timezone_changed",
+                &UiEvent {
+                    name: "value-changed".to_string(),
+                    target_value: Some("America/New_York".to_string()),
+                    detail: Some(Value::Str("America/New_York".into())),
+                },
+            )
+        });
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_name, "timezone-changed");
+        assert_eq!(
+            behavior.compute(&store, "range_timezone"),
+            Value::Str("America/New_York".into())
+        );
     }
 }

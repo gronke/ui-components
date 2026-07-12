@@ -13,6 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         env!("CARGO_PKG_VERSION"),
     )
     .repository("https://github.com/schuhkarton/ui-components")
+    .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
     .run()?;
     println!("npm package tree: {}", dist.root.display());
     for tag in dist.components {

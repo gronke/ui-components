@@ -1,0 +1,28 @@
+// Catalog-parity subset of the .el-input-date-range rules: the group
+// carries the single border (the catalog's border/rounded/overflow-hidden
+// input-group classes) and the separator cell reads as a thin vertical
+// rule inside it.
+.el-input-date-range {
+  .input-group {
+    border: var(--bs-border-width) solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    overflow: hidden;
+    background-color: var(--bs-body-bg);
+  }
+
+  // The error state colors the group border, where the children's wrapper
+  // borders used to carry it.
+  &[error] .input-group {
+    border-color: var(--bs-danger) !important;
+  }
+
+  .input-group-text {
+    display: block;
+    width: 41px;
+    text-align: center;
+    border-style: solid;
+    border-color: var(--bs-border-color);
+    border-width: 0 1px;
+    margin-left: -1px;
+  }
+}

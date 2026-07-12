@@ -47,6 +47,7 @@ fn renders_label_value_and_hint() {
 fn commit_updates_value_and_notifies() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "hide-time", "");
     let events = probe(&mut app, el, "value-changed");
 
     // Type in mask order (separators jump sections), commit with Enter.
@@ -64,15 +65,18 @@ fn commit_updates_value_and_notifies() {
 fn invalid_input_renders_the_error_line_and_hides_the_hint() {
     let mut app = app();
     let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "hide-time", "");
     app.set_attr(el, "hint", "Format: YYYY-MM-DD");
     let events = probe(&mut app, el, "value-changed");
 
-    type_str(&mut app, "2026-13-99");
+    // Years live in the catalog's 1900-2099 window; outside it nothing
+    // parses (in-window overflow clamps instead, see the clamp test).
+    type_str(&mut app, "2150-01-01");
     key(&mut app, KeyCode::Enter);
 
     let screen = screen(&mut app);
     assert!(
-        screen.contains("Invalid date: 2026-13-99"),
+        screen.contains("Invalid date: 2150-01-01"),
         "error line:\n{screen}"
     );
     assert!(
@@ -83,6 +87,38 @@ fn invalid_input_renders_the_error_line_and_hides_the_hint() {
         events.borrow().is_empty(),
         "no value event on invalid input"
     );
+}
+
+#[test]
+fn overflow_input_clamps_like_the_catalog() {
+    let mut app = app();
+    let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "hide-time", "");
+    let events = probe(&mut app, el, "value-changed");
+
+    // Temporal constrain: month 13 and day 99 clamp into range.
+    type_str(&mut app, "2026-13-99");
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].value, Value::Str("2026-12-31".into()));
+}
+
+#[test]
+fn partial_input_autocompletes_through_the_mask() {
+    let mut app = app();
+    let el = app.mount("input-date").expect("mount");
+    let events = probe(&mut app, el, "value-changed");
+
+    // The datetime variant is the default; a bare year commits the period
+    // start, the catalog's auto-completion.
+    type_str(&mut app, "2024");
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].value, Value::Str("2024-01-01 00:00:00".into()));
 }
 
 #[test]
@@ -197,6 +233,7 @@ fn f4_opens_the_calendar_over_the_content_below() {
 fn calendar_enter_commits_through_the_change_path() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "hide-time", "");
     app.set_attr(el, "value", "2026-07-07");
     let events = probe(&mut app, el, "value-changed");
 
@@ -221,6 +258,7 @@ fn calendar_enter_commits_through_the_change_path() {
 fn calendar_arrows_roll_over_month_edges() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "hide-time", "");
     app.set_attr(el, "value", "2026-07-01");
     let events = probe(&mut app, el, "value-changed");
 
@@ -238,6 +276,7 @@ fn calendar_arrows_roll_over_month_edges() {
 fn calendar_pages_by_month() {
     let mut app = tall_app();
     let el = app.mount("input-date").expect("mount");
+    app.set_attr(el, "hide-time", "");
     app.set_attr(el, "value", "2026-07-07");
     let events = probe(&mut app, el, "value-changed");
 
@@ -314,7 +353,8 @@ fn date_commit_notifies_the_zoned_date_in_the_current_timezone() {
     let dates = dates.borrow();
     assert_eq!(dates.len(), 1, "one date-changed event");
     let zoned = dates[0].value.as_zoned().expect("zoned detail");
-    assert_eq!(zoned.iso(), "2026-08-01T00:00:00+02:00[Europe/Berlin]");
+    // The .date detail is the UTC instant of the typed Berlin wall clock.
+    assert_eq!(zoned.iso(), "2026-07-31T22:00:00+00:00[UTC]");
 }
 
 /// Clears the focused single-line widget (the number input starts at the

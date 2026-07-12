@@ -159,28 +159,76 @@ pub(super) fn load_template(
     }
     let file = args.template_file.as_ref().expect("checked by ElementArgs");
     let content = read_relative(file, source_file, "template_file")?;
+    let src_tokens = include_tokens(file, source_file, "template_file")?;
     Ok(LoadedTemplate {
         content,
         span: file.span(),
-        src_tokens: quote!(include_str!(#file)),
+        src_tokens,
     })
 }
 
-/// Reads a path relative to the source file containing the derive.
+/// Reads a co-located asset: resolved beside the source file containing the
+/// derive, then upward through its ancestors, stopping at the directory
+/// holding the crate's Cargo.toml. The search serves shared assets like the
+/// input chrome, which components reference from varying directory depths
+/// (ADR 0015); the nearest match wins.
 pub(super) fn read_relative(
     file: &LitStr,
     source_file: Option<&Path>,
     option: &str,
 ) -> syn::Result<String> {
+    let (path, _) = resolve_relative(file, source_file, option)?;
+    std::fs::read_to_string(&path)
+        .map_err(|err| syn::Error::new(file.span(), format!("{option} {}: {err}", path.display())))
+}
+
+/// The found asset path and its `../` depth above the source file's
+/// directory (see [`read_relative`] for the search).
+fn resolve_relative(
+    file: &LitStr,
+    source_file: Option<&Path>,
+    option: &str,
+) -> syn::Result<(std::path::PathBuf, usize)> {
     let Some(dir) = source_file.and_then(Path::parent) else {
         return Err(syn::Error::new(
             file.span(),
             format!("cannot resolve {option} relative to this source file"),
         ));
     };
-    let path = dir.join(file.value());
-    std::fs::read_to_string(&path)
-        .map_err(|err| syn::Error::new(file.span(), format!("{option} {}: {err}", path.display())))
+    let mut current = dir.to_path_buf();
+    let mut depth = 0;
+    loop {
+        let candidate = current.join(file.value());
+        if candidate.is_file() {
+            return Ok((candidate, depth));
+        }
+        if current.join("Cargo.toml").is_file() || !current.pop() {
+            return Err(syn::Error::new(
+                file.span(),
+                format!(
+                    "{option} {}: not found beside the source file or in its \
+                     ancestors up to the crate root",
+                    file.value()
+                ),
+            ));
+        }
+        depth += 1;
+    }
+}
+
+/// The `include_str!` tokens for an asset, prefixed with the `../` steps the
+/// upward search took, so cargo tracks the found file.
+fn include_tokens(
+    file: &LitStr,
+    source_file: Option<&Path>,
+    option: &str,
+) -> syn::Result<TokenStream> {
+    let (_, depth) = resolve_relative(file, source_file, option)?;
+    if depth == 0 {
+        return Ok(quote!(include_str!(#file)));
+    }
+    let prefixed = format!("{}{}", "../".repeat(depth), file.value());
+    Ok(quote!(include_str!(#prefixed)))
 }
 
 /// `Some(include_str!("…"))` for a co-located asset, `None` when absent.
@@ -195,7 +243,8 @@ pub(super) fn optional_include(
             // Read now for an early, well-spanned error; embed via include_str!
             // so cargo tracks the file.
             read_relative(file, source_file, option)?;
-            Ok(quote!(::core::option::Option::Some(include_str!(#file))))
+            let tokens = include_tokens(file, source_file, option)?;
+            Ok(quote!(::core::option::Option::Some(#tokens)))
         }
     }
 }

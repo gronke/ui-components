@@ -91,7 +91,7 @@ fn commits_notify_like_the_terminal_demo() {
 /// out through `value_to_json` as the canonical sorted-key snapshot.
 #[test]
 fn json_state_drives_the_screen_like_the_session() {
-    let (mut app, _out) = app(72, 50);
+    let (mut app, _out) = app(72, 60);
     let el = app.mount("app-root").unwrap();
     // The probe records the canonical string; the session's wire format
     // (`value_to_json(..).to_string()`) agrees for object state because the

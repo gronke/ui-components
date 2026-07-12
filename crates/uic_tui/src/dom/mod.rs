@@ -8,11 +8,11 @@ mod host;
 mod layout;
 mod render;
 mod resolve;
-mod widget;
+pub(crate) mod widget;
 
 pub use app::App;
 pub use host::DomHost;
-pub use widget::WidgetPayload;
+pub use widget::{OverlayOutcome, WidgetAdapter, WidgetPayload, WidgetRegistration};
 
 /// The runtime's document type: every element node can carry a terminal
 /// widget.

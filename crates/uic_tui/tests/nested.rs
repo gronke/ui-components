@@ -16,7 +16,7 @@ use support::{key, probe, screen, type_str};
 #[custom_element(
     tag = "demo-form",
     template = "<div>\
-                <input-date label=\"Date\" .value=${date_value} ?disabled=${lock_date} \
+                <input-date label=\"Date\" hide-time .value=${date_value} ?disabled=${lock_date} \
                 @value-changed=${on_date}></input-date>\
                 <input-text label=\"Note\" @value-changed=${on_note}></input-text>\
                 <p>${summary}</p>\

@@ -351,21 +351,33 @@ impl Mount {
 
     /// Creates the terminal widget for every `data-tui` element that gained
     /// a node (fresh instantiation or a conditional branch) — idempotent by
-    /// the payload's presence check.
+    /// the payload's presence check. The date's mask follows the variant
+    /// flags on the node; a flipped flag recreates the widget (typed state
+    /// resets — variant flips are configuration).
     fn mount_widgets(&mut self, doc: &mut DomDocument) {
-        let nodes: Vec<(NodeId, String)> = doc
+        let nodes: Vec<(NodeId, String, bool, bool)> = doc
             .descendants(self.host)
             .skip(1)
             .filter_map(|node| {
                 let el = doc.element(node)?;
-                if el.data.widget.is_some() {
+                let kind = el.attr("data-tui")?.to_string();
+                let variant = (
+                    el.attr("hide-time").is_some(),
+                    el.attr("hide-seconds").is_some(),
+                );
+                if el
+                    .data
+                    .widget
+                    .as_ref()
+                    .is_some_and(|widget| widget.variant == variant)
+                {
                     return None;
                 }
-                Some((node, el.attr("data-tui")?.to_string()))
+                Some((node, kind, variant.0, variant.1))
             })
             .collect();
-        for (node, kind) in nodes {
-            if let Ok(widget) = WidgetBox::new(&kind) {
+        for (node, kind, hide_time, hide_seconds) in nodes {
+            if let Ok(widget) = WidgetBox::new(&kind, hide_time, hide_seconds) {
                 if let Some(el) = doc.element_mut(node) {
                     el.data.widget = Some(widget);
                 }

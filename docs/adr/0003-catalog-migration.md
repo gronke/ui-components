@@ -48,7 +48,8 @@ External writes still win until the next commit.
 - The hidden branch also disables the child (`?disabled=${!show_timezone}`): terminal focus has no notion of unrendered branches yet, so the binding keeps Tab out of the invisible select.
 - The terminal's embedded option popup clips to the select's own width; widening it to the longest label is an open follow-up.
 
-## Known parity gaps of `<input-date>` v1
+## Known parity gaps of `<input-date>`
 
-Date-only (`YYYY-MM-DD`): no time/seconds, no calendar icon, no `compact`, no `input-id` label association.
-The mechanisms all exist (computed properties, lifecycle hooks, nested custom elements), so parity is incremental work; the `date`/`timezone` object properties landed with ADR 0005, the `show-timezone` sub-select with ADR 0006's select family.
+No calendar icon, no `compact`, no `input-id` label association.
+The mechanisms all exist (computed properties, lifecycle hooks, nested custom elements), so parity is incremental work; the `date`/`timezone` object properties landed with ADR 0005, the `show-timezone` sub-select with ADR 0006's select family, and the catalog's `parseDate` auto-completion with the `hide-time`/`hide-seconds`/`end-of` variants later.
+One deliberate divergence: the catalog only comments that `.date` "is always UTC" while actually storing the zone's instant; here the stored `date` IS normalized to UTC and `timezone`/`default-timezone` only interpret input and render output.

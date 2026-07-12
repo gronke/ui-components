@@ -1,66 +1,105 @@
-<!-- The demo form: the page's controls with their labels and hints, each
-     bound to one state member (values down through computeds, commits up
-     through the @value-changed handlers). -->
-<div data-qa="app-form">
-  <!-- The date hugs its content by default (the catalog's fit-content);
-       the demo opts into the full column with w-100, like the terminal. -->
-  <input-date
-    label="Date of purchase"
-    hint="Format: YYYY-MM-DD"
-    min="2020-01-01"
-    max="2030-12-31"
-    default-timezone="Europe/Berlin"
-    show-timezone
-    class="mb-4 d-block w-100"
-    .value=${date}
-    @value-changed=${on_date}></input-date>
-  <input-date-range
-    label="Stay"
-    hint="The end never precedes the start; both ends commit the interval"
-    class="mb-4 d-block"
-    .start=${start}
-    .end=${end}
-    @start-changed=${on_start}
-    @end-changed=${on_end}></input-date-range>
-  <input-text
-    label="Note"
-    hint="Trimmed on commit; empty becomes null"
-    placeholder="free text"
-    allow-null
-    class="mb-4 d-block"
-    .value=${note}
-    @value-changed=${on_note}></input-text>
-  <input-number
-    label="Amount"
-    hint="Comma or dot decimals; dots group thousands"
-    unit="€"
-    allow-null
-    class="mb-4 d-block"
-    .value=${amount}
-    @value-changed=${on_amount}></input-number>
-  <input-select
-    label="Time zone"
-    hint="Empty commits null once a default is set"
-    default="Pick a zone"
-    data-qa="select-demo"
-    class="mb-4 d-block"
-    .value=${pick}
-    .options=${pick_options}
-    @value-changed=${on_pick}></input-select>
-  <input-textarea
-    label="Comment"
-    hint="Grows with its content up to max-lines"
-    max-lines="6"
-    placeholder="multi-line text"
-    .value=${essay}
-    @value-changed=${on_essay}></input-textarea>
-  <input-timezone
-    label="Default time zone"
-    hint="The browser zone list; empty commits null"
-    default=""
-    class="mb-4 d-block"
-    .value=${zone}
-    @value-changed=${on_zone}></input-timezone>
+<!-- The demo shell: a card whose header tabs switch between the form and an
+     about pane (ADR 0017). The tab lives in the shared state like every
+     field, so the panes stay in step across render targets and transports. -->
+<div data-qa="app-shell">
+  <div class="card" data-qa="app-card">
+    <div class="card-header">
+      <nav-tabs class="card-header-tabs"
+        .options=${tab_options}
+        .value=${tab}
+        @value-changed=${on_tab}></nav-tabs>
+    </div>
+    <div class="card-body">
+      <template if=${show_form}>
+        <!-- The form: the page's controls with their labels and hints, each
+             bound to one state member (values down through computeds,
+             commits up through the @value-changed handlers). -->
+        <div data-qa="app-form">
+          <!-- The date hugs its content by default (the catalog's
+               fit-content); the demo opts into the full column with w-100,
+               like the terminal. -->
+          <input-date
+            label="Date of purchase"
+            hint="Partials complete: 2024 becomes 2024-01-01 00:00:00"
+            min="2020-01-01"
+            max="2030-12-31"
+            default-timezone="Europe/Berlin"
+            show-timezone
+            class="mb-4 d-block w-100"
+            .value=${date}
+            @value-changed=${on_date}></input-date>
+          <input-date-range
+            label="Stay"
+            hint="The end never precedes the start; both ends commit the interval"
+            hide-time
+            class="mb-4 d-block"
+            .start=${start}
+            .end=${end}
+            @start-changed=${on_start}
+            @end-changed=${on_end}></input-date-range>
+          <input-text
+            label="Note"
+            hint="Trimmed on commit; empty becomes null"
+            placeholder="free text"
+            allow-null
+            class="mb-4 d-block"
+            .value=${note}
+            @value-changed=${on_note}></input-text>
+          <input-number
+            label="Amount"
+            hint="Comma or dot decimals; dots group thousands"
+            unit="€"
+            allow-null
+            class="mb-4 d-block"
+            .value=${amount}
+            @value-changed=${on_amount}></input-number>
+          <input-select
+            label="Time zone"
+            hint="Empty commits null once a default is set"
+            default="Pick a zone"
+            data-qa="select-demo"
+            class="mb-4 d-block"
+            .value=${pick}
+            .options=${pick_options}
+            @value-changed=${on_pick}></input-select>
+          <input-textarea
+            label="Comment"
+            hint="Grows with its content up to max-lines"
+            max-lines="6"
+            placeholder="multi-line text"
+            class="mb-4 d-block"
+            .value=${essay}
+            @value-changed=${on_essay}></input-textarea>
+          <input-timezone
+            label="Default time zone"
+            hint="The browser zone list; empty commits null"
+            default=""
+            class="mb-4 d-block"
+            .value=${zone}
+            @value-changed=${on_zone}></input-timezone>
+          <input-suggestion
+            label="Word"
+            hint="Typeahead over the demo word pool"
+            placeholder="start typing"
+            allow-null
+            class="mb-0 d-block"
+            .value=${word}
+            .suggestions=${word_suggestions}
+            @value-changed=${on_word}
+            @query-changed=${on_word_query}></input-suggestion>
+        </div>
+      </template>
+      <template if=${show_about}>
+        <!-- Plain prose only: one text node per paragraph, so the terminal
+             wraps each block cleanly. -->
+        <div data-qa="app-about">
+          <p class="mb-3">Every component on the Form tab is defined once in Rust and rendered twice: as a LitElement custom element in the browser and as a widget tree in the terminal pane beside it.</p>
+          <p class="mb-3">The form binds each control to one shared state object; commits notify upward, values flow back down, and any transport that carries the state snapshot keeps both targets in step.</p>
+          <p class="mb-0">The templates speak a closed grammar, option lists travel as data, and connectors answer the word typeahead through one query interface per target.</p>
+        </div>
+      </template>
+    </div>
+  </div>
   <!-- The state, one line — the cross-target assertion hook. -->
   <p class="small text-body-secondary mt-4 mb-0" data-qa="state-line">state · ${state_line}</p>
 </div>

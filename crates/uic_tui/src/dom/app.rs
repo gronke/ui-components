@@ -199,6 +199,14 @@ impl<B: Backend> App<B> {
     /// A click focuses the widget under the pointer, committing the one it
     /// leaves; a click outside every element blurs.
     pub fn handle_event(&mut self, event: &Event) -> Control {
+        let control = self.route_event(event);
+        // Live text the widget's handling produced routes into the
+        // template's `@input` binding — with the popup open or closed.
+        self.flush_widget_input();
+        control
+    }
+
+    fn route_event(&mut self, event: &Event) -> Control {
         if let Event::Mouse(mouse) = event {
             return self.handle_mouse(*mouse);
         }
@@ -446,6 +454,32 @@ impl<B: Backend> App<B> {
                 true
             }
         }
+    }
+
+    /// Routes the focused widget's pending live text into the `@input`
+    /// binding its template declares, and bubbles an `input` event through
+    /// the document — the browser's per-keystroke event beside
+    /// `commit_focused`'s change.
+    fn flush_widget_input(&mut self) {
+        let Some(node) = self.focused else {
+            return;
+        };
+        let Some(text) = self
+            .doc
+            .element_mut(node)
+            .and_then(|el| el.data.widget.as_mut())
+            .and_then(|widget| widget.adapter.take_input())
+        else {
+            return;
+        };
+        let Some(index) = self.root_index_of(node) else {
+            return;
+        };
+        let events = self.mounts[index].dispatch_widget_input(&mut self.doc, node, &text);
+        let mut input = DomEvent::input().with_detail(Value::Str(text));
+        self.doc.dispatch_event(node, &mut input);
+        self.publish(index, events);
+        self.ensure_focus();
     }
 
     /// The focused widget commits: its text routes into the `@change`

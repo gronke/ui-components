@@ -29,6 +29,7 @@ pub struct DistBuild {
     package_name: String,
     version: String,
     repository: Option<String>,
+    extra_modules: Vec<(String, &'static str)>,
 }
 
 pub struct DistRoot {
@@ -48,6 +49,7 @@ impl DistBuild {
             package_name: package_name.into(),
             version: version.into(),
             repository: None,
+            extra_modules: Vec::new(),
         }
     }
 
@@ -58,14 +60,22 @@ impl DistBuild {
         self
     }
 
+    /// Ships an additional hand-written module (see
+    /// [`WebCodegen::extra_module`]) with its own package export.
+    pub fn extra_module(mut self, file_name: impl Into<String>, source: &'static str) -> Self {
+        self.extra_modules.push((file_name.into(), source));
+        self
+    }
+
     pub fn run(self) -> Result<DistRoot, CodegenError> {
         // Stage the TypeScript tree next to the final output, then compile.
         // The publish view: components with dist = false stay out.
         let staging = self.out.with_extension("gen");
-        let generated = WebCodegen::new(&staging)
-            .manifest(true)
-            .dist_only(true)
-            .run()?;
+        let mut codegen = WebCodegen::new(&staging).manifest(true).dist_only(true);
+        for (name, source) in &self.extra_modules {
+            codegen = codegen.extra_module(name.clone(), source);
+        }
+        let generated = codegen.run()?;
 
         if self.out.exists() {
             fs::remove_dir_all(&self.out)?;
@@ -132,6 +142,16 @@ impl DistBuild {
                 json!({
                     "types": format!("./components/{tag}.d.ts"),
                     "default": format!("./components/{tag}.js"),
+                }),
+            );
+        }
+        for (name, _) in &self.extra_modules {
+            let stem = name.strip_suffix(".ts").unwrap_or(name);
+            exports.insert(
+                format!("./{stem}.js"),
+                json!({
+                    "types": format!("./components/{stem}.d.ts"),
+                    "default": format!("./components/{stem}.js"),
                 }),
             );
         }

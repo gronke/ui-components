@@ -30,7 +30,7 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
       - name: Install Rust toolchain
-        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
         with:
           components: rustfmt clippy
 
@@ -38,7 +38,7 @@ jobs:
       # between PRs; caches saved from main are — this is what keeps PR runs
       # warm.
       - name: Rust cache
-        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        uses: gronke/rust-ci/.github/actions/rust-cache@v0.0.5
         with:
           prefix: qa-1
           cache-target: "true"
@@ -49,14 +49,14 @@ jobs:
       # the web-demo npm vendoring) and the test binaries — and doubles as a
       # post-merge verification of main.
       - name: Lint and warm build
-        uses: gronke/rust-ci/.github/actions/lint-and-test@main
+        uses: gronke/rust-ci/.github/actions/lint-and-test@v0.0.5
         with:
           test-args: --no-run
 
       # The save half: prune target/ to dependency artifacts, upload under
       # the restore's key — the entry every PR restores from.
       - name: Save the pruned target
-        uses: gronke/rust-ci/.github/actions/rust-cache-save@main
+        uses: gronke/rust-ci/.github/actions/rust-cache-save@v0.0.5
 
   # Warms the wasm-1 cache family the PR wasm job restores from.
   wasm:
@@ -66,12 +66,12 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: gronke/rust-ci/.github/actions/install-toolchain@main
+        uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
         with:
           targets: wasm32-unknown-unknown
 
       - name: Rust cache
-        uses: gronke/rust-ci/.github/actions/rust-cache@main
+        uses: gronke/rust-ci/.github/actions/rust-cache@v0.0.5
         with:
           prefix: wasm-1
           cache-target: "true"
@@ -83,4 +83,4 @@ jobs:
       # The save half: prune target/ to dependency artifacts, upload under
       # the restore's key — the entry every PR restores from.
       - name: Save the pruned target
-        uses: gronke/rust-ci/.github/actions/rust-cache-save@main
+        uses: gronke/rust-ci/.github/actions/rust-cache-save@v0.0.5

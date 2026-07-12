@@ -9,6 +9,6 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ui_components.workspace = true
+ui_components = { workspace = true, features = ["tui"] }
 uic_core.workspace = true
 uic_tui.workspace = true

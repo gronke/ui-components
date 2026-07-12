@@ -1,0 +1,16 @@
+// The host is a block like every catalog element.
+.el-nav-tabs {
+  display: block;
+}
+
+// Bootstrap's card-header composition puts `card-header-tabs` on the list
+// element; here the host carries it and the list sits one level below, so
+// the cap adjustments forward to the inner list.
+.el-nav-tabs.card-header-tabs {
+  margin: 0;
+
+  .nav-tabs {
+    margin-bottom: calc(-1 * var(--bs-card-cap-padding-y));
+    border-bottom: 0;
+  }
+}

@@ -3747,6 +3747,7 @@ dependencies = [
  "chrono",
  "chrono-tz 0.10.4",
  "uic_core",
+ "uic_tui",
 ]
 
 [[package]]
@@ -3825,6 +3826,7 @@ dependencies = [
  "ui_components",
  "uic_core",
  "uic_dom",
+ "uic_template",
  "unicode-width",
 ]
 

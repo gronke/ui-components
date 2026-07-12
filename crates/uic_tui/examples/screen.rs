@@ -10,6 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let element = app.mount("input-date")?;
     app.set_attr(element, "label", "Date of purchase");
     app.set_attr(element, "hint", "Format: YYYY-MM-DD");
+    app.set_attr(element, "hide-time", "");
     app.set_attr(element, "value", "2026-07-07");
     app.draw()?;
 

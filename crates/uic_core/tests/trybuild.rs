@@ -3,6 +3,7 @@ fn ui() {
     let t = trybuild::TestCases::new();
     t.pass("tests/ui/pass_minimal.rs");
     t.pass("tests/ui/pass_input_shared_minimal.rs");
+    t.pass("tests/ui/pass_options_on_data_tui.rs");
     t.compile_fail("tests/ui/fail_input_shared_below_derive.rs");
     t.compile_fail("tests/ui/fail_input_shared_duplicate_field.rs");
     t.compile_fail("tests/ui/fail_input_shared_wraps_conflict.rs");

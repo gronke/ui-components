@@ -115,6 +115,14 @@ fn paint(
             }
             let classes = effective_classes(doc, laid.node);
             let hints = hints.merge(&classes);
+            if classes.iter().any(|c| c == "card") {
+                // The card border stays static dark gray (ADR 0017): the
+                // focus ring and error dressing belong to the input group.
+                frame.render_widget(
+                    Block::bordered().border_style(Style::new().dark_gray()),
+                    laid.rect,
+                );
+            }
             if classes.iter().any(|c| c == "input-group") {
                 // Error wins over focus, like the browser keeping the red
                 // outline on a focused invalid input; the error state reads

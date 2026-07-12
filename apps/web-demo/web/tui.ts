@@ -10,10 +10,10 @@ import { wireStatePane } from './wiring.js';
 import type { AppState } from './bridge.js';
 
 const COLS = 72;
-// The form ends around row 43 with a one-line state (the controls carry
-// their mb-4 margins); the slack covers the textarea growing to its
-// max-lines and the wrapping state line.
-const ROWS = 50;
+// The carded form ends around row 53 with a one-line state (the card adds
+// its borders, the tab row and the body inset); the slack covers the
+// textarea growing to its max-lines and the wrapping state line.
+const ROWS = 58;
 
 async function boot(): Promise<void> {
   let glue: any;

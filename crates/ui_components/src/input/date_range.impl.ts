@@ -1,12 +1,23 @@
 // Browser behavior of <input-date-range>; mirrors the Rust
 // InputDateRangeLogic impl in date_range.rs — keep both in sync.
-import { detailString } from './uic-impl-helpers.js';
+import { detailString, detailValue } from './uic-impl-helpers.js';
 import type { InputDateRange } from './input-date-range.js';
 
-// The children draw their own borders; the shared chrome's group renders
-// borderless around them.
-export function connected(el: InputDateRange): void {
-  el.seamless = true;
+// The zone the children interpret bare dates in: the picked timezone,
+// falling back to the default; null clears the children's attribute.
+export function rangeTimezone(el: InputDateRange): string | null {
+  return el.timezone || el.defaultTimezone || null;
+}
+
+// The embedded timezone select's default binding: the catalog passes
+// defaultTimezone ?? "" so its null option always exists.
+export function timezoneDefault(el: InputDateRange): string {
+  return el.defaultTimezone ?? '';
+}
+
+// Routes the group select's value-changed into the timezone property.
+export function onTimezoneChanged(el: InputDateRange, e: Event): void {
+  el.timezone = (detailValue(e) as string | null) || null;
 }
 
 // Routed from the start child's value-changed binding.

@@ -8,6 +8,7 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::json;
+use ui_components::connect::QuerySource;
 
 /// One computed of a fresh app-root holding `state`, as JSON.
 fn compute(state: &serde_json::Value, name: &str) -> serde_json::Value {
@@ -37,13 +38,21 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
     let js =
         web_modules::typescript::compile_str(helpers, Path::new("uic-impl-helpers.ts")).unwrap();
     fs::write(build.join("uic-impl-helpers.js"), js).unwrap();
+    // The twin imports the connectors module (the word pool, ADR 0014).
+    let js = web_modules::typescript::compile_str(
+        ui_components::connect::WEB_TS,
+        Path::new("uic-connectors.ts"),
+    )
+    .unwrap();
+    fs::write(build.join("uic-connectors.js"), js).unwrap();
 
-    // The fixture states: sparse, full and null-bearing — the shapes the
-    // transport delivers (ADR 0013).
+    // The fixture states: sparse, full, null-bearing and tabbed — the
+    // shapes the transport delivers (ADR 0013).
     let states = [
         json!({}),
         json!({ "date": "2026-07-07", "note": "hi", "amount": 12.5 }),
         json!({ "note": null, "pick": "Europe/Berlin", "zone": "UTC" }),
+        json!({ "tab": "about", "note": "hi" }),
     ];
     let cases: Vec<serde_json::Value> = states
         .iter()
@@ -54,11 +63,29 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
                     "stateLine": compute(state, "state_line"),
                     "amount": compute(state, "amount"),
                     "date": compute(state, "date"),
+                    "tab": compute(state, "tab"),
+                    "showForm": compute(state, "show_form"),
+                    "showAbout": compute(state, "show_about"),
                 },
             })
         })
         .collect();
-    let fixtures = json!({ "cases": cases });
+    // The suggest fixtures: the Rust pool's answers for replayed queries —
+    // the node side must resolve the same rows through the TS pool.
+    let queries = ["", "a", "AP", "apple", "zzz"];
+    let suggest: Vec<serde_json::Value> = queries
+        .iter()
+        .map(|query| {
+            let mut values: Vec<String> = Vec::new();
+            ui_components::demo::app_root::WORD_POOL.query(
+                query,
+                Box::new(|rows| values = rows.into_iter().map(|row| row.value).collect()),
+            );
+            json!({ "query": query, "expect": values })
+        })
+        .collect();
+
+    let fixtures = json!({ "cases": cases, "suggest": suggest });
 
     let path = dir.join("fixtures.json");
     if std::env::var_os("UPDATE_EXPECTED").is_some() {

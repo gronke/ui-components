@@ -4,12 +4,20 @@
 //! lit-flavored template (`date.mhtml`), its stylesheet (`date.scss`), and —
 //! for behavior the browser cannot derive — its web partial (`date.impl.ts`).
 
+pub mod connect;
 pub mod demo;
 pub mod input;
+pub mod nav_tabs;
 
 pub use demo::AppRoot;
 pub use input::InputDate;
+pub use nav_tabs::NavTabs;
 
 /// Anchors this crate's object code so `inventory` registrations survive the
-/// linker in consuming binaries and build scripts.
+/// linker in consuming binaries and build scripts. `inline(never)` keeps the
+/// call a genuine symbol reference: cross-crate MIR inlining erases an empty
+/// call in optimized non-incremental builds, and with no reference into this
+/// crate's only object, wasm-ld's lazy archive extraction drops the
+/// registration constructors and every component with them.
+#[inline(never)]
 pub fn link() {}

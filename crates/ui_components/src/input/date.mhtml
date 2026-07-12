@@ -5,6 +5,8 @@
     class="form-control text-center flex-grow-1 bg-transparent border-0"
     data-tui="date-input"
     data-qa="date-input"
+    ?hide-time=${hide_time}
+    ?hide-seconds=${hide_seconds}
     .value=${value}
     placeholder=${placeholder_text}
     ?disabled=${disabled}

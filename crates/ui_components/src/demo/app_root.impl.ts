@@ -1,8 +1,40 @@
 // Browser behavior of <app-root>; mirrors the Rust AppRootLogic impl in
 // app_root.rs — keep both in sync.
 import { detailValue } from './uic-impl-helpers.js';
+import { InMemorySource } from './uic-connectors.js';
 import type { AppRoot } from './app-root.js';
 import type { SelectOption } from './uic-runtime.js';
+
+// The demo's static data source: a pool of words behind the shared query
+// interface (ADR 0014). Keep in sync with WORD_POOL in app_root.rs — the
+// parity fixtures replay both sides.
+const WORDS = [
+  'apple',
+  'apricot',
+  'avocado',
+  'banana',
+  'blueberry',
+  'cherry',
+  'cranberry',
+  'date',
+  'elderberry',
+  'fig',
+  'grape',
+  'grapefruit',
+  'guava',
+  'kiwi',
+  'lemon',
+  'lime',
+  'mango',
+  'melon',
+  'orange',
+  'papaya',
+  'peach',
+  'pear',
+  'plum',
+  'raspberry',
+];
+export const wordPool = InMemorySource.fromWords(WORDS);
 
 // state[key], or the child's own default when the member is absent.
 function member(el: AppRoot, key: string, missing: unknown): unknown {
@@ -41,6 +73,34 @@ export function essay(el: AppRoot): unknown {
 
 export function zone(el: AppRoot): unknown {
   return member(el, 'zone', '');
+}
+
+export function word(el: AppRoot): unknown {
+  return member(el, 'word', '');
+}
+
+// The missing member stays empty — the bar's fallback-to-first shows the
+// Form tab, and the value-changed echo of a boot push would otherwise
+// write `tab` into every boot state.
+export function tab(el: AppRoot): unknown {
+  return member(el, 'tab', '');
+}
+
+// Keep in sync with tab_options in app_root.rs.
+export function tabOptions(_el: AppRoot): SelectOption[] {
+  return [
+    { value: 'form', short: 'Form' },
+    { value: 'about', short: 'About' },
+  ];
+}
+
+// Unknown tab values show the form — the bar's fallback-to-first rule.
+export function showAbout(el: AppRoot): boolean {
+  return member(el, 'tab', '') === 'about';
+}
+
+export function showForm(el: AppRoot): boolean {
+  return !showAbout(el);
 }
 
 // Keep in sync with pick_options in app_root.rs.
@@ -103,4 +163,19 @@ export function onEssay(el: AppRoot, e: Event): void {
 
 export function onZone(el: AppRoot, e: Event): void {
   setMember(el, 'zone', e);
+}
+
+export function onWord(el: AppRoot, e: Event): void {
+  setMember(el, 'word', e);
+}
+
+export function onTab(el: AppRoot, e: Event): void {
+  setMember(el, 'tab', e);
+}
+
+// The slim wrapper (ADR 0014): the word input's live query, answered by the
+// pool — genuinely async in this target, landing as a property write.
+export async function onWordQuery(el: AppRoot, e: Event): Promise<void> {
+  const text = detailValue(e);
+  el.wordSuggestions = await wordPool.query(typeof text === 'string' ? text : '');
 }

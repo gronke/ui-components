@@ -199,3 +199,33 @@ fn a_nothing_hole_still_writes_null_into_the_child() {
     host.set_prop("text", Value::Null);
     assert_eq!(seen.borrow().len(), 2, "no write for an unchanged hole");
 }
+
+#[test]
+fn the_range_timezone_feeds_the_children_as_their_default() {
+    let mut host = host("input-date-range");
+    // Without a zone the children carry no default-timezone attribute.
+    assert!(
+        !host.outer_html().contains("default-timezone"),
+        "no zone, no attribute:\n{}",
+        host.outer_html()
+    );
+
+    // The range's default reaches both children as their default zone.
+    host.set_attr("default-timezone", "Europe/Berlin");
+    let html = host.outer_html();
+    assert_eq!(
+        html.matches("default-timezone=\"Europe/Berlin\"").count(),
+        2,
+        "both children follow the range default:\n{html}"
+    );
+
+    // A picked timezone wins over the default and flips the attribute.
+    host.set_prop("timezone", "America/New_York");
+    let html = host.outer_html();
+    assert_eq!(
+        html.matches("default-timezone=\"America/New_York\"")
+            .count(),
+        2,
+        "the picked zone replaced the default on both children:\n{html}"
+    );
+}

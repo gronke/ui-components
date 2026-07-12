@@ -24,6 +24,16 @@ impl UiEvent {
         }
     }
 
+    /// The live text of a widget as the user types — the browser's
+    /// per-keystroke `input` event; the commit stays with [`UiEvent::change`].
+    pub fn input(target_value: impl Into<String>) -> Self {
+        UiEvent {
+            name: "input".to_string(),
+            target_value: Some(target_value.into()),
+            detail: None,
+        }
+    }
+
     /// A child element's notify event as seen by a parent template binding
     /// (`@value-changed=${handler}` on a nested custom element).
     pub fn notify(event: &NotifyEvent) -> Self {

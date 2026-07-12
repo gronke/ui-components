@@ -135,16 +135,40 @@ impl Mount {
         node: NodeId,
         text: &str,
     ) -> Vec<NotifyEvent> {
+        self.dispatch_widget_event(doc, node, "change", text)
+    }
+
+    /// Routes a widget's live text into the `@input` binding — the
+    /// per-keystroke half beside the commit's `@change`.
+    pub(crate) fn dispatch_widget_input(
+        &mut self,
+        doc: &mut DomDocument,
+        node: NodeId,
+        text: &str,
+    ) -> Vec<NotifyEvent> {
+        self.dispatch_widget_event(doc, node, "input", text)
+    }
+
+    fn dispatch_widget_event(
+        &mut self,
+        doc: &mut DomDocument,
+        node: NodeId,
+        event_name: &str,
+        text: &str,
+    ) -> Vec<NotifyEvent> {
         let handlers: Vec<String> = self
             .bindings
             .iter()
-            .filter(|binding| binding.node == node && binding.event == "change")
+            .filter(|binding| binding.node == node && binding.event == event_name)
             .map(|binding| binding.handler.clone())
             .collect();
         if !handlers.is_empty() {
             let mut events = Vec::new();
             for handler in handlers {
-                let ui_event = UiEvent::change(text.to_string());
+                let ui_event = match event_name {
+                    "input" => UiEvent::input(text.to_string()),
+                    _ => UiEvent::change(text.to_string()),
+                };
                 events.extend(self.update_cycle(doc, |behavior, ctx| {
                     behavior.handle(ctx, &handler, &ui_event);
                 }));
@@ -156,7 +180,7 @@ impl Mount {
             if host == node || doc.ancestors(node).any(|ancestor| ancestor == host) {
                 let events = {
                     let child = self.children.get_mut(&host).expect("listed");
-                    child.dispatch_widget_change(doc, node, text)
+                    child.dispatch_widget_event(doc, node, event_name, text)
                 };
                 return self.route_child_events(doc, host, events);
             }

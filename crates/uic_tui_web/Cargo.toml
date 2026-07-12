@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 uic_core = { workspace = true, features = ["json"] }
 uic_tui.workspace = true
-ui_components.workspace = true
+ui_components = { workspace = true, features = ["tui"] }
 ratatui.workspace = true
 crossterm = "0.29"
 wasm-bindgen.workspace = true
