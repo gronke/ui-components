@@ -269,13 +269,19 @@ fn field_declaration(prop: &PropertyMeta) -> String {
 fn template_has_if(nodes: &[Node]) -> bool {
     nodes.iter().any(|node| match node {
         Node::If { .. } => true,
+        Node::For { body, .. } => template_has_if(body),
         Node::Element(el) => template_has_if(&el.children),
         _ => false,
     })
 }
 
-/// A hole expression as a JS expression on `this`.
+/// A hole expression as a JS expression: `this.<member>` for a property or
+/// computed, or `<var>.<field>` for a loop-variable member (ADR 0018), which
+/// binds to the `.map` parameter, not to `this`.
 fn expr_js(expr: &Expr, def: &ComponentDef) -> String {
+    if let Expr::Member { base, field } = expr {
+        return format!("{base}.{field}");
+    }
     let member = match def.property(expr.ident()) {
         Some(prop) => prop.js_name.to_string(),
         // Not a property: a computed getter generated on the class.
@@ -284,6 +290,7 @@ fn expr_js(expr: &Expr, def: &ComponentDef) -> String {
     match expr {
         Expr::Ident(_) => format!("this.{member}"),
         Expr::Not(_) => format!("!this.{member}"),
+        Expr::Member { .. } => unreachable!("handled above"),
     }
 }
 
@@ -309,6 +316,23 @@ fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {
                 out.push_str(" ? html`");
                 emit_nodes(then, def, out);
                 out.push_str("` : nothing}");
+            }
+            Node::For { each, item, body } => {
+                // The proven `.map` shape (ADR 0006/0018): each row a nested
+                // html literal, the loop variable the map parameter. A nested
+                // source is a member of the outer row (`unknown` to the type
+                // system), so it carries the runtime-shape cast.
+                let source = match each {
+                    Expr::Member { .. } => {
+                        format!("({} as Record<string, unknown>[])", expr_js(each, def))
+                    }
+                    _ => expr_js(each, def),
+                };
+                out.push_str("${");
+                out.push_str(&source);
+                out.push_str(&format!(".map(({item}) => html`"));
+                emit_nodes(body, def, out);
+                out.push_str("`)}");
             }
             Node::Element(el) => {
                 let select_options = if el.tag == "select" {

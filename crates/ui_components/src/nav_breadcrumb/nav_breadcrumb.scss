@@ -1,0 +1,13 @@
+// The host is a block like every catalog element; the trail lays itself out
+// with utilities, so only the link dressing lives here.
+.el-nav-breadcrumb {
+  display: block;
+
+  a {
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

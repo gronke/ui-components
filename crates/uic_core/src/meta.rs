@@ -24,6 +24,9 @@ pub enum JsType {
     /// `Record<string, unknown>` — object-valued, property-only; Rust side
     /// is `ObjectMap` and starts empty (ADR 0013).
     Object,
+    /// `unknown[]` — object-valued, property-only; Rust side is `Vec<Value>`
+    /// and starts empty, the carrier of iterated rows (ADR 0018).
+    Array,
 }
 
 impl JsType {
@@ -37,13 +40,18 @@ impl JsType {
             JsType::Zoned => "Temporal.ZonedDateTime | null",
             JsType::Options => "SelectOption[]",
             JsType::Object => "Record<string, unknown>",
+            // Rows are objects, so a member hole `${row.field}` typechecks.
+            JsType::Array => "Record<string, unknown>[]",
         }
     }
 
     /// Object-valued types carry no attribute serialization: no observed
     /// attribute, no reflection, values only through the property (ADR 0005).
     pub fn is_property_only(&self) -> bool {
-        matches!(self, JsType::Zoned | JsType::Options | JsType::Object)
+        matches!(
+            self,
+            JsType::Zoned | JsType::Options | JsType::Object | JsType::Array
+        )
     }
 }
 
@@ -69,6 +77,8 @@ pub enum DefaultValue {
     EmptyOptions,
     /// Object maps always start empty (`{}`), never undefined.
     EmptyObject,
+    /// Arrays always start empty (`[]`), never undefined.
+    EmptyArray,
 }
 
 impl DefaultValue {
@@ -80,6 +90,7 @@ impl DefaultValue {
             DefaultValue::Bool(b) => Value::Bool(b),
             DefaultValue::EmptyOptions => Value::Options(Vec::new()),
             DefaultValue::EmptyObject => Value::Object(crate::object::ObjectMap::new()),
+            DefaultValue::EmptyArray => Value::Array(Vec::new()),
         }
     }
 
@@ -97,6 +108,7 @@ impl DefaultValue {
             DefaultValue::Bool(b) => Some(b.to_string()),
             DefaultValue::EmptyOptions => Some("[]".to_string()),
             DefaultValue::EmptyObject => Some("{}".to_string()),
+            DefaultValue::EmptyArray => Some("[]".to_string()),
         }
     }
 }

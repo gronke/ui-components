@@ -22,3 +22,6 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0015](0015-component-directories.md) | A component's directory holds all of its targets |
 | [0016](0016-tui-compatibility-lint.md) | A linked lint validates TUI compatibility |
 | [0017](0017-nav-tabs-and-the-card.md) | nav-tabs is a value-driven bar; the card is the bordered block |
+| [0018](0018-template-iteration.md) | Template iteration over data rows |
+| [0019](0019-table-layout.md) | Tables lay out as shared column tracks |
+| [0020](0020-nav-breadcrumb.md) | A static breadcrumb trail |

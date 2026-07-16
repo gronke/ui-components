@@ -23,6 +23,9 @@ pub enum Value {
     /// An object-valued string-keyed map (plain JS object analog), the
     /// carrier of state-shaped properties (ADR 0013).
     Object(ObjectMap),
+    /// An object-valued ordered list (JS array analog), the carrier of
+    /// iterated rows (ADR 0018).
+    Array(Vec<Value>),
 }
 
 impl Value {
@@ -35,8 +38,8 @@ impl Value {
             Value::Num(n) => *n != 0.0 && !n.is_nan(),
             Value::Bool(b) => *b,
             Value::Zoned(_) => true,
-            // Arrays and maps are objects: truthy even when empty.
-            Value::Options(_) | Value::Object(_) => true,
+            // Lists and maps are objects: truthy even when empty.
+            Value::Options(_) | Value::Object(_) | Value::Array(_) => true,
         }
     }
 
@@ -68,6 +71,13 @@ impl Value {
         }
     }
 
+    pub fn as_array(&self) -> Option<&[Value]> {
+        match self {
+            Value::Array(items) => Some(items),
+            _ => None,
+        }
+    }
+
     /// Text rendering for text and attribute positions.
     /// `undefined`/`null` render empty, like lit-html child parts.
     /// A zoned timestamp renders Temporal-style ISO.
@@ -78,9 +88,9 @@ impl Value {
             Value::Num(n) => format_number(*n),
             Value::Bool(b) => b.to_string(),
             Value::Zoned(z) => z.iso(),
-            // Option lists and object maps never legitimately reach text
-            // position (property-only shapes); render nothing.
-            Value::Options(_) | Value::Object(_) => String::new(),
+            // Option lists, object maps and arrays never legitimately reach
+            // text position (property-only shapes); render nothing.
+            Value::Options(_) | Value::Object(_) | Value::Array(_) => String::new(),
         }
     }
 }
@@ -133,6 +143,12 @@ impl From<Vec<SelectOption>> for Value {
 impl From<ObjectMap> for Value {
     fn from(object: ObjectMap) -> Self {
         Value::Object(object)
+    }
+}
+
+impl From<Vec<Value>> for Value {
+    fn from(items: Vec<Value>) -> Self {
+        Value::Array(items)
     }
 }
 
@@ -276,8 +292,9 @@ mod tests {
         assert!(Value::Num(2.0).truthy());
         assert!(!Value::Bool(false).truthy());
         assert!(Value::Bool(true).truthy());
-        // Objects are truthy even when empty.
+        // Objects and arrays are truthy even when empty.
         assert!(Value::Object(ObjectMap::new()).truthy());
+        assert!(Value::Array(Vec::new()).truthy());
     }
 
     #[test]
@@ -289,6 +306,7 @@ mod tests {
         assert_eq!(Value::Num(3.5).display_text(), "3.5");
         assert_eq!(Value::Bool(true).display_text(), "true");
         assert_eq!(Value::Object(ObjectMap::new()).display_text(), "");
+        assert_eq!(Value::Array(Vec::new()).display_text(), "");
     }
 
     #[test]

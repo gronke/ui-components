@@ -86,5 +86,72 @@
       "query": "zzz",
       "expect": []
     }
+  ],
+  "breadcrumb": [
+    {
+      "items": [],
+      "divider": "›",
+      "expect": []
+    },
+    {
+      "items": [
+        {
+          "label": "Documents",
+          "href": "/documents"
+        },
+        {
+          "label": "Reports",
+          "href": "/documents/reports"
+        },
+        {
+          "label": "Q3"
+        }
+      ],
+      "divider": "›",
+      "expect": [
+        {
+          "href": "/documents",
+          "label": "Documents",
+          "plain": false,
+          "sep": ""
+        },
+        {
+          "href": "/documents/reports",
+          "label": "Reports",
+          "plain": false,
+          "sep": "›"
+        },
+        {
+          "href": "",
+          "label": "Q3",
+          "plain": true,
+          "sep": "›"
+        }
+      ]
+    },
+    {
+      "items": [
+        null,
+        {
+          "label": "End",
+          "href": ""
+        }
+      ],
+      "divider": "/",
+      "expect": [
+        {
+          "href": "",
+          "label": "",
+          "plain": true,
+          "sep": ""
+        },
+        {
+          "href": "",
+          "label": "End",
+          "plain": true,
+          "sep": "/"
+        }
+      ]
+    }
   ]
 }

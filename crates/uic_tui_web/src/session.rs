@@ -76,21 +76,20 @@ impl TuiSession {
     }
 
     /// Replays a property write from JSON: `null`, booleans, numbers,
-    /// strings and object maps convert to their `Value` analogs (objects
-    /// recursively). Arrays and malformed JSON error; unknown property
-    /// names no-op like the DOM runtime.
+    /// strings, object maps and arrays convert to their `Value` analogs
+    /// (recursively). Malformed JSON errors; unknown property names no-op
+    /// like the DOM runtime.
     pub fn set_prop_json(&mut self, index: u32, name: &str, json: &str) -> Result<(), JsError> {
         let parsed: serde_json::Value = serde_json::from_str(json).map_err(js_err)?;
-        let value = uic_core::json::value_from_json(&parsed).map_err(js_err)?;
+        let value = uic_core::json::value_from_json(&parsed);
         self.app.set_prop(index as usize, name, value);
         Ok(())
     }
 
     /// Replays an option list property as JSON rows of
-    /// `{value, short?, label?}` — options are data (ADR 0006). This is the
-    /// deliberate array escape hatch beside `set_prop_json`, whose state
-    /// converter rejects arrays: a host mounting a bare `<input-select>`
-    /// feeds the rows through here.
+    /// `{value, short?, label?}` — options are their own data type, distinct
+    /// from a plain array (ADR 0006): a host mounting a bare `<input-select>`
+    /// feeds the rows through here so they land as `Value::Options`.
     pub fn set_options_json(&mut self, index: u32, json: &str) -> Result<(), JsError> {
         let options = options_from_json(json).map_err(js_err)?;
         self.app.set_prop(index as usize, "options", options);

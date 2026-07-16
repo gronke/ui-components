@@ -107,11 +107,7 @@ fn json_state_drives_the_screen_like_the_session() {
 
     let parsed: serde_json::Value =
         serde_json::from_str(r#"{"note":"hi","date":"2026-07-07"}"#).unwrap();
-    app.set_prop(
-        el,
-        "state",
-        uic_core::json::value_from_json(&parsed).unwrap(),
-    );
+    app.set_prop(el, "state", uic_core::json::value_from_json(&parsed));
     app.draw().unwrap();
 
     let screen = app.terminal().backend().screen_text();

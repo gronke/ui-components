@@ -47,6 +47,14 @@ pub enum Node {
         cond: Expr,
         then: Vec<Node>,
     },
+    /// `<template for=${each} as=item>…</template>` — repeats the body once
+    /// per element of the array `each`, binding each element to `item`
+    /// (ADR 0018).
+    For {
+        each: Expr,
+        item: String,
+        body: Vec<Node>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,18 +105,26 @@ pub enum AttrPart {
     Expr(Expr),
 }
 
-/// A hole expression: a property/computed reference, optionally negated.
+/// A hole expression: a property/computed reference, optionally negated, or a
+/// member of a loop variable (ADR 0018).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Ident(String),
     Not(String),
+    /// `${base.field}` — the `field` member of the loop variable `base`.
+    Member {
+        base: String,
+        field: String,
+    },
 }
 
 impl Expr {
-    /// The referenced property or computed-property name.
+    /// The referenced name: a property/computed for `Ident`/`Not`, the loop
+    /// variable for `Member`.
     pub fn ident(&self) -> &str {
         match self {
             Expr::Ident(name) | Expr::Not(name) => name,
+            Expr::Member { base, .. } => base,
         }
     }
 }
@@ -118,10 +134,12 @@ impl Template {
     pub fn referenced_idents(&self) -> BTreeSet<&str> {
         let mut set = BTreeSet::new();
         collect(&self.roots, &mut |node| match node {
-            NodeRef::Expr(expr) => {
-                set.insert(expr.ident());
+            // A member hole references a loop variable, not a component
+            // property, so it never contributes a referenced ident.
+            NodeRef::Expr(Expr::Ident(name) | Expr::Not(name)) => {
+                set.insert(name.as_str());
             }
-            NodeRef::Handler(_) => {}
+            NodeRef::Expr(Expr::Member { .. }) | NodeRef::Handler(_) => {}
         });
         set
     }
@@ -150,6 +168,7 @@ impl Template {
                         walk(&el.children, set);
                     }
                     Node::If { then, .. } => walk(then, set),
+                    Node::For { body, .. } => walk(body, set),
                     Node::Text(_) | Node::TextHole(_) => {}
                 }
             }
@@ -173,6 +192,10 @@ fn collect<'t>(nodes: &'t [Node], f: &mut impl FnMut(NodeRef<'t>)) {
             Node::If { cond, then } => {
                 f(NodeRef::Expr(cond));
                 collect(then, f);
+            }
+            Node::For { each, body, .. } => {
+                f(NodeRef::Expr(each));
+                collect(body, f);
             }
             Node::Element(el) => {
                 for attr in &el.attrs {
@@ -254,6 +277,11 @@ fn splice_nodes(
             Node::If { cond, then } => out.push(Node::If {
                 cond: cond.clone(),
                 then: splice_nodes(then, inner, replaced)?,
+            }),
+            Node::For { each, item, body } => out.push(Node::For {
+                each: each.clone(),
+                item: item.clone(),
+                body: splice_nodes(body, inner, replaced)?,
             }),
             Node::Text(_) | Node::TextHole(_) => out.push(node.clone()),
         }

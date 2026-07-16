@@ -34,17 +34,27 @@ struct Hints {
 }
 
 impl Hints {
-    fn merge(mut self, classes: &[String]) -> Self {
+    /// Merges an element's contribution: the tag first (a `<th>` reads bold,
+    /// like the browser default), then the classes.
+    fn merge(mut self, tag: &str, classes: &[String]) -> Self {
+        if tag == "th" {
+            self.bold = true;
+        }
         for class in classes {
             match class.as_str() {
-                "form-label" => self.bold = true,
+                "form-label" | "fw-bold" => self.bold = true,
                 "fst-italic" => self.italic = true,
                 "small" | "text-small" => self.dim = true,
                 "text-center" => self.center = true,
-                // The bright variant reads on dark terminal themes; the web
-                // pane maps it to Bootstrap's danger text emphasis.
+                // The bright variants read on dark terminal themes; the web
+                // pane maps the same classes to Bootstrap's text emphasis.
                 "text-danger" => self.fg = Some(Color::LightRed),
-                "text-muted" | "text-secondary" => self.fg = Some(Color::DarkGray),
+                "text-success" => self.fg = Some(Color::LightGreen),
+                "text-warning" => self.fg = Some(Color::LightYellow),
+                "text-info" => self.fg = Some(Color::LightCyan),
+                "text-muted" | "text-secondary" | "text-body-secondary" => {
+                    self.fg = Some(Color::DarkGray)
+                }
                 _ => {}
             }
         }
@@ -97,10 +107,12 @@ fn paint(
         Some(NodeData::Text(text)) => {
             let text = collapse_whitespace(text);
             // Wrapped like the browser flows prose; the layout reserved the
-            // rows (`wrapped_lines`).
+            // rows (`wrapped_lines`). The collapse already trimmed the ends,
+            // so an untrimmed wrap only preserves leading non-breaking
+            // spaces — ratatui's trim would strip them as whitespace.
             let paragraph = Paragraph::new(Line::from(text))
                 .style(hints.style())
-                .wrap(Wrap { trim: true });
+                .wrap(Wrap { trim: false });
             let paragraph = if hints.center {
                 paragraph.alignment(Alignment::Center)
             } else {
@@ -114,7 +126,7 @@ fn paint(
                 return;
             }
             let classes = effective_classes(doc, laid.node);
-            let hints = hints.merge(&classes);
+            let hints = hints.merge(el.tag(), &classes);
             if classes.iter().any(|c| c == "card") {
                 // The card border stays static dark gray (ADR 0017): the
                 // focus ring and error dressing belong to the input group.

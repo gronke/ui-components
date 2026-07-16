@@ -71,6 +71,10 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
         return Err(syn::Error::new(template.span, msg));
     }
 
+    if let Err(msg) = validate_for_bodies(&parsed.roots) {
+        return Err(syn::Error::new(template.span, msg));
+    }
+
     // Split referenced names: declared properties stay properties, the rest
     // become computed getters on the Logic trait.
     let prop_names: Vec<&str> = props.iter().map(|p| p.rust_name.as_str()).collect();
@@ -302,6 +306,46 @@ fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String>
                 validate_options_bindings(&el.children)?;
             }
             Node::If { then, .. } => validate_options_bindings(then)?,
+            Node::For { body, .. } => validate_options_bindings(body)?,
+            Node::Text(_) | Node::TextHole(_) => {}
+        }
+    }
+    Ok(())
+}
+
+/// A `for` body renders data rows, not widgets: it may not mount a custom
+/// element or a `data-tui` widget, whose instance counts the slot model needs
+/// fixed (ADR 0006/0018). Lists of widgets stay options-as-data.
+fn validate_for_bodies(nodes: &[uic_template::Node]) -> Result<(), String> {
+    use uic_template::{Attribute, Node};
+    fn no_widgets(nodes: &[Node]) -> Result<(), String> {
+        for node in nodes {
+            match node {
+                Node::Element(el) => {
+                    let is_widget = el.attrs.iter().any(
+                        |attr| matches!(attr, Attribute::Static { name, .. } if name == "data-tui"),
+                    );
+                    if el.is_custom() || is_widget {
+                        return Err(format!(
+                            "<{}> is a widget and cannot appear inside a <template for=…>; \
+                             a loop body renders data rows, not widgets (ADR 0006/0018)",
+                            el.tag
+                        ));
+                    }
+                    no_widgets(&el.children)?;
+                }
+                Node::If { then, .. } => no_widgets(then)?,
+                Node::For { body, .. } => no_widgets(body)?,
+                Node::Text(_) | Node::TextHole(_) => {}
+            }
+        }
+        Ok(())
+    }
+    for node in nodes {
+        match node {
+            Node::For { body, .. } => no_widgets(body)?,
+            Node::Element(el) => validate_for_bodies(&el.children)?,
+            Node::If { then, .. } => validate_for_bodies(then)?,
             Node::Text(_) | Node::TextHole(_) => {}
         }
     }
@@ -319,6 +363,7 @@ fn chrome_has_data_tui(nodes: &[uic_template::Node]) -> bool {
                 || chrome_has_data_tui(&el.children)
         }
         Node::If { then, .. } => chrome_has_data_tui(then),
+        Node::For { body, .. } => chrome_has_data_tui(body),
         Node::Text(_) | Node::TextHole(_) => false,
     })
 }

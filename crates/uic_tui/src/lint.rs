@@ -128,6 +128,7 @@ fn walk(
                 crumbs.pop();
             }
             Node::If { then, .. } => walk(component, then, crumbs, lookup, findings),
+            Node::For { body, .. } => walk(component, body, crumbs, lookup, findings),
             Node::Text(_) | Node::TextHole(_) => {}
         }
     }

@@ -7,10 +7,12 @@
 pub mod connect;
 pub mod demo;
 pub mod input;
+pub mod nav_breadcrumb;
 pub mod nav_tabs;
 
 pub use demo::AppRoot;
 pub use input::InputDate;
+pub use nav_breadcrumb::NavBreadcrumb;
 pub use nav_tabs::NavTabs;
 
 /// Anchors this crate's object code so `inventory` registrations survive the

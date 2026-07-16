@@ -140,6 +140,11 @@ fn build(
                     children: Vec::new(),
                 });
             }
+            if &**el.tag() == "table" {
+                if let Some(shadow) = build_table(tree, doc, node, &classes, root_child) {
+                    return Some(shadow);
+                }
+            }
             let children: Vec<Shadow> = doc
                 .children(node)
                 .collect::<Vec<_>>()
@@ -164,6 +169,112 @@ fn build(
         }
         _ => None,
     }
+}
+
+/// Lays a `<table>` out as a grid with shared column tracks (ADR 0019).
+///
+/// The section elements and `<tr>` are structural: the cells become the grid
+/// items, placed explicitly by row and column line so a short row never
+/// shifts later ones. `auto` tracks size to the largest cell across all rows
+/// — the alignment separate flex rows cannot express. A `table`-classed (or
+/// `w-100`) table fills its row with `minmax(auto, 1fr)` tracks, like the
+/// browser's `width: 100%` table.
+///
+/// Returns `None` when no cells exist, falling back to the block path.
+fn build_table(
+    tree: &mut TaffyTree<Measured>,
+    doc: &DomDocument,
+    node: uic_dom::NodeId,
+    classes: &[String],
+    root_child: bool,
+) -> Option<Shadow> {
+    let is_tag = |candidate: uic_dom::NodeId, name: &str| {
+        doc.tag_name(candidate).map(|tag| &**tag == name) == Some(true)
+    };
+
+    // Rows in document order: direct <tr> children and <tr> under the
+    // section elements. Everything else (template anchors, stray text) is
+    // structural noise here.
+    let mut rows: Vec<uic_dom::NodeId> = Vec::new();
+    for child in doc.children(node).collect::<Vec<_>>() {
+        if is_tag(child, "tr") {
+            rows.push(child);
+        } else if ["thead", "tbody", "tfoot"]
+            .iter()
+            .any(|section| is_tag(child, section))
+        {
+            rows.extend(
+                doc.children(child)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .filter(|&inner| is_tag(inner, "tr")),
+            );
+        }
+    }
+
+    let cells_per_row: Vec<Vec<uic_dom::NodeId>> = rows
+        .iter()
+        .map(|&row| {
+            doc.children(row)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .filter(|&cell| is_tag(cell, "td") || is_tag(cell, "th"))
+                .collect()
+        })
+        .collect();
+    let columns = cells_per_row.iter().map(Vec::len).max().unwrap_or(0);
+    if columns == 0 {
+        return None;
+    }
+
+    // The cells build through the ordinary recursion and then receive their
+    // explicit grid placement.
+    let mut children: Vec<Shadow> = Vec::new();
+    for (row_index, cells) in cells_per_row.iter().enumerate() {
+        for (column_index, &cell) in cells.iter().enumerate() {
+            let Some(shadow) = build(tree, doc, cell, false) else {
+                continue;
+            };
+            let mut style = tree.style(shadow.taffy).expect("cell style").clone();
+            style.grid_row = line(row_index as i16 + 1);
+            style.grid_column = line(column_index as i16 + 1);
+            tree.set_style(shadow.taffy, style).expect("cell placement");
+            children.push(shadow);
+        }
+    }
+
+    // Bootstrap's shrink-to-fit idiom `table w-auto` opts back out of fill.
+    let fill = classes
+        .iter()
+        .any(|class| class == "table" || class == "w-100")
+        && !classes.iter().any(|class| class == "w-auto");
+    let track: GridTemplateComponent<String> = if fill {
+        minmax(auto(), fr(1.0_f32))
+    } else {
+        auto()
+    };
+    let mut style = container_style(classes);
+    style.display = Display::Grid;
+    style.grid_template_columns = vec![track; columns];
+    style.gap.width = length(1.0_f32);
+    if fill {
+        style.size.width = percent(1.0_f32);
+    } else {
+        // A plain table hugs its content like the browser's: packing the
+        // tracks at the start keeps `auto` tracks content-sized instead of
+        // stretching into the block-level free space.
+        style.justify_content = Some(JustifyContent::START);
+    }
+    if root_child {
+        style.margin.bottom = length(1.0_f32);
+    }
+    let ids: Vec<NodeId> = children.iter().map(|shadow| shadow.taffy).collect();
+    let taffy = tree.new_with_children(style, &ids).expect("taffy table");
+    Some(Shadow {
+        node,
+        taffy,
+        children,
+    })
 }
 
 /// The node's classes, with the component-state rewrites the browser gets
@@ -362,18 +473,29 @@ fn collect(
     }
 }
 
+/// Collapses runs of ASCII whitespace to single spaces and trims the ends,
+/// like the browser flows prose. Non-breaking spaces are content, not
+/// separators — the browser renders `&nbsp;`, so the terminal keeps it too
+/// (indentation would otherwise collapse away).
 pub(crate) fn collapse_whitespace(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
+    words(text).collect::<Vec<_>>().join(" ")
 }
 
-/// Greedy word wrap in cells, the reservation behind ratatui's trimmed
-/// `Wrap`: words fill each line up to the width and an oversized word
-/// breaks across lines.
+/// The wrap words of a text: runs unbroken by ASCII whitespace, so a
+/// non-breaking space glues its neighbors into one word.
+fn words(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|c: char| c.is_ascii_whitespace())
+        .filter(|word| !word.is_empty())
+}
+
+/// Greedy word wrap in cells, the reservation behind ratatui's `Wrap`:
+/// words fill each line up to the width and an oversized word breaks
+/// across lines.
 fn wrapped_lines(text: &str, width: f32) -> u16 {
     let width = width.round().max(1.0) as usize;
     let mut lines: u16 = 1;
     let mut used = 0usize;
-    for word in text.split_whitespace() {
+    for word in words(text) {
         let len = word.width();
         if used > 0 && used + 1 + len <= width {
             used += 1 + len;
@@ -398,10 +520,7 @@ fn wrapped_lines(text: &str, width: f32) -> u16 {
 
 /// The widest single word — the narrowest a text can measure (MinContent).
 fn longest_word(text: &str) -> f32 {
-    text.split_whitespace()
-        .map(|word| word.width())
-        .max()
-        .unwrap_or(0) as f32
+    words(text).map(|word| word.width()).max().unwrap_or(0) as f32
 }
 
 /// Rounds to whole cells and clips to the drawable area (rounding lives here
@@ -416,5 +535,181 @@ fn clamp_rect(x: f32, y: f32, width: f32, height: f32, bounds: Rect) -> Rect {
         y: y0,
         width: x1.saturating_sub(x0),
         height: y1.saturating_sub(y0),
+    }
+}
+
+#[cfg(test)]
+mod text_tests {
+    use super::*;
+
+    #[test]
+    fn ascii_whitespace_collapses_and_trims() {
+        assert_eq!(collapse_whitespace("  a \n\t b  "), "a b");
+    }
+
+    #[test]
+    fn non_breaking_spaces_survive_the_collapse() {
+        assert_eq!(
+            collapse_whitespace("\n  \u{a0}\u{a0}indented rest\n"),
+            "\u{a0}\u{a0}indented rest"
+        );
+    }
+
+    #[test]
+    fn non_breaking_spaces_glue_wrap_words() {
+        // One 8-cell word (two NBSPs plus "abcdef"): it wraps as a unit, so
+        // a 10-cell line holds it and pushes the next word down.
+        assert_eq!(wrapped_lines("\u{a0}\u{a0}abcdef xyz", 10.0), 2);
+        assert_eq!(longest_word("\u{a0}\u{a0}abcdef xyz"), 8.0);
+    }
+}
+
+#[cfg(test)]
+mod table_tests {
+    use super::*;
+    use crate::dom::DomDocument;
+
+    fn add_cell(doc: &mut DomDocument, row: uic_dom::NodeId, tag: &str, text: &str) {
+        let cell = doc.create_element_named(tag);
+        let content = doc.create_text_node(text);
+        doc.append_child(cell, content);
+        doc.append_child(row, cell);
+    }
+
+    /// Builds a `<table><tbody>` with one `<tr>` per row slice.
+    fn add_table(doc: &mut DomDocument, class: Option<&str>, rows: &[&[&str]]) {
+        let table = doc.create_element_named("table");
+        if let Some(class) = class {
+            doc.set_attribute(table, "class", class);
+        }
+        let root = doc.root();
+        doc.append_child(root, table);
+        let tbody = doc.create_element_named("tbody");
+        doc.append_child(table, tbody);
+        for cells in rows {
+            let tr = doc.create_element_named("tr");
+            doc.append_child(tbody, tr);
+            for text in *cells {
+                add_cell(doc, tr, "td", text);
+            }
+        }
+    }
+
+    #[test]
+    fn columns_share_tracks_across_rows() {
+        let mut doc = DomDocument::new();
+        add_table(
+            &mut doc,
+            None,
+            &[
+                &["a", "considerably-longer-cell", "x"],
+                &["wider-first-cell", "b", "y"],
+            ],
+        );
+        let laid = compute(&doc, Rect::new(0, 0, 80, 12));
+        let table = &laid[0];
+        // The cells are the table's direct laid children, in row-major order.
+        assert_eq!(table.children.len(), 6);
+        for column in 0..3 {
+            assert_eq!(
+                table.children[column].rect.x,
+                table.children[3 + column].rect.x,
+                "column {column} shares its track across rows",
+            );
+        }
+        // The widest cell wins its column: the second column fits the long text.
+        let second = &table.children[1];
+        assert!(
+            second.rect.width >= "considerably-longer-cell".len() as u16,
+            "track fits the widest cell: {:?}",
+            second.rect,
+        );
+        // Without the fill classes the tracks hug their content: the last
+        // column ends well before the row does.
+        let last = &table.children[2];
+        assert!(
+            last.rect.x + last.rect.width < 60,
+            "content-sized tracks: {:?}",
+            last.rect,
+        );
+    }
+
+    #[test]
+    fn classed_table_fills_the_row_and_ragged_rows_stay_placed() {
+        let mut doc = DomDocument::new();
+        add_table(
+            &mut doc,
+            Some("table"),
+            &[&["alpha", "beta", "gamma"], &["delta", "epsilon"]],
+        );
+        let laid = compute(&doc, Rect::new(0, 0, 60, 12));
+        let table = &laid[0];
+        assert_eq!(table.rect.width, 60, "the table class fills the row");
+        assert_eq!(table.children.len(), 5);
+        // The short row's cells keep their columns; nothing drifts into the
+        // missing third slot.
+        assert_eq!(table.children[0].rect.x, table.children[3].rect.x);
+        assert_eq!(table.children[1].rect.x, table.children[4].rect.x);
+    }
+
+    #[test]
+    fn header_rows_count_like_body_rows() {
+        let mut doc = DomDocument::new();
+        let table = doc.create_element_named("table");
+        let root = doc.root();
+        doc.append_child(root, table);
+        let thead = doc.create_element_named("thead");
+        doc.append_child(table, thead);
+        let head_row = doc.create_element_named("tr");
+        doc.append_child(thead, head_row);
+        add_cell(&mut doc, head_row, "th", "Name");
+        add_cell(&mut doc, head_row, "th", "State");
+        let tbody = doc.create_element_named("tbody");
+        doc.append_child(table, tbody);
+        let body_row = doc.create_element_named("tr");
+        doc.append_child(tbody, body_row);
+        add_cell(&mut doc, body_row, "td", "a-much-longer-name");
+        add_cell(&mut doc, body_row, "td", "ok");
+
+        let laid = compute(&doc, Rect::new(0, 0, 80, 12));
+        let table = &laid[0];
+        assert_eq!(table.children.len(), 4);
+        assert_eq!(table.children[0].rect.x, table.children[2].rect.x);
+        assert_eq!(table.children[1].rect.x, table.children[3].rect.x);
+        // The header sits above the body row.
+        assert!(table.children[0].rect.y < table.children[2].rect.y);
+    }
+
+    #[test]
+    fn w_auto_opts_a_classed_table_back_into_hugging() {
+        let mut doc = DomDocument::new();
+        add_table(
+            &mut doc,
+            Some("table w-auto"),
+            &[&["alpha", "beta"], &["a", "b"]],
+        );
+        let laid = compute(&doc, Rect::new(0, 0, 60, 8));
+        let table = &laid[0];
+        let last = &table.children[1];
+        assert!(
+            last.rect.x + last.rect.width < 30,
+            "content-sized tracks: {:?}",
+            last.rect,
+        );
+        assert_eq!(table.children[0].rect.x, table.children[2].rect.x);
+    }
+
+    #[test]
+    fn a_table_without_cells_stays_a_block() {
+        let mut doc = DomDocument::new();
+        let table = doc.create_element_named("table");
+        let root = doc.root();
+        doc.append_child(root, table);
+        let text = doc.create_text_node("just text");
+        doc.append_child(table, text);
+
+        let laid = compute(&doc, Rect::new(0, 0, 40, 4));
+        // The block fallback keeps the text as an ordinary laid child.
+        assert_eq!(laid[0].children.len(), 1);
     }
 }

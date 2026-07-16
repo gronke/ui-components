@@ -15,11 +15,20 @@ fn compute(state: &serde_json::Value, name: &str) -> serde_json::Value {
     let def = uic_core::CustomElementRegistry::get("app-root").expect("app-root registered");
     let mut store = uic_core::PropertyStore::new(def.properties);
     let behavior = (def.new_behavior)();
-    store.set(
-        "state",
-        uic_core::json::value_from_json(state).expect("state converts"),
-    );
+    store.set("state", uic_core::json::value_from_json(state));
     uic_core::json::value_to_json(&behavior.compute(&store, name))
+}
+
+/// The `crumbs` computed of a fresh nav-breadcrumb holding `items` and
+/// `divider`, as JSON.
+fn breadcrumb_crumbs(items: &serde_json::Value, divider: &str) -> serde_json::Value {
+    let def =
+        uic_core::CustomElementRegistry::get("nav-breadcrumb").expect("nav-breadcrumb registered");
+    let mut store = uic_core::PropertyStore::new(def.properties);
+    let behavior = (def.new_behavior)();
+    store.set("items", uic_core::json::value_from_json(items));
+    store.set("divider", divider);
+    uic_core::json::value_to_json(&behavior.compute(&store, "crumbs"))
 }
 
 #[test]
@@ -45,6 +54,14 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
     )
     .unwrap();
     fs::write(build.join("uic-connectors.js"), js).unwrap();
+    // The breadcrumb twin (type-only imports, so it stages standalone).
+    let breadcrumb_def = uic_core::CustomElementRegistry::get("nav-breadcrumb").unwrap();
+    let impl_ts = breadcrumb_def
+        .web_impl
+        .expect("nav-breadcrumb has a web impl");
+    let js =
+        web_modules::typescript::compile_str(impl_ts, Path::new("nav-breadcrumb.impl.ts")).unwrap();
+    fs::write(build.join("nav-breadcrumb.impl.js"), js).unwrap();
 
     // The fixture states: sparse, full, null-bearing and tabbed — the
     // shapes the transport delivers (ADR 0013).
@@ -85,7 +102,32 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
         })
         .collect();
 
-    let fixtures = json!({ "cases": cases, "suggest": suggest });
+    // The breadcrumb fixtures: items and divider through the trail's crumbs
+    // computed — the node side must decorate identically.
+    let trails = [
+        (json!([]), "›"),
+        (
+            json!([
+                { "label": "Documents", "href": "/documents" },
+                { "label": "Reports", "href": "/documents/reports" },
+                { "label": "Q3" }
+            ]),
+            "›",
+        ),
+        (json!([null, { "label": "End", "href": "" }]), "/"),
+    ];
+    let breadcrumb: Vec<serde_json::Value> = trails
+        .iter()
+        .map(|(items, divider)| {
+            json!({
+                "items": items,
+                "divider": divider,
+                "expect": breadcrumb_crumbs(items, divider),
+            })
+        })
+        .collect();
+
+    let fixtures = json!({ "cases": cases, "suggest": suggest, "breadcrumb": breadcrumb });
 
     let path = dir.join("fixtures.json");
     if std::env::var_os("UPDATE_EXPECTED").is_some() {

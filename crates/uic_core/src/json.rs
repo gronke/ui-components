@@ -7,7 +7,7 @@ use crate::value::Value;
 /// Renders a value as JSON, matching the browser notify detail: `undefined`
 /// and `NaN` become `null`, a zoned timestamp its ISO string (the
 /// `Temporal.ZonedDateTime.toJSON` output), option lists their data rows,
-/// and object maps sorted-key objects.
+/// object maps sorted-key objects, and arrays their elements.
 pub fn value_to_json(value: &Value) -> serde_json::Value {
     match value {
         Value::Undefined | Value::Null => serde_json::Value::Null,
@@ -35,6 +35,7 @@ pub fn value_to_json(value: &Value) -> serde_json::Value {
                 .map(|(key, value)| (key.to_string(), value_to_json(value)))
                 .collect(),
         ),
+        Value::Array(items) => serde_json::Value::Array(items.iter().map(value_to_json).collect()),
     }
 }
 
@@ -76,30 +77,27 @@ fn canonical_string(json: &serde_json::Value) -> String {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum FromJsonError {
-    #[error("array values are unsupported; option lists are data, not state (ADR 0006)")]
-    Array,
-}
-
 /// Reads a value from JSON: `null`, booleans, numbers and strings map 1:1,
-/// objects recurse into [`ObjectMap`]. The conversion is deliberately
-/// lossy-asymmetric: strings stay strings (no `Zoned` re-hydration) and
-/// arrays error — nothing state-shaped is array-valued.
-pub fn value_from_json(json: &serde_json::Value) -> Result<Value, FromJsonError> {
+/// objects recurse into [`ObjectMap`], arrays into [`Value::Array`]. The
+/// conversion is deliberately lossy-asymmetric: strings stay strings (no
+/// `Zoned` re-hydration) and a JSON array of option rows reads back as a
+/// plain array of objects, not `Value::Options` (options are one-way data).
+pub fn value_from_json(json: &serde_json::Value) -> Value {
     match json {
-        serde_json::Value::Null => Ok(Value::Null),
-        serde_json::Value::Bool(b) => Ok(Value::Bool(*b)),
-        serde_json::Value::Number(n) => Ok(Value::Num(n.as_f64().unwrap_or(f64::NAN))),
-        serde_json::Value::String(s) => Ok(Value::Str(s.clone())),
+        serde_json::Value::Null => Value::Null,
+        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Number(n) => Value::Num(n.as_f64().unwrap_or(f64::NAN)),
+        serde_json::Value::String(s) => Value::Str(s.clone()),
         serde_json::Value::Object(members) => {
             let mut object = ObjectMap::new();
             for (key, member) in members {
-                object.insert(key.clone(), value_from_json(member)?);
+                object.insert(key.clone(), value_from_json(member));
             }
-            Ok(Value::Object(object))
+            Value::Object(object)
         }
-        serde_json::Value::Array(_) => Err(FromJsonError::Array),
+        serde_json::Value::Array(items) => {
+            Value::Array(items.iter().map(value_from_json).collect())
+        }
     }
 }
 
@@ -116,7 +114,7 @@ mod tests {
             Value::Num(12.5),
             Value::Str("x".into()),
         ] {
-            assert_eq!(value_from_json(&value_to_json(&value)).unwrap(), value);
+            assert_eq!(value_from_json(&value_to_json(&value)), value);
         }
     }
 
@@ -131,7 +129,7 @@ mod tests {
             r#"{"date":"2026-07-07","zone":"UTC"}"#
         );
         assert_eq!(
-            value_from_json(&value_to_json(&value)).unwrap(),
+            value_from_json(&value_to_json(&value)),
             Value::Object(state)
         );
     }
@@ -177,13 +175,13 @@ mod tests {
             json,
             serde_json::Value::String("2026-07-07T00:00:00+02:00[Europe/Berlin]".into())
         );
-        assert!(matches!(value_from_json(&json), Ok(Value::Str(_))));
+        assert!(matches!(value_from_json(&json), Value::Str(_)));
     }
 
     /// Value comparison, not string: the row key order follows serde_json's
     /// map flavor, which feature unification can flip to preserve_order.
     #[test]
-    fn options_flatten_to_rows_and_do_not_read_back() {
+    fn options_flatten_to_rows_and_read_back_as_a_plain_array() {
         let options = vec![SelectOption::new("Europe/Berlin").with_short("Berlin")];
         let json = value_to_json(&Value::Options(options));
         assert_eq!(
@@ -192,6 +190,19 @@ mod tests {
                 { "value": "Europe/Berlin", "short": "Berlin", "label": null }
             ])
         );
-        assert!(matches!(value_from_json(&json), Err(FromJsonError::Array)));
+        // Options are one-way: the rows come back as a plain array of objects.
+        let back = value_from_json(&json);
+        assert!(matches!(&back, Value::Array(items) if items.len() == 1));
+    }
+
+    #[test]
+    fn arrays_round_trip() {
+        let value = Value::Array(vec![
+            Value::Str("a".into()),
+            Value::Num(2.0),
+            Value::Object([("k", Value::from("v"))].into_iter().collect()),
+        ]);
+        assert_eq!(value_from_json(&value_to_json(&value)), value);
+        assert_eq!(canonical_json(&value), r#"["a",2.0,{"k":"v"}]"#);
     }
 }

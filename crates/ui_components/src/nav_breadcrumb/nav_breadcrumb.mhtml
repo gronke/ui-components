@@ -1,0 +1,16 @@
+<!-- One static trail for both targets: the divider travels as data-decorated
+     text nodes (ADR 0020), because CSS-content dividers cannot paint in a
+     terminal. A crumb with an href links, the rest stay plain text. -->
+<nav class="uic-breadcrumb d-flex flex-row flex-wrap gap-2" aria-label="Breadcrumb">
+  <template for=${crumbs} as=c>
+    <template if=${c.sep}>
+      <span class="uic-breadcrumb-sep text-body-secondary">${c.sep}</span>
+    </template>
+    <template if=${c.href}>
+      <a href=${c.href}>${c.label}</a>
+    </template>
+    <template if=${c.plain}>
+      <span>${c.label}</span>
+    </template>
+  </template>
+</nav>

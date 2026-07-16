@@ -14,6 +14,7 @@ enum JsTypeArg {
     Zoned,
     Options,
     Object,
+    Array,
 }
 
 /// The shape rule of a property-only (object-valued) type: how the Rust
@@ -59,6 +60,13 @@ impl JsTypeArg {
                 optional: false,
                 optionality_msg: "Object properties are plain ObjectMap; \
                      the empty state is the empty object, not None",
+                starts: "empty",
+            }),
+            JsTypeArg::Array => Some(ShapeRule {
+                name: "Array",
+                optional: false,
+                optionality_msg: "Array properties are plain Vec<Value>; \
+                     the empty state is the empty list, not None",
                 starts: "empty",
             }),
             JsTypeArg::String | JsTypeArg::Number | JsTypeArg::Boolean => None,
@@ -147,6 +155,7 @@ impl Prop {
             JsTypeArg::Zoned => quote!(::uic_core::JsType::Zoned),
             JsTypeArg::Options => quote!(::uic_core::JsType::Options),
             JsTypeArg::Object => quote!(::uic_core::JsType::Object),
+            JsTypeArg::Array => quote!(::uic_core::JsType::Array),
         };
         let reflect = self.reflect;
         let notify = match &self.notify {
@@ -167,6 +176,7 @@ impl Prop {
                 JsTypeArg::Zoned => quote!(::uic_core::DefaultValue::Undefined),
                 JsTypeArg::Options => quote!(::uic_core::DefaultValue::EmptyOptions),
                 JsTypeArg::Object => quote!(::uic_core::DefaultValue::EmptyObject),
+                JsTypeArg::Array => quote!(::uic_core::DefaultValue::EmptyArray),
             },
         };
         let optional = self.optional;
@@ -246,7 +256,7 @@ pub(super) fn parse_properties(input: &DeriveInput) -> syn::Result<Vec<Prop>> {
             syn::Error::new_spanned(
                 &field.ty,
                 "unsupported property type; use String, bool, a number type, Zoned, \
-                 Vec<SelectOption>, ObjectMap, or Option of one of those",
+                 Vec<SelectOption>, Vec<Value>, ObjectMap, or Option of one of those",
             )
         })?;
         if let Some(rule) = js_type.shape_rule() {
@@ -298,6 +308,7 @@ fn default_arg(lit: &Lit, js_type: &JsTypeArg) -> syn::Result<DefaultArg> {
                     JsTypeArg::Zoned => "Zoned takes no default",
                     JsTypeArg::Options => "Options takes no default",
                     JsTypeArg::Object => "Object takes no default",
+                    JsTypeArg::Array => "Array takes no default",
                 }
             ),
         )),
@@ -334,6 +345,9 @@ fn js_type_of(ty: &Type) -> Option<(JsTypeArg, bool)> {
         })?;
         if inner.ident == "SelectOption" {
             return Some((JsTypeArg::Options, false));
+        }
+        if inner.ident == "Value" {
+            return Some((JsTypeArg::Array, false));
         }
         return None;
     }

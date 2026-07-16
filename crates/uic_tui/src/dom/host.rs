@@ -311,14 +311,22 @@ impl Mount {
     /// work; it becomes worthwhile when repeated template instances multiply
     /// the hole count.
     fn commit(&mut self, doc: &mut DomDocument) -> Vec<NotifyEvent> {
-        let values: Vec<PartValue> = self
-            .template
-            .clone()
+        let template = self.template.clone();
+        let mut values: Vec<PartValue> = template
             .holes()
             .iter()
             .map(|expr| resolve::resolve_hole(expr, &self.store, self.behavior.as_ref()))
             .collect();
-        let template = self.template.clone();
+        // Each repeat tree resolves per row against its scope stack, nesting
+        // lists for repeats inside repeat bodies (ADR 0018).
+        for repeat in template.repeats() {
+            let each = match &values[repeat.each_hole] {
+                PartValue::Value(value) => value.clone(),
+                _ => uic_core::Value::Undefined,
+            };
+            values[repeat.each_hole] =
+                resolve::resolve_repeat(&repeat, &each, &[], &self.store, self.behavior.as_ref());
+        }
         let effects = template.commit(&mut self.instance, doc, &values);
         self.bindings.extend(effects.added_events);
         self.mount_widgets(doc);

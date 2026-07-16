@@ -68,6 +68,15 @@ enum SpecKind {
     Event { name: String, handler: String },
     /// `<template if=${x}>` — the anchor is the template element itself.
     Conditional { hole: usize, branch: usize },
+    /// `<template for=${each} as=item>` — the anchor is the template element;
+    /// the body holes live in their own space, resolved per row by the
+    /// caller and delivered as a [`PartValue::List`] (ADR 0018).
+    Repeat {
+        hole: usize,
+        branch: usize,
+        item: String,
+        body_holes: Vec<String>,
+    },
 }
 
 /// The value a hole resolves to for one commit.
@@ -83,6 +92,10 @@ pub enum PartValue {
     Nothing,
     /// lit's `noChange`: keep whatever is committed.
     NoChange,
+    /// A repeat's resolved rows: one inner vector of body-hole values per
+    /// row, in body-hole order (ADR 0018). Only a repeat's `each` hole
+    /// carries it.
+    List(Vec<Vec<PartValue>>),
 }
 
 impl PartValue {
@@ -91,8 +104,7 @@ impl PartValue {
             PartValue::Text(text) => Some(text.clone()),
             PartValue::Bool(b) => Some(b.to_string()),
             PartValue::Value(value) => Some(value.display_text()),
-            PartValue::Nothing => None,
-            PartValue::NoChange => None,
+            PartValue::Nothing | PartValue::NoChange | PartValue::List(_) => None,
         }
     }
 
@@ -101,6 +113,7 @@ impl PartValue {
             PartValue::Text(text) => !text.is_empty(),
             PartValue::Bool(b) => *b,
             PartValue::Value(value) => value.truthy(),
+            PartValue::List(rows) => !rows.is_empty(),
             PartValue::Nothing | PartValue::NoChange => false,
         }
     }
@@ -156,6 +169,14 @@ enum Part {
         branch: usize,
         active: Option<ActiveBranch>,
     },
+    Repeat {
+        anchor: NodeId,
+        hole: usize,
+        branch: usize,
+        /// One live branch instance per rendered row, in row order.
+        instances: Vec<ActiveBranch>,
+        last: Option<Vec<Vec<PartValue>>>,
+    },
 }
 
 /// An instantiated conditional body: its top-level nodes (all following the
@@ -172,6 +193,21 @@ pub struct EventBinding {
     pub node: NodeId,
     pub event: String,
     pub handler: String,
+}
+
+/// A repeat's shape, so the caller can resolve the body holes per row: the
+/// index (into [`CompiledTemplate::holes`]) of the array hole, the loop
+/// variable, and the body-hole expressions in commit order (ADR 0018).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepeatMeta {
+    pub each_hole: usize,
+    pub item: String,
+    pub body_holes: Vec<String>,
+    /// Repeats nested in this body (ADR 0018): their `each_hole` indexes THIS
+    /// meta's `body_holes`, and their rows resolve with this loop's variable
+    /// still in scope. The caller places their resolved lists at that body
+    /// slot, nesting `PartValue::List` values.
+    pub nested: Vec<RepeatMeta>,
 }
 
 /// A `.prop=${x}` write produced by a commit, for the consumer to apply.
@@ -242,6 +278,40 @@ impl CompiledTemplate {
     /// Raw hole expressions in commit order; `commit` takes one value each.
     pub fn holes(&self) -> &[String] {
         &self.holes
+    }
+
+    /// The repeat tree of the template, so the caller resolves the body holes
+    /// per row and hands back a [`PartValue::List`] at each repeat's
+    /// `each_hole` (ADR 0018). Repeats inside conditional branches are
+    /// included at their level; repeats nested inside another repeat body
+    /// appear under their parent's `nested`, with the parent's loop variable
+    /// still in scope for their rows.
+    pub fn repeats(&self) -> Vec<RepeatMeta> {
+        self.collect_repeats(&self.plan)
+    }
+
+    fn collect_repeats(&self, plan: &[PartSpec]) -> Vec<RepeatMeta> {
+        let mut out = Vec::new();
+        for spec in plan {
+            match &spec.kind {
+                SpecKind::Repeat {
+                    hole,
+                    branch,
+                    item,
+                    body_holes,
+                } => out.push(RepeatMeta {
+                    each_hole: *hole,
+                    item: item.clone(),
+                    body_holes: body_holes.clone(),
+                    nested: self.collect_repeats(&self.branches[*branch].plan),
+                }),
+                SpecKind::Conditional { branch, .. } => {
+                    out.extend(self.collect_repeats(&self.branches[*branch].plan))
+                }
+                _ => {}
+            }
+        }
+        out
     }
 
     /// Clones the prototype under `parent` and binds the plan to the copy.
@@ -348,6 +418,37 @@ impl IrBuilder {
                     self.build_nodes(doc, fragment, then, &mut branch_plan);
                     self.branches[branch].plan = branch_plan;
                 }
+                Node::For { each, item, body } => {
+                    let anchor = doc.create_element_named("template");
+                    doc.element_mut(anchor)
+                        .expect("just created")
+                        .template_contents = None;
+                    doc.append_child(parent, anchor);
+                    let fragment = doc.create_fragment();
+                    let branch = self.branches.len();
+                    self.branches.push(Branch {
+                        fragment,
+                        plan: Vec::new(),
+                    });
+                    // The array reference is a top-level hole; the body holes
+                    // live in their own space, numbered from zero, resolved
+                    // per row by the caller (ADR 0018).
+                    let each_hole = self.push_hole(each);
+                    let outer = std::mem::take(&mut self.holes);
+                    let mut branch_plan = Vec::new();
+                    self.build_nodes(doc, fragment, body, &mut branch_plan);
+                    let body_holes = std::mem::replace(&mut self.holes, outer);
+                    self.branches[branch].plan = branch_plan;
+                    plan.push(PartSpec {
+                        node: anchor,
+                        kind: SpecKind::Repeat {
+                            hole: each_hole,
+                            branch,
+                            item: item.clone(),
+                            body_holes,
+                        },
+                    });
+                }
                 Node::Element(el) => {
                     let element = doc.create_element_named(&el.tag);
                     doc.append_child(parent, element);
@@ -419,13 +520,18 @@ impl IrBuilder {
 
     /// Holes carry the same raw spelling the source path produces.
     fn push_hole(&mut self, expr: &uic_template::Expr) -> usize {
-        use uic_template::Expr;
-        let raw = match expr {
-            Expr::Ident(name) => name.clone(),
-            Expr::Not(name) => format!("!{name}"),
-        };
-        self.holes.push(raw);
+        self.holes.push(hole_text(expr));
         self.holes.len() - 1
+    }
+}
+
+/// The raw spelling of a hole expression, matching the source path.
+fn hole_text(expr: &uic_template::Expr) -> String {
+    use uic_template::Expr;
+    match expr {
+        Expr::Ident(name) => name.clone(),
+        Expr::Not(name) => format!("!{name}"),
+        Expr::Member { base, field } => format!("{base}.{field}"),
     }
 }
 
@@ -784,6 +890,13 @@ fn resolve_parts(
                 branch: *branch,
                 active: None,
             }),
+            SpecKind::Repeat { hole, branch, .. } => parts.push(Part::Repeat {
+                anchor: node,
+                hole: *hole,
+                branch: *branch,
+                instances: Vec::new(),
+                last: None,
+            }),
         }
     }
     parts
@@ -794,13 +907,24 @@ fn resolve_parts(
 /// list does not cover.
 fn teardown_branches<T: Default>(doc: &mut Document<T>, parts: &mut [Part]) {
     for part in parts {
-        if let Part::Conditional { active, .. } = part {
-            if let Some(mut inner) = active.take() {
-                teardown_branches(doc, &mut inner.parts);
-                for node in inner.nodes {
-                    doc.remove(node);
+        match part {
+            Part::Conditional { active, .. } => {
+                if let Some(mut inner) = active.take() {
+                    teardown_branches(doc, &mut inner.parts);
+                    for node in inner.nodes {
+                        doc.remove(node);
+                    }
                 }
             }
+            Part::Repeat { instances, .. } => {
+                for mut inner in std::mem::take(instances) {
+                    teardown_branches(doc, &mut inner.parts);
+                    for node in inner.nodes {
+                        doc.remove(node);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -973,6 +1097,189 @@ fn commit_parts<T: Default>(
                     }
                 }
             }
+            Part::Repeat {
+                anchor,
+                hole,
+                branch,
+                instances,
+                last,
+            } => {
+                let value = &values[*hole];
+                if matches!(value, PartValue::NoChange) {
+                    continue;
+                }
+                // Anything but a row list (an empty or null array) clears.
+                let rows: &[Vec<PartValue>] = match value {
+                    PartValue::List(rows) => rows,
+                    _ => &[],
+                };
+                if last.as_deref() == Some(rows) {
+                    continue;
+                }
+                // Rebuild the rows on any change (ADR 0018): tear the old
+                // instances down, then clone one branch per row after the
+                // anchor, in order.
+                for mut inner in std::mem::take(instances) {
+                    teardown_branches(doc, &mut inner.parts);
+                    for node in inner.nodes {
+                        doc.remove(node);
+                    }
+                }
+                let spec = &template.branches[*branch];
+                let mut previous = *anchor;
+                for row in rows {
+                    let mut map = HashMap::new();
+                    let children: Vec<NodeId> =
+                        template.prototype.children(spec.fragment).collect();
+                    let mut nodes = Vec::new();
+                    for child in children {
+                        if let Some(copy) = doc.import_node(&template.prototype, child, &mut map) {
+                            doc.insert_after(copy, previous);
+                            previous = copy;
+                            nodes.push(copy);
+                        }
+                    }
+                    let mut parts = resolve_parts(&spec.plan, &map, &mut effects.added_events);
+                    commit_parts(template, &mut parts, doc, row, effects);
+                    instances.push(ActiveBranch { nodes, parts });
+                }
+                *last = Some(rows.to_vec());
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod repeat_tests {
+    use super::*;
+    use crate::html;
+
+    fn mount(src: &str) -> (CompiledTemplate, Document, NodeId, TemplateInstance) {
+        let template = CompiledTemplate::from_template(&uic_template::parse(src).expect("parses"));
+        let mut doc: Document = Document::new();
+        let host = doc.create_element(html::Div);
+        let root = doc.root();
+        doc.append_child(root, host);
+        let (instance, _events) = template.instantiate(&mut doc, host);
+        (template, doc, host, instance)
+    }
+
+    fn rows(names: &[&str]) -> PartValue {
+        PartValue::List(
+            names
+                .iter()
+                .map(|name| vec![PartValue::Text((*name).to_string())])
+                .collect(),
+        )
+    }
+
+    fn li_count(html: &str) -> usize {
+        html.matches("<li>").count()
+    }
+
+    #[test]
+    fn repeat_exposes_its_shape() {
+        let (template, ..) =
+            mount("<ul><template for=${people} as=p><li>${p.name}</li></template></ul>");
+        assert_eq!(template.holes(), ["people"]);
+        let repeats = template.repeats();
+        assert_eq!(repeats.len(), 1);
+        assert_eq!(repeats[0].each_hole, 0);
+        assert_eq!(repeats[0].item, "p");
+        assert_eq!(repeats[0].body_holes, ["p.name"]);
+    }
+
+    #[test]
+    fn repeat_renders_one_instance_per_row_and_rebuilds_on_change() {
+        let (template, mut doc, host, mut instance) =
+            mount("<ul><template for=${people} as=p><li>${p.name}</li></template></ul>");
+
+        template.commit(&mut instance, &mut doc, &[rows(&["Alice", "Bob"])]);
+        let html = doc.outer_html(host);
+        assert_eq!(li_count(&html), 2, "{html}");
+        assert!(html.contains("Alice") && html.contains("Bob"), "{html}");
+
+        // A shorter list tears the old rows down and rebuilds.
+        template.commit(&mut instance, &mut doc, &[rows(&["Zoe"])]);
+        let html = doc.outer_html(host);
+        assert_eq!(li_count(&html), 1, "{html}");
+        assert!(html.contains("Zoe"), "{html}");
+        assert!(!html.contains("Alice") && !html.contains("Bob"), "{html}");
+
+        // The empty list clears every row.
+        template.commit(&mut instance, &mut doc, &[rows(&[])]);
+        assert_eq!(li_count(&doc.outer_html(host)), 0);
+    }
+
+    #[test]
+    fn nested_repeats_expose_a_tree_and_render_inner_rows() {
+        let (template, mut doc, host, mut instance) = mount(
+            "<template for=${cards} as=card><h3>${card.title}</h3>\
+             <template for=${card.rows} as=r><p>${r.a}</p></template></template>",
+        );
+
+        // The tree: one top-level repeat whose body holds the title hole and
+        // the nested repeat's each hole; the inner body holds the cell hole.
+        assert_eq!(template.holes(), ["cards"]);
+        let repeats = template.repeats();
+        assert_eq!(repeats.len(), 1);
+        assert_eq!(repeats[0].body_holes, ["card.title", "card.rows"]);
+        assert_eq!(repeats[0].nested.len(), 1);
+        assert_eq!(repeats[0].nested[0].each_hole, 1);
+        assert_eq!(repeats[0].nested[0].body_holes, ["r.a"]);
+
+        // Two cards, the first with two rows, the second with one.
+        let card = |title: &str, rows: &[&str]| {
+            vec![
+                PartValue::Text(title.to_string()),
+                PartValue::List(
+                    rows.iter()
+                        .map(|row| vec![PartValue::Text((*row).to_string())])
+                        .collect(),
+                ),
+            ]
+        };
+        template.commit(
+            &mut instance,
+            &mut doc,
+            &[PartValue::List(vec![
+                card("Alpha", &["a1", "a2"]),
+                card("Beta", &["b1"]),
+            ])],
+        );
+        let html = doc.outer_html(host);
+        for text in ["Alpha", "a1", "a2", "Beta", "b1"] {
+            assert!(html.contains(text), "missing {text}: {html}");
+        }
+        assert_eq!(html.matches("<p>").count(), 3, "{html}");
+
+        // A change rebuilds the whole tree.
+        template.commit(
+            &mut instance,
+            &mut doc,
+            &[PartValue::List(vec![card("Gamma", &["g1"])])],
+        );
+        let html = doc.outer_html(host);
+        assert!(html.contains("Gamma") && html.contains("g1"), "{html}");
+        assert!(!html.contains("Alpha") && !html.contains("b1"), "{html}");
+        assert_eq!(html.matches("<p>").count(), 1, "{html}");
+    }
+
+    #[test]
+    fn repeat_body_carries_several_columns() {
+        let (template, mut doc, host, mut instance) = mount(
+            "<table><template for=${rows} as=r><tr><td>${r.a}</td><td>${r.b}</td></tr></template></table>",
+        );
+        assert_eq!(template.repeats()[0].body_holes, ["r.a", "r.b"]);
+        let list = PartValue::List(vec![
+            vec![PartValue::Text("1".into()), PartValue::Text("2".into())],
+            vec![PartValue::Text("3".into()), PartValue::Text("4".into())],
+        ]);
+        template.commit(&mut instance, &mut doc, &[list]);
+        let html = doc.outer_html(host);
+        assert_eq!(html.matches("<tr>").count(), 2, "{html}");
+        for cell in ["1", "2", "3", "4"] {
+            assert!(html.contains(cell), "missing {cell}: {html}");
         }
     }
 }

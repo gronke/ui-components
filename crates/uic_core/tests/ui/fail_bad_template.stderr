@@ -1,4 +1,4 @@
-error: template: unsupported expression: holes take a property or computed name, or !name at line 1, column 4
+error: template: unknown loop variable 'a'; a member hole `${base.field}` needs an enclosing <template for=… as=a> at line 1, column 4
  --> tests/ui/fail_bad_template.rs:4:44
   |
 4 | #[custom_element(tag = "x-bad", template = "<p>${a.b}</p>")]

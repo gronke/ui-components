@@ -2,6 +2,13 @@
 
 use crate::{AttrPart, Attribute, Element, Expr, Node, ParseError, Template};
 
+/// `[a-z_][a-z0-9_]*` — the loop-variable naming rule for `as=…` bindings.
+fn is_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_lowercase() || c == '_')
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
 /// HTML void elements: no children, no closing tag.
 const VOID_ELEMENTS: &[&str] = &[
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
@@ -10,7 +17,11 @@ const VOID_ELEMENTS: &[&str] = &[
 
 /// Parses a template fragment into its IR.
 pub fn parse(src: &str) -> Result<Template, ParseError> {
-    let mut parser = Parser { src, pos: 0 };
+    let mut parser = Parser {
+        src,
+        pos: 0,
+        scope: Vec::new(),
+    };
     let roots = parser.parse_nodes(None)?;
     Ok(Template { roots })
 }
@@ -18,6 +29,9 @@ pub fn parse(src: &str) -> Result<Template, ParseError> {
 struct Parser<'s> {
     src: &'s str,
     pos: usize,
+    /// Loop variables in scope, innermost last (ADR 0018); a `${base.field}`
+    /// hole is valid only when `base` is one of these.
+    scope: Vec<String>,
 }
 
 impl<'s> Parser<'s> {
@@ -149,6 +163,28 @@ impl<'s> Parser<'s> {
                 "unsupported expression: holes take a property or computed name, or !name",
             )
         })?;
+        // `${base.field}` — a member of a loop variable in scope (ADR 0018).
+        let member_field = if self.starts_with(".") {
+            if negated {
+                return Err(self.error_at(offset, "a loop variable member cannot be negated"));
+            }
+            if !self.scope.contains(&ident) {
+                return Err(self.error_at(
+                    offset,
+                    format!(
+                        "unknown loop variable '{ident}'; a member hole `${{base.field}}` \
+                         needs an enclosing <template for=… as={ident}>"
+                    ),
+                ));
+            }
+            self.eat(".");
+            Some(
+                self.parse_ident()
+                    .map_err(|_| self.error("a member hole takes a field name: ${base.field}"))?,
+            )
+        } else {
+            None
+        };
         self.skip_ws();
         if self.starts_with("|") {
             return Err(
@@ -161,10 +197,10 @@ impl<'s> Parser<'s> {
                 "unsupported expression: holes take a property or computed name, or !name",
             ));
         }
-        Ok(if negated {
-            Expr::Not(ident)
-        } else {
-            Expr::Ident(ident)
+        Ok(match (negated, member_field) {
+            (_, Some(field)) => Expr::Member { base: ident, field },
+            (true, None) => Expr::Not(ident),
+            (false, None) => Expr::Ident(ident),
         })
     }
 
@@ -246,7 +282,11 @@ impl<'s> Parser<'s> {
         };
 
         if tag == "template" {
-            return self.finish_template_if(offset, attrs, self_closing);
+            return if attrs.iter().any(|attr| attr.name() == "for") {
+                self.finish_template_for(offset, attrs, self_closing)
+            } else {
+                self.finish_template_if(offset, attrs, self_closing)
+            };
         }
 
         let children = if self_closing || VOID_ELEMENTS.contains(&tag.as_str()) {
@@ -292,6 +332,59 @@ impl<'s> Parser<'s> {
         }
         let then = self.parse_nodes(Some("template"))?;
         Ok(Node::If { cond, then })
+    }
+
+    /// Converts a parsed `<template for=${each} as=item>` into `Node::For`.
+    /// The `as` binding enters scope for the body, so `${item.field}` holes
+    /// inside resolve (ADR 0018).
+    fn finish_template_for(
+        &mut self,
+        offset: usize,
+        attrs: Vec<Attribute>,
+        self_closing: bool,
+    ) -> Result<Node, ParseError> {
+        let syntax = "<template> takes exactly for=${each} as=item";
+        let mut each = None;
+        let mut item = None;
+        for attr in attrs {
+            match attr {
+                Attribute::Attr { name, mut parts } if name == "for" => {
+                    match (parts.pop(), parts.is_empty()) {
+                        // The array reference is a property, computed, or an
+                        // outer loop variable's member (a nested list).
+                        (
+                            Some(AttrPart::Expr(expr @ (Expr::Ident(_) | Expr::Member { .. }))),
+                            true,
+                        ) => each = Some(expr),
+                        _ => return Err(self.error_at(offset, syntax)),
+                    }
+                }
+                Attribute::Static { name, value } if name == "as" => {
+                    if !is_ident(&value) {
+                        return Err(self.error_at(
+                            offset,
+                            format!("`as={value}` must be a lowercase identifier"),
+                        ));
+                    }
+                    item = Some(value);
+                }
+                _ => return Err(self.error_at(offset, syntax)),
+            }
+        }
+        let (Some(each), Some(item)) = (each, item) else {
+            return Err(self.error_at(offset, syntax));
+        };
+        if self_closing {
+            return Err(self.error_at(offset, "<template for=…> requires children"));
+        }
+        self.scope.push(item.clone());
+        let body = self.parse_nodes(Some("template"));
+        self.scope.pop();
+        Ok(Node::For {
+            each,
+            item,
+            body: body?,
+        })
     }
 
     fn parse_attribute(&mut self) -> Result<Attribute, ParseError> {
@@ -700,10 +793,72 @@ mod tests {
 
     #[test]
     fn error_unsupported_expression() {
-        let err = parse_err("<span>${a.b}</span>");
-        assert!(err.message.contains("unsupported expression"), "{err}");
         let err = parse_err("<span>${a ? b : c}</span>");
         assert!(err.message.contains("unsupported expression"), "{err}");
+    }
+
+    #[test]
+    fn for_loop_binds_a_scope_for_member_holes() {
+        let template =
+            parse("<template for=${rows} as=row><td>${row.name}</td></template>").expect("parses");
+        let Node::For { each, item, body } = &template.roots[0] else {
+            panic!("expected a for node, got {:?}", template.roots[0]);
+        };
+        assert_eq!(each, &Expr::Ident("rows".into()));
+        assert_eq!(item, "row");
+        let Node::Element(td) = &body[0] else {
+            panic!("expected a cell");
+        };
+        assert_eq!(
+            td.children[0],
+            Node::TextHole(Expr::Member {
+                base: "row".into(),
+                field: "name".into(),
+            })
+        );
+        // The array reference is a referenced ident; the member is not.
+        assert!(template.referenced_idents().contains("rows"));
+        assert!(!template.referenced_idents().contains("row"));
+        assert!(!template.referenced_idents().contains("name"));
+    }
+
+    #[test]
+    fn for_loops_nest_and_stack_scopes() {
+        let template = parse(
+            "<template for=${groups} as=g><template for=${g.items} as=i>${i.label}</template></template>",
+        )
+        .expect("nested for parses");
+        let Node::For { body, .. } = &template.roots[0] else {
+            panic!("outer for");
+        };
+        let Node::For { each, .. } = &body[0] else {
+            panic!("inner for");
+        };
+        assert_eq!(
+            each,
+            &Expr::Member {
+                base: "g".into(),
+                field: "items".into()
+            }
+        );
+    }
+
+    #[test]
+    fn error_member_hole_needs_a_loop_variable() {
+        let err = parse_err("<span>${a.b}</span>");
+        assert!(err.message.contains("unknown loop variable"), "{err}");
+    }
+
+    #[test]
+    fn error_member_hole_out_of_scope() {
+        let err = parse_err("<template for=${rows} as=row></template>${row.name}");
+        assert!(err.message.contains("unknown loop variable"), "{err}");
+    }
+
+    #[test]
+    fn error_for_requires_as() {
+        let err = parse_err("<template for=${rows}><td>x</td></template>");
+        assert!(err.message.contains("for=${each} as=item"), "{err}");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-error: unsupported property type; use String, bool, a number type, Zoned, Vec<SelectOption>, ObjectMap, or Option of one of those
+error: unsupported property type; use String, bool, a number type, Zoned, Vec<SelectOption>, Vec<Value>, ObjectMap, or Option of one of those
  --> tests/ui/fail_unsupported_type.rs:7:12
   |
 7 |     items: Vec<String>,

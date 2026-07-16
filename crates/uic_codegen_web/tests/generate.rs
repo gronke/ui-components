@@ -29,6 +29,7 @@ fn generate(test: &str) -> PathBuf {
             "input-text",
             "input-textarea",
             "input-timezone",
+            "nav-breadcrumb",
             "nav-tabs"
         ]
     );
@@ -87,6 +88,9 @@ fn emits_the_full_generated_root() {
         "components/_input-textarea.scss",
         "components/input-timezone.ts",
         "components/input-timezone.impl.ts",
+        "components/nav-breadcrumb.ts",
+        "components/nav-breadcrumb.impl.ts",
+        "components/_nav-breadcrumb.scss",
         "components/nav-tabs.ts",
         "components/nav-tabs.impl.ts",
         "components/_nav-tabs.scss",
@@ -190,6 +194,13 @@ fn generated_nav_tabs_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_nav_breadcrumb_class_matches_the_snapshot() {
+    let root = generate("snapshot-nav-breadcrumb");
+    let generated = fs::read_to_string(root.join("components/nav-breadcrumb.ts")).unwrap();
+    assert_matches_snapshot(&generated, "nav-breadcrumb.ts");
+}
+
+#[test]
 fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
     for file in [
@@ -202,6 +213,7 @@ fn generated_typescript_transpiles_with_oxc() {
         "components/input-text.ts",
         "components/input-textarea.ts",
         "components/input-timezone.ts",
+        "components/nav-breadcrumb.ts",
         "components/nav-tabs.ts",
         "components/uic-runtime.ts",
         "components/uic-impl-helpers.ts",
@@ -308,6 +320,26 @@ fn manifest_describes_the_component() {
     assert!(
         attributes.iter().all(|a| a["fieldName"] != "options"),
         "no attribute for the options property"
+    );
+
+    // The breadcrumb trail is static: property-only rows, no events.
+    let breadcrumb = module_by_path(&manifest, "components/nav-breadcrumb.ts");
+    let declaration = &breadcrumb["declarations"][0];
+    assert_eq!(declaration["tagName"], "nav-breadcrumb");
+    assert!(declaration["events"]
+        .as_array()
+        .is_none_or(|events| events.is_empty()));
+    let members = declaration["members"].as_array().unwrap();
+    let items = members
+        .iter()
+        .find(|m| m["name"] == "items")
+        .expect("items member");
+    assert_eq!(items["type"]["text"], "Record<string, unknown>[]");
+    assert_eq!(items["default"], "[]");
+    let attributes = declaration["attributes"].as_array().unwrap();
+    assert!(
+        attributes.iter().all(|a| a["fieldName"] != "items"),
+        "no attribute for the items property"
     );
 
     // The Object property (app-root's state) is typed and property-only.

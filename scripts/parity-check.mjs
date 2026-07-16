@@ -7,7 +7,9 @@ import { readFileSync } from 'node:fs';
 
 const parity = new URL('../crates/uic_codegen_web/tests/parity/', import.meta.url);
 const impl = await import(new URL('build/app-root.impl.js', parity));
-const { cases, suggest } = JSON.parse(readFileSync(new URL('fixtures.json', parity), 'utf8'));
+const { cases, suggest, breadcrumb } = JSON.parse(
+  readFileSync(new URL('fixtures.json', parity), 'utf8'),
+);
 
 let failed = false;
 for (const { state, expect } of cases) {
@@ -44,6 +46,26 @@ for (const { query, expect } of suggest) {
   }
 }
 
+// The breadcrumb fixtures replay the trail decoration through the compiled
+// nav-breadcrumb twin; the rows are objects, so the comparison canonicalizes
+// their key order (the Rust side serializes maps sorted).
+const trail = await import(new URL('build/nav-breadcrumb.impl.js', parity));
+const canonical = value =>
+  JSON.stringify(value, (key, member) =>
+    member && typeof member === 'object' && !Array.isArray(member)
+      ? Object.fromEntries(Object.entries(member).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : member,
+  );
+for (const { items, divider, expect } of breadcrumb) {
+  const have = trail.crumbs({ items, divider });
+  if (canonical(have) !== canonical(expect)) {
+    console.error(
+      `breadcrumb ${JSON.stringify(items)}: rust ${JSON.stringify(expect)} != ts ${JSON.stringify(have)}`,
+    );
+    failed = true;
+  }
+}
+
 // The other connector variants, spot-checked: the method passthrough and a
 // fetch against a stubbed globalThis.fetch (URL substitution + mapping).
 const connectors = await import(new URL('build/uic-connectors.js', parity));
@@ -70,4 +92,6 @@ const connectors = await import(new URL('build/uic-connectors.js', parity));
 }
 
 if (failed) process.exit(1);
-console.log(`parity: ${cases.length} cases and ${suggest.length} queries agree across targets`);
+console.log(
+  `parity: ${cases.length} cases, ${suggest.length} queries and ${breadcrumb.length} trails agree across targets`,
+);
