@@ -30,6 +30,7 @@ struct Hints {
     italic: bool,
     dim: bool,
     center: bool,
+    reversed: bool,
     fg: Option<Color>,
 }
 
@@ -39,6 +40,10 @@ impl Hints {
     fn merge(mut self, tag: &str, classes: &[String]) -> Self {
         if tag == "th" {
             self.bold = true;
+        }
+        if tag == "mark" {
+            // The browser's highlight background, as terminal reverse video.
+            self.reversed = true;
         }
         for class in classes {
             match class.as_str() {
@@ -55,6 +60,15 @@ impl Hints {
                 "text-muted" | "text-secondary" | "text-body-secondary" => {
                     self.fg = Some(Color::DarkGray)
                 }
+                // The JSON value palette (#65): json-viewer marks its
+                // primitives with semantic classes, painted here the way its
+                // stylesheet's custom properties color them in the browser.
+                "key" => self.fg = Some(Color::LightCyan),
+                "string" => self.fg = Some(Color::LightGreen),
+                "number" => self.fg = Some(Color::LightYellow),
+                "boolean" => self.fg = Some(Color::LightMagenta),
+                "null" => self.fg = Some(Color::DarkGray),
+                "preview" => self.dim = true,
                 _ => {}
             }
         }
@@ -65,6 +79,9 @@ impl Hints {
         let mut style = Style::default();
         if let Some(fg) = self.fg {
             style = style.fg(fg);
+        }
+        if self.reversed {
+            style = style.reversed();
         }
         if self.bold {
             style = style.bold();
@@ -149,8 +166,19 @@ fn paint(
                 };
                 frame.render_widget(Block::bordered().border_style(border), laid.rect);
             }
+            let plain = el.attr("data-tui").is_none();
             for child in &laid.children {
                 paint(frame, child, doc, focused, hints);
+            }
+            if focused == Some(laid.node) && plain {
+                // A focused plain node (a JS component's roving focus, #65)
+                // reads as a one-row selection bar over its first line;
+                // widgets paint their own ring instead.
+                let row = Rect {
+                    height: 1,
+                    ..laid.rect
+                };
+                frame.buffer_mut().set_style(row, Style::new().reversed());
             }
         }
         _ => {}

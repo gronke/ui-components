@@ -1,0 +1,28 @@
+[package]
+name = "uic_js"
+description = "Exploration (#65): a Boa-embedded JS engine hosting real LitElement components on the terminal runtime"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+boa_engine = "0.21"
+thiserror.workspace = true
+uic_core.workspace = true
+uic_dom.workspace = true
+uic_tui.workspace = true
+
+[build-dependencies]
+# Vendors the exploration component from npm (pinned via the workspace patch).
+web_modules = "0.5"
+
+[dev-dependencies]
+# The browser session example: an axum WebSocket bridges xterm.js to a
+# native session rendered by uic_tui_web's ANSI backend.
+axum = { version = "0.8", features = ["ws"] }
+tokio.workspace = true
+serde_json.workspace = true
+uic_tui_web.workspace = true

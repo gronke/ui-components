@@ -8,6 +8,7 @@ members = [
     "crates/uic_codegen_web",
     "crates/uic_tui",
     "crates/uic_tui_web",
+    "crates/uic_js",
     "crates/ui_components",
     "apps/web-demo",
     "apps/tui-demo",

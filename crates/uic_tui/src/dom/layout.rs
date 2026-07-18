@@ -151,7 +151,7 @@ fn build(
                 .into_iter()
                 .filter_map(|child| build(tree, doc, child, false))
                 .collect();
-            let mut style = container_style(&classes);
+            let mut style = container_style(el.tag(), &classes);
             if root_child {
                 // Mounted roots stack like block elements with one blank
                 // row between them, as the host document flows.
@@ -253,7 +253,7 @@ fn build_table(
     } else {
         auto()
     };
-    let mut style = container_style(classes);
+    let mut style = container_style("table", classes);
     style.display = Display::Grid;
     style.grid_template_columns = vec![track; columns];
     style.gap.width = length(1.0_f32);
@@ -342,12 +342,18 @@ fn widget_width(doc: &DomDocument, node: uic_dom::NodeId) -> Option<u16> {
 }
 
 /// The coarse Bootstrap-class → CSS mapping shared with the browser target.
-fn container_style(classes: &[String]) -> Style {
+fn container_style(tag: &str, classes: &[String]) -> Style {
     // Elements are blocks unless a class opts into flex, like in CSS.
     let mut style = Style {
         display: Display::Block,
         ..Default::default()
     };
+    if matches!(tag, "ul" | "ol") {
+        // The browser's UA default indents lists (`padding-inline-start`);
+        // two cells keep nested depth readable — json-viewer's own
+        // `--indent-size` (1.5rem) lands on the same two cells.
+        style.padding.left = length(2.0_f32);
+    }
     for class in classes {
         match class.as_str() {
             "d-flex" | "input-group" => {
