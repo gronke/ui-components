@@ -1,0 +1,19 @@
+/* The terminal's user-agent sheet: the tag defaults the hardcoded pipeline
+   carried, as data. Cell-native units where the value is an editorial
+   choice. Inline display entries deliberately absent — they arrive with the
+   anonymous inline-row stage and updated golden frames. */
+
+ul, ol {
+    /* The browser's UA default indents lists (padding-inline-start);
+       two cells keep nested depth readable. */
+    padding-left: 2ch;
+}
+
+th {
+    font-weight: bold;
+}
+
+mark {
+    /* The browser's highlight background, as terminal reverse video. */
+    background-color: Highlight;
+}

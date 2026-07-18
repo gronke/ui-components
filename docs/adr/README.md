@@ -25,3 +25,4 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0018](0018-template-iteration.md) | Template iteration over data rows |
 | [0019](0019-table-layout.md) | Tables lay out as shared column tracks |
 | [0020](0020-nav-breadcrumb.md) | A static breadcrumb trail |
+| [0021](0021-the-class-map-becomes-a-stylesheet.md) | The class map becomes a stylesheet |

@@ -1,5 +1,5 @@
-//! The exploration demo (#65): the unmodified `@alenaksu/json-viewer` npm
-//! component, interactive in a real terminal.
+//! The unmodified `@alenaksu/json-viewer` npm component, interactive in a
+//! real terminal.
 //!
 //! ```sh
 //! cargo run -p uic_js --example json_viewer            # sample document
@@ -18,19 +18,7 @@ use uic_tui::crossterm::event::{
 };
 use uic_tui::{crossterm, ratatui};
 
-const SAMPLE: &str = r#"{
-    "project": "schuhkarton/ui-components",
-    "issue": 65,
-    "claims": {
-        "component": "@alenaksu/json-viewer, byte-unmodified npm dist",
-        "engine": "Boa 0.21, embedded",
-        "lit": "mocked at the module boundary",
-        "pipeline": {"layout": "taffy", "paint": "ratatui"}
-    },
-    "interaction": ["ArrowUp", "ArrowDown", "ArrowRight", "ArrowLeft", "Home", "End", "click"],
-    "active": true,
-    "coverage": null
-}"#;
+const SAMPLE: &str = include_str!("../sample.json");
 
 fn dom_key(key: &KeyEvent) -> Option<&'static str> {
     Some(match key.code {

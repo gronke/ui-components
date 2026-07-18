@@ -1,4 +1,4 @@
-//! The walking skeleton (#65): a component written against the mocked `lit`
+//! The walking skeleton: a component written against the mocked `lit`
 //! renders through the Boa engine into the retained document, and the
 //! existing layout/paint pipeline draws the frame.
 

@@ -1,0 +1,18 @@
+{
+    "claims": {
+        "component": "@alenaksu/json-viewer, byte-unmodified npm dist",
+        "engine": "Boa, embedded",
+        "lit": "mocked at the module boundary",
+        "pipeline": {
+            "layout": "taffy",
+            "paint": "ratatui"
+        }
+    },
+    "interaction": {
+        "keys": "ArrowUp ArrowDown ArrowRight ArrowLeft Home End",
+        "pointer": "click toggles"
+    },
+    "project": "schuhkarton/ui-components",
+    "renderers": 2,
+    "styled": null
+}

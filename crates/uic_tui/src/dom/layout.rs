@@ -6,9 +6,10 @@ use ratatui::layout::Rect;
 use taffy::prelude::*;
 use unicode_width::UnicodeWidthStr;
 
+use uic_css::StyleTable;
 use uic_dom::NodeData;
 
-use super::DomDocument;
+use super::{css, DomDocument};
 
 /// A document node with its computed absolute cell rectangle.
 pub(crate) struct LaidNode {
@@ -34,12 +35,23 @@ struct Shadow {
 }
 
 pub(crate) fn compute(doc: &DomDocument, area: Rect) -> Vec<LaidNode> {
+    compute_styled(doc, area, None).0
+}
+
+/// Lays the document out and returns the computed styles the paint reads.
+/// `focused` feeds `:focus` selectors in the adopted component sheets.
+pub(crate) fn compute_styled(
+    doc: &DomDocument,
+    area: Rect,
+    focused: Option<uic_dom::NodeId>,
+) -> (Vec<LaidNode>, StyleTable) {
+    let styles = css::resolve(doc, focused);
     let mut tree: TaffyTree<Measured> = TaffyTree::new();
     let roots: Vec<Shadow> = doc
         .children(doc.root())
         .collect::<Vec<_>>()
         .into_iter()
-        .filter_map(|node| build(&mut tree, doc, node, true))
+        .filter_map(|node| build(&mut tree, doc, node, true, &styles))
         .collect();
     let root_style = Style {
         display: Display::Block,
@@ -86,10 +98,11 @@ pub(crate) fn compute(doc: &DomDocument, area: Rect) -> Vec<LaidNode> {
     )
     .expect("taffy layout");
 
-    roots
+    let laid = roots
         .iter()
         .map(|shadow| collect(&tree, shadow, (area.x as f32, area.y as f32), area))
-        .collect()
+        .collect();
+    (laid, styles)
 }
 
 fn build(
@@ -97,6 +110,7 @@ fn build(
     doc: &DomDocument,
     node: uic_dom::NodeId,
     root_child: bool,
+    styles: &StyleTable,
 ) -> Option<Shadow> {
     match doc.node(node)? {
         NodeData::Text(text) => {
@@ -124,13 +138,13 @@ fn build(
             if &**el.tag() == "template" {
                 return None;
             }
-            let classes = effective_classes(doc, node);
+            let computed = styles.get(&node).cloned().unwrap_or_default();
             if el.attr("data-tui").is_some() {
                 let height = widget_height(doc, node);
                 let width = widget_width(doc, node);
                 let taffy = tree
                     .new_leaf_with_context(
-                        widget_style(&classes, height, width),
+                        widget_style(&computed, height, width),
                         Measured::Widget(width),
                     )
                     .expect("taffy widget leaf");
@@ -141,7 +155,7 @@ fn build(
                 });
             }
             if &**el.tag() == "table" {
-                if let Some(shadow) = build_table(tree, doc, node, &classes, root_child) {
+                if let Some(shadow) = build_table(tree, doc, node, &computed, root_child, styles) {
                     return Some(shadow);
                 }
             }
@@ -149,9 +163,9 @@ fn build(
                 .children(node)
                 .collect::<Vec<_>>()
                 .into_iter()
-                .filter_map(|child| build(tree, doc, child, false))
+                .filter_map(|child| build(tree, doc, child, false, styles))
                 .collect();
-            let mut style = container_style(el.tag(), &classes);
+            let mut style = taffy_style(&computed);
             if root_child {
                 // Mounted roots stack like block elements with one blank
                 // row between them, as the host document flows.
@@ -185,8 +199,9 @@ fn build_table(
     tree: &mut TaffyTree<Measured>,
     doc: &DomDocument,
     node: uic_dom::NodeId,
-    classes: &[String],
+    computed: &uic_css::ComputedStyle,
     root_child: bool,
+    styles: &StyleTable,
 ) -> Option<Shadow> {
     let is_tag = |candidate: uic_dom::NodeId, name: &str| {
         doc.tag_name(candidate).map(|tag| &**tag == name) == Some(true)
@@ -232,7 +247,7 @@ fn build_table(
     let mut children: Vec<Shadow> = Vec::new();
     for (row_index, cells) in cells_per_row.iter().enumerate() {
         for (column_index, &cell) in cells.iter().enumerate() {
-            let Some(shadow) = build(tree, doc, cell, false) else {
+            let Some(shadow) = build(tree, doc, cell, false, styles) else {
                 continue;
             };
             let mut style = tree.style(shadow.taffy).expect("cell style").clone();
@@ -244,16 +259,22 @@ fn build_table(
     }
 
     // Bootstrap's shrink-to-fit idiom `table w-auto` opts back out of fill.
-    let fill = classes
+    let table_classes: Vec<String> = doc
+        .attribute(node, "class")
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    let fill = table_classes
         .iter()
         .any(|class| class == "table" || class == "w-100")
-        && !classes.iter().any(|class| class == "w-auto");
+        && !table_classes.iter().any(|class| class == "w-auto");
     let track: GridTemplateComponent<String> = if fill {
         minmax(auto(), fr(1.0_f32))
     } else {
         auto()
     };
-    let mut style = container_style("table", classes);
+    let mut style = taffy_style(computed);
     style.display = Display::Grid;
     style.grid_template_columns = vec![track; columns];
     style.gap.width = length(1.0_f32);
@@ -281,22 +302,13 @@ fn build_table(
 /// from stylesheet selectors: a `seamless` component drops its group border
 /// (`input-group` renders as a plain flex row).
 pub(crate) fn effective_classes(doc: &DomDocument, node: uic_dom::NodeId) -> Vec<String> {
-    let mut classes: Vec<String> = doc
-        .attribute(node, "class")
+    // Seamless chrome removal moved to the stylesheet:
+    // `[seamless] .input-group` zeroes the border and inset (ADR 0021).
+    doc.attribute(node, "class")
         .unwrap_or_default()
         .split_whitespace()
         .map(str::to_string)
-        .collect();
-    if classes.iter().any(|class| class == "input-group")
-        && component_attr(doc, node, "seamless").is_some()
-    {
-        for class in &mut classes {
-            if class == "input-group" {
-                *class = "d-flex".to_string();
-            }
-        }
-    }
-    classes
+        .collect()
 }
 
 /// The named attribute of the nearest enclosing custom element — the
@@ -341,96 +353,85 @@ fn widget_width(doc: &DomDocument, node: uic_dom::NodeId) -> Option<u16> {
     widget.adapter.intrinsic_width()
 }
 
-/// The coarse Bootstrap-class → CSS mapping shared with the browser target.
-fn container_style(tag: &str, classes: &[String]) -> Style {
-    // Elements are blocks unless a class opts into flex, like in CSS.
+/// The computed style, translated onto taffy — margins, paddings and
+/// borders arrive cell-resolved from the cascade (ADR 0021).
+fn taffy_style(computed: &uic_css::ComputedStyle) -> Style {
+    use uic_css::{Dimension as CssDimension, Display as CssDisplay, FlexDirection as CssFlexDir};
+
     let mut style = Style {
-        display: Display::Block,
+        display: match computed.display {
+            CssDisplay::Flex | CssDisplay::InlineFlex => Display::Flex,
+            CssDisplay::Grid => Display::Grid,
+            // Inline flow approximates as block until the anonymous-row
+            // stage; display:none subtrees are skipped by the caller.
+            _ => Display::Block,
+        },
         ..Default::default()
     };
-    if matches!(tag, "ul" | "ol") {
-        // The browser's UA default indents lists (`padding-inline-start`);
-        // two cells keep nested depth readable — json-viewer's own
-        // `--indent-size` (1.5rem) lands on the same two cells.
-        style.padding.left = length(2.0_f32);
+    style.flex_direction = match computed.flex_direction {
+        CssFlexDir::Row => FlexDirection::Row,
+        CssFlexDir::Column => FlexDirection::Column,
+    };
+    style.flex_wrap = if computed.flex_wrap {
+        FlexWrap::Wrap
+    } else {
+        FlexWrap::NoWrap
+    };
+    if let Some(grow) = computed.flex_grow {
+        style.flex_grow = grow;
     }
-    for class in classes {
-        match class.as_str() {
-            "d-flex" | "input-group" => {
-                style.display = Display::Flex;
-                style.flex_direction = FlexDirection::Row;
-            }
-            "flex-column" => style.flex_direction = FlexDirection::Column,
-            "flex-row" => style.flex_direction = FlexDirection::Row,
-            "flex-nowrap" => style.flex_wrap = FlexWrap::NoWrap,
-            "flex-wrap" => style.flex_wrap = FlexWrap::Wrap,
-            "flex-grow-0" => style.flex_grow = 0.0,
-            "flex-grow-1" => style.flex_grow = 1.0,
-            "flex-shrink-0" => style.flex_shrink = 0.0,
-            "flex-shrink-1" => style.flex_shrink = 1.0,
-            "w-100" => style.size.width = percent(1.0_f32),
-            // Half a rem is under one cell, but a zero gap would fuse the
-            // items; one cell is the closest readable analog.
-            "gap-2" => {
-                style.gap = Size {
-                    width: length(1.0_f32),
-                    height: length(0.0_f32),
-                }
-            }
-            "align-self-center" => style.align_self = Some(AlignItems::CENTER),
-            // Bootstrap's spacers in rows (a terminal row reads like
-            // ~1.5rem): 1 and 2 stay sub-row, 3 and 4 round to one row,
-            // 5 to two — the margins push the following flow down, like
-            // the browser's.
-            "mt-1" | "mt-2" | "mb-0" | "mb-1" | "mb-2" => {}
-            "mt-3" | "mt-4" => style.margin.top = length(1.0_f32),
-            "mb-3" | "mb-4" => style.margin.bottom = length(1.0_f32),
-            "mt-5" => style.margin.top = length(2.0_f32),
-            "mb-5" => style.margin.bottom = length(2.0_f32),
-            // The browser pads the input-group affix (the number's unit);
-            // one cell keeps it off the value.
-            "input-group-text" => style.padding.left = length(1.0_f32),
-            // One blank row between the card's cap and its content, the
-            // closest cell to the body's inset (ADR 0017).
-            "card-body" => style.padding.top = length(1.0_f32),
-            "p-0" => style.padding = taffy::geometry::Rect::zero(),
-            _ => {}
-        }
+    if let Some(shrink) = computed.flex_shrink {
+        style.flex_shrink = shrink;
     }
-    if classes.iter().any(|c| c == "card") {
-        // The card is the generic bordered container (ADR 0017): reserve
-        // the border cells plus one cell of horizontal padding, mirroring
-        // the input group's treatment below.
+    if computed.align_items_center {
+        style.align_items = Some(AlignItems::CENTER);
+    }
+    if computed.align_self_center {
+        style.align_self = Some(AlignItems::CENTER);
+    }
+    style.margin = taffy::geometry::Rect {
+        top: length(computed.margin[0]),
+        right: length(computed.margin[1]),
+        bottom: length(computed.margin[2]),
+        left: length(computed.margin[3]),
+    };
+    style.padding = taffy::geometry::Rect {
+        top: length(computed.padding[0]),
+        right: length(computed.padding[1]),
+        bottom: length(computed.padding[2]),
+        left: length(computed.padding[3]),
+    };
+    if computed.border > 0.0 {
         style.border = taffy::geometry::Rect {
-            left: length(1.0_f32),
-            right: length(1.0_f32),
-            top: length(1.0_f32),
-            bottom: length(1.0_f32),
+            top: length(computed.border),
+            right: length(computed.border),
+            bottom: length(computed.border),
+            left: length(computed.border),
         };
-        style.padding.left = length(1.0_f32);
-        style.padding.right = length(1.0_f32);
     }
-    if classes.iter().any(|c| c == "input-group") {
-        // The input group draws a border block; reserve the cells, plus one
-        // cell of horizontal padding — the closest cells get to the
-        // form-control's side padding in the browser.
-        style.border = taffy::geometry::Rect {
-            left: length(1.0_f32),
-            right: length(1.0_f32),
-            top: length(1.0_f32),
-            bottom: length(1.0_f32),
-        };
-        style.padding = taffy::geometry::Rect {
-            left: length(1.0_f32),
-            right: length(1.0_f32),
-            top: length(0.0_f32),
-            bottom: length(0.0_f32),
-        };
+    style.gap = Size {
+        width: length(computed.gap.1),
+        height: length(computed.gap.0),
+    };
+    let dimension = |value: &CssDimension| match value {
+        CssDimension::Cells(cells) => length(*cells),
+        CssDimension::Percent(unit) => percent(*unit),
+        CssDimension::Auto => auto(),
+    };
+    style.size = Size {
+        width: dimension(&computed.width),
+        height: dimension(&computed.height),
+    };
+    if !matches!(computed.min_width, CssDimension::Auto) {
+        style.min_size.width = dimension(&computed.min_width);
+    }
+    if !matches!(computed.max_width, CssDimension::Auto) {
+        style.max_size.width = dimension(&computed.max_width);
     }
     style
 }
 
-fn widget_style(classes: &[String], height: u16, width: Option<u16>) -> Style {
+fn widget_style(computed: &uic_css::ComputedStyle, height: u16, width: Option<u16>) -> Style {
     let height = height.max(1) as f32;
     // A content-sized widget may not shrink below its content, like
     // fit-content in the browser; the others keep the editing minimum.
@@ -446,13 +447,14 @@ fn widget_style(classes: &[String], height: u16, width: Option<u16>) -> Style {
         },
         ..Default::default()
     };
-    for class in classes {
-        match class.as_str() {
-            "flex-grow-1" => style.flex_grow = 1.0,
-            "flex-shrink-0" => style.flex_shrink = 0.0,
-            "w-100" => style.size.width = percent(1.0_f32),
-            _ => {}
-        }
+    if let Some(grow) = computed.flex_grow {
+        style.flex_grow = grow;
+    }
+    if let Some(shrink) = computed.flex_shrink {
+        style.flex_shrink = shrink;
+    }
+    if let uic_css::Dimension::Percent(unit) = computed.width {
+        style.size.width = percent(unit);
     }
     style
 }

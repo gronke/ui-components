@@ -1,5 +1,5 @@
-//! The success bar of #65: json-viewer's OWN keyboard navigation and
-//! click-to-toggle drive the terminal rendering through synthesized events.
+//! json-viewer's OWN keyboard navigation and click-to-toggle drive the
+//! terminal rendering through synthesized events.
 
 use std::path::Path;
 
@@ -7,7 +7,14 @@ use uic_js::JsHost;
 use uic_tui::ratatui::backend::TestBackend;
 use uic_tui::ratatui::Terminal;
 
-const DATA: &str = r#"{"name":"Schuhkarton","tags":{"first":"a","second":"b"},"active":true}"#;
+fn data() -> String {
+    serde_json::json!({
+        "active": true,
+        "name": "Schuhkarton",
+        "tags": { "first": "a", "second": "b" },
+    })
+    .to_string()
+}
 
 fn paint(host: &JsHost, terminal: &mut Terminal<TestBackend>) -> String {
     let state = host.state.clone();
@@ -61,7 +68,7 @@ fn keyboard_navigation_and_click_toggle() {
     let mut host = JsHost::new().unwrap();
     host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
         .unwrap();
-    let root = host.mount("json-viewer", &[("data", DATA)]).unwrap();
+    let root = host.mount("json-viewer", &[("data", &data())]).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
 
     let collapsed = paint(&host, &mut terminal);
@@ -71,10 +78,12 @@ fn keyboard_navigation_and_click_toggle() {
     // Focusing the component redirects to the first treeitem (the
     // component's own focusin handler with roving tabindex).
     host.focus(root).unwrap();
-    assert_eq!(focused_path(&host).as_deref(), Some("name"));
+    assert_eq!(focused_path(&host).as_deref(), Some("active"));
 
     // ArrowDown walks to `tags`; ArrowRight expands it — both handled by
     // the component's own `@keydown` handler.
+    assert!(host.dispatch_key("ArrowDown").unwrap());
+    assert_eq!(focused_path(&host).as_deref(), Some("name"));
     assert!(host.dispatch_key("ArrowDown").unwrap());
     assert_eq!(focused_path(&host).as_deref(), Some("tags"));
     assert!(host.dispatch_key("ArrowRight").unwrap());

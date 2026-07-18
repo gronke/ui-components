@@ -1,0 +1,23 @@
+[package]
+name = "uic_css"
+description = "CSS for the terminal: a closed subset parsed with servo's cssparser/selectors, cascaded over the retained document"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+cssparser = "0.36"
+selectors = "0.36"
+precomputed-hash = "0.1"
+thiserror.workspace = true
+uic_dom.workspace = true
+
+[dev-dependencies]
+cssparser = "0.36"
+
+[build-dependencies]
+# Vendors compiled Bootstrap for the generator (pinned via the workspace patch).
+web_modules = "0.5"

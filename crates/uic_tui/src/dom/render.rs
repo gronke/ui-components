@@ -12,8 +12,10 @@ use ratatui::widgets::{Block, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 use uic_dom::{NodeData, NodeId};
 
+use uic_css::{ComputedStyle, StyleTable};
+
 use super::layout::{self, collapse_whitespace, component_attr, effective_classes, LaidNode};
-use super::DomDocument;
+use super::{css, DomDocument};
 
 /// The browser's focus ring as a palette color: the terminal's own scheme
 /// decides the hue (the web pane maps it to Bootstrap's primary emphasis).
@@ -23,79 +25,6 @@ const FOCUS_RING: Color = Color::LightBlue;
 /// web pane maps to Bootstrap's danger color.
 const ERROR_BORDER: Color = Color::Red;
 
-/// Text styling inherited down the element tree.
-#[derive(Debug, Clone, Copy, Default)]
-struct Hints {
-    bold: bool,
-    italic: bool,
-    dim: bool,
-    center: bool,
-    reversed: bool,
-    fg: Option<Color>,
-}
-
-impl Hints {
-    /// Merges an element's contribution: the tag first (a `<th>` reads bold,
-    /// like the browser default), then the classes.
-    fn merge(mut self, tag: &str, classes: &[String]) -> Self {
-        if tag == "th" {
-            self.bold = true;
-        }
-        if tag == "mark" {
-            // The browser's highlight background, as terminal reverse video.
-            self.reversed = true;
-        }
-        for class in classes {
-            match class.as_str() {
-                "form-label" | "fw-bold" => self.bold = true,
-                "fst-italic" => self.italic = true,
-                "small" | "text-small" => self.dim = true,
-                "text-center" => self.center = true,
-                // The bright variants read on dark terminal themes; the web
-                // pane maps the same classes to Bootstrap's text emphasis.
-                "text-danger" => self.fg = Some(Color::LightRed),
-                "text-success" => self.fg = Some(Color::LightGreen),
-                "text-warning" => self.fg = Some(Color::LightYellow),
-                "text-info" => self.fg = Some(Color::LightCyan),
-                "text-muted" | "text-secondary" | "text-body-secondary" => {
-                    self.fg = Some(Color::DarkGray)
-                }
-                // The JSON value palette (#65): json-viewer marks its
-                // primitives with semantic classes, painted here the way its
-                // stylesheet's custom properties color them in the browser.
-                "key" => self.fg = Some(Color::LightCyan),
-                "string" => self.fg = Some(Color::LightGreen),
-                "number" => self.fg = Some(Color::LightYellow),
-                "boolean" => self.fg = Some(Color::LightMagenta),
-                "null" => self.fg = Some(Color::DarkGray),
-                "preview" => self.dim = true,
-                _ => {}
-            }
-        }
-        self
-    }
-
-    fn style(&self) -> Style {
-        let mut style = Style::default();
-        if let Some(fg) = self.fg {
-            style = style.fg(fg);
-        }
-        if self.reversed {
-            style = style.reversed();
-        }
-        if self.bold {
-            style = style.bold();
-        }
-        if self.italic {
-            style = style.italic();
-        }
-        if self.dim {
-            style = style.dim();
-        }
-        style
-    }
-}
-
 /// Lays out and paints the whole document; the focused widget node (if any)
 /// wears the ring and caret.
 pub(crate) fn render_document(
@@ -104,9 +33,10 @@ pub(crate) fn render_document(
     doc: &mut DomDocument,
     focused: Option<NodeId>,
 ) {
-    let laid = layout::compute(doc, area);
+    let (laid, styles) = layout::compute_styled(doc, area, focused);
+    let root = ComputedStyle::default();
     for node in &laid {
-        paint(frame, node, doc, focused, Hints::default());
+        paint(frame, node, doc, focused, &styles, &root);
     }
 }
 
@@ -115,7 +45,8 @@ fn paint(
     laid: &LaidNode,
     doc: &mut DomDocument,
     focused: Option<NodeId>,
-    hints: Hints,
+    styles: &StyleTable,
+    inherited: &ComputedStyle,
 ) {
     if laid.rect.width == 0 || laid.rect.height == 0 {
         return;
@@ -123,14 +54,15 @@ fn paint(
     match doc.node(laid.node) {
         Some(NodeData::Text(text)) => {
             let text = collapse_whitespace(text);
+            let (style, center) = css::text_style(inherited);
             // Wrapped like the browser flows prose; the layout reserved the
             // rows (`wrapped_lines`). The collapse already trimmed the ends,
             // so an untrimmed wrap only preserves leading non-breaking
             // spaces — ratatui's trim would strip them as whitespace.
             let paragraph = Paragraph::new(Line::from(text))
-                .style(hints.style())
+                .style(style)
                 .wrap(Wrap { trim: false });
-            let paragraph = if hints.center {
+            let paragraph = if center {
                 paragraph.alignment(Alignment::Center)
             } else {
                 paragraph
@@ -142,36 +74,49 @@ fn paint(
                 paint_widget(frame, laid.rect, doc, laid.node, focused);
                 return;
             }
-            let classes = effective_classes(doc, laid.node);
-            let hints = hints.merge(el.tag(), &classes);
-            if classes.iter().any(|c| c == "card") {
-                // The card border stays static dark gray (ADR 0017): the
-                // focus ring and error dressing belong to the input group.
-                frame.render_widget(
-                    Block::bordered().border_style(Style::new().dark_gray()),
-                    laid.rect,
-                );
+            let computed = styles
+                .get(&laid.node)
+                .cloned()
+                .unwrap_or_else(|| inherited.inherited());
+            if computed.background != inherited.background {
+                // An element's own background fills its box — a component's
+                // `:host { background-color }` paints the whole component
+                // area, not just its text runs. `Highlight` stays a
+                // text-run effect (the mark).
+                if let Some(background) = computed.background {
+                    if background != uic_css::Color::Highlight {
+                        frame
+                            .buffer_mut()
+                            .set_style(laid.rect, Style::new().bg(css::convert_color(background)));
+                    }
+                }
             }
-            if classes.iter().any(|c| c == "input-group") {
-                // Error wins over focus, like the browser keeping the red
-                // outline on a focused invalid input; the error state reads
-                // off the component's reflected attribute, its `[error]`
-                // stylesheet selector.
-                let border = if component_attr(doc, laid.node, "error").is_some() {
-                    Style::new().fg(ERROR_BORDER)
-                } else if contains_focus(doc, laid.node, focused) {
-                    Style::new().fg(FOCUS_RING)
+            if computed.border > 0.0 {
+                // The cascade reserves the cells; the ring colors stay the
+                // runtime's: error wins over focus on the input group, like
+                // the browser keeping the red outline on a focused invalid
+                // input — read off the component's reflected attribute, its
+                // `[error]` stylesheet selector. Other bordered blocks (the
+                // card) stay static dark gray (ADR 0017).
+                let classes = effective_classes(doc, laid.node);
+                let border = if classes.iter().any(|c| c == "input-group") {
+                    if component_attr(doc, laid.node, "error").is_some() {
+                        Style::new().fg(ERROR_BORDER)
+                    } else if contains_focus(doc, laid.node, focused) {
+                        Style::new().fg(FOCUS_RING)
+                    } else {
+                        Style::new().dark_gray()
+                    }
                 } else {
                     Style::new().dark_gray()
                 };
                 frame.render_widget(Block::bordered().border_style(border), laid.rect);
             }
-            let plain = el.attr("data-tui").is_none();
             for child in &laid.children {
-                paint(frame, child, doc, focused, hints);
+                paint(frame, child, doc, focused, styles, &computed);
             }
-            if focused == Some(laid.node) && plain {
-                // A focused plain node (a JS component's roving focus, #65)
+            if focused == Some(laid.node) {
+                // A focused plain node (a JS component's roving focus)
                 // reads as a one-row selection bar over its first line;
                 // widgets paint their own ring instead.
                 let row = Rect {

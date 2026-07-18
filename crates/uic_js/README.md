@@ -1,19 +1,22 @@
 # uic_js
 
-The exploration host for issue #65: a Boa-embedded JS engine running real LitElement components against the terminal runtime.
+A Boa-embedded JS engine hosting real LitElement components on the terminal runtime.
 
-Components import a mocked `lit` (js/bootstrap.js behind an in-memory module loader): `LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
+Components import a mocked `lit` — TypeScript modules under js/src/ mirroring the specifiers (`lit.ts`, `lit/decorators.ts`, …), compiled per module by the build script through web_modules and served by the in-memory loader: `LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
 
-Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint (a focused plain node reads as reverse video); focus survives each subtree swap by re-resolving its `data-path`.
+Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint (a focused plain node reads as a one-row selection bar); focus survives each subtree swap by re-resolving its `data-path`.
 
-The exploration target runs byte-unmodified: `build.rs` vendors `@alenaksu/json-viewer` from npm through web_modules, and its own LitElement code — decorators, directives, roving-tabindex keyboard navigation, click-to-toggle — drives the terminal.
+A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — json-viewer's own palette, `calc()` indentation and `ul` reset style the pane with no hardcoded entries.
+
+The demo component runs byte-unmodified: `build.rs` vendors the packages declared in `package.json` (the component, xterm.js, and the real lit family for the split view's DOM pane), and json-viewer's own LitElement code — decorators, directives, roving-tabindex keyboard navigation, click-to-toggle — drives the terminal.
 
 ```sh
 cargo test -p uic_js
-cargo run -p uic_js --example json_viewer            # interactive demo
+cargo run -p uic_js --example json_viewer        # interactive terminal demo
+cargo run -p uic_js --example json_viewer_web    # browser split view on :8091
 cargo test -p uic_js --release --test measure -- --ignored --nocapture
 ```
 
-The render path is the exploration's deliberate simplification: a subtree swap (serialize, `parse_fragment`, `import_node`), not per-part diffing — measured at ~300 ms per keystroke on a 500-row document (instant at form scale), the recorded motivation for the per-part follow-up.
+The render path is a deliberate simplification: a subtree swap (serialize, `parse_fragment`, `import_node`), not per-part diffing — instant at form scale, measurably slow on very wide documents; per-part commits are the recorded follow-up.
 
-`tests/boa_quirks.rs` is the canary for the Boa 0.21 bug the bootstrap works around (a closure created inside a class constructor capturing a local lexical binding panics the VM); when it starts failing, Boa fixed the bug — drop the `installAccessors` hoisting with it.
+`tests/boa_quirks.rs` is the canary for a Boa 0.21 engine bug the runtime works around (a closure created inside a class constructor capturing a local lexical binding panics the VM); when it starts failing, Boa fixed the bug — drop the module-level accessor installation with it.

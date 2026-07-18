@@ -1,0 +1,8 @@
+{
+    "name": "uic_css",
+    "private": true,
+    "description": "npm packages vendored at build time: the compiled Bootstrap the tui.css generator filters.",
+    "dependencies": {
+        "bootstrap": "^5"
+    }
+}

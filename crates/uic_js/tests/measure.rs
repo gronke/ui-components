@@ -1,4 +1,4 @@
-//! Magnitude measurements for the exploration record (#65) — run manually:
+//! Magnitude measurements — run manually:
 //!
 //! ```sh
 //! cargo test -p uic_js --release --test measure -- --ignored --nocapture
@@ -40,9 +40,14 @@ fn magnitudes() {
         t.elapsed()
     );
 
-    let small = r#"{"name":"Schuhkarton","tags":{"first":"a","second":"b"},"active":true}"#;
+    let small = serde_json::json!({
+        "active": true,
+        "name": "Schuhkarton",
+        "tags": { "first": "a", "second": "b" },
+    })
+    .to_string();
     let t = Instant::now();
-    let _node = host.mount("json-viewer", &[("data", small)]).unwrap();
+    let _node = host.mount("json-viewer", &[("data", &small)]).unwrap();
     println!(
         "mount + first render (small document):    {:?}",
         t.elapsed()
@@ -58,10 +63,14 @@ fn magnitudes() {
 
     // A wide document: 500 keys at the top level.
     let wide: String = {
-        let members: Vec<String> = (0..500)
-            .map(|i| format!("\"key{i:03}\": {{\"value\": {i}, \"label\": \"row {i}\"}}"))
-            .collect();
-        format!("{{{}}}", members.join(","))
+        let mut rows = serde_json::Map::new();
+        for i in 0..500 {
+            rows.insert(
+                format!("key{i:03}"),
+                serde_json::json!({ "label": format!("row {i}"), "value": i }),
+            );
+        }
+        serde_json::Value::Object(rows).to_string()
     };
     let mut host = JsHost::new().unwrap();
     host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")

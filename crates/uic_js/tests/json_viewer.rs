@@ -1,6 +1,5 @@
-//! The exploration target (#65): the byte-unmodified `@alenaksu/json-viewer`
-//! npm dist renders a JSON tree through the mocked lit and the terminal
-//! pipeline.
+//! The byte-unmodified `@alenaksu/json-viewer` npm dist renders a JSON tree
+//! through the mocked lit and the terminal pipeline.
 
 use std::path::Path;
 
@@ -8,8 +7,15 @@ use uic_js::JsHost;
 use uic_tui::ratatui::backend::TestBackend;
 use uic_tui::ratatui::Terminal;
 
-const DATA: &str =
-    r#"{"name":"Schuhkarton","active":true,"total":12.5,"tags":{"first":"a","second":"b"}}"#;
+fn data() -> String {
+    serde_json::json!({
+        "active": true,
+        "name": "Schuhkarton",
+        "tags": { "first": "a", "second": "b" },
+        "total": 12.5,
+    })
+    .to_string()
+}
 
 fn screen_text(terminal: &Terminal<TestBackend>) -> String {
     let buffer = terminal.backend().buffer();
@@ -29,7 +35,7 @@ fn json_viewer_renders_a_collapsed_tree() {
     let mut host = JsHost::new().unwrap();
     host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
         .unwrap();
-    let _node = host.mount("json-viewer", &[("data", DATA)]).unwrap();
+    let _node = host.mount("json-viewer", &[("data", &data())]).unwrap();
 
     let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
     let state = host.state.clone();

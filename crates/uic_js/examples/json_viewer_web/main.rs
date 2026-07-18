@@ -1,4 +1,4 @@
-//! The exploration demo (#65) served to a browser: the unmodified
+//! The demo served to a browser: the unmodified
 //! `@alenaksu/json-viewer` runs in a native Boa session, xterm.js shows its
 //! ANSI over a WebSocket, and browser keys and clicks feed back in.
 //!
@@ -24,109 +24,9 @@ use uic_tui_web::{Output, XtermBackend};
 const COLS: u16 = 100;
 const ROWS: u16 = 32;
 
-const SAMPLE: &str = r#"{
-    "project": "schuhkarton/ui-components",
-    "issue": 65,
-    "claims": {
-        "component": "@alenaksu/json-viewer, byte-unmodified npm dist",
-        "engine": "Boa 0.21, embedded",
-        "lit": "mocked at the module boundary",
-        "pipeline": {"layout": "taffy", "paint": "ratatui"}
-    },
-    "interaction": {"keys": "ArrowUp ArrowDown ArrowRight ArrowLeft Home End", "pointer": "click toggles"},
-    "active": true,
-    "coverage": null
-}"#;
+const SAMPLE: &str = include_str!("../sample.json");
 
-const PAGE: &str = r#"<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>json-viewer — browser and terminal, side by side</title>
-<link rel="stylesheet" href="/xterm.css">
-<script type="importmap">
-{
-    "imports": {
-        "lit": "/vendor/lit/index.js",
-        "lit/": "/vendor/lit/",
-        "@lit/reactive-element": "/vendor/@lit/reactive-element/reactive-element.js",
-        "@lit/reactive-element/": "/vendor/@lit/reactive-element/",
-        "lit-html": "/vendor/lit-html/lit-html.js",
-        "lit-html/": "/vendor/lit-html/",
-        "lit-element": "/vendor/lit-element/lit-element.js",
-        "lit-element/": "/vendor/lit-element/",
-        "@alenaksu/json-viewer": "/vendor/@alenaksu/json-viewer/dist/json-viewer.js"
-    }
-}
-</script>
-<style>
-    body { background: #1e1e1e; color: #ccc; font-family: system-ui, sans-serif; margin: 2rem; }
-    .panes { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
-    .pane h2 { font-size: 1rem; font-weight: normal; color: #888; }
-    #dom {
-        display: block; width: 46rem; height: 34rem; overflow: auto;
-        border: 1px solid #444; padding: 0.5rem; box-sizing: border-box;
-        --background-color: #1e1e1e;
-        --color: #ccc;
-        --string-color: #a5d6a7;
-        --number-color: #ffe082;
-        --boolean-color: #ce93d8;
-        --null-color: #888;
-        --property-color: #80deea;
-        --preview-color: #777;
-    }
-    #screen { width: fit-content; border: 1px solid #444; }
-    p { max-width: 66rem; }
-</style>
-</head>
-<body>
-<h1>one component, two renderers</h1>
-<p>The same byte-unmodified <code>@alenaksu/json-viewer</code>: on the left the real lit renders it
-in your browser; on the right it runs in a native Boa session against the mocked lit, painted by
-the terminal pipeline and streamed here as ANSI. Each pane takes its own keyboard and mouse.</p>
-<div class="panes">
-    <div class="pane">
-        <h2>browser — real lit, real DOM</h2>
-        <json-viewer id="dom"></json-viewer>
-    </div>
-    <div class="pane">
-        <h2>terminal — Boa, mocked lit, taffy/ratatui</h2>
-        <div id="screen"></div>
-    </div>
-</div>
-<script type="module">
-    import '@alenaksu/json-viewer';
-    document.getElementById('dom').data = __DATA__;
-</script>
-<script src="/xterm.js"></script>
-<script>
-    const COLS = __COLS__;
-    const ROWS = __ROWS__;
-    const term = new Terminal({ cols: COLS, rows: ROWS, cursorBlink: false });
-    term.open(document.getElementById('screen'));
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/session`);
-    window.__ws = ws;
-    ws.onmessage = (ev) => term.write(ev.data);
-    const KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
-    term.attachCustomKeyEventHandler((ev) => {
-        if (ev.type !== 'keydown') return false;
-        if (!KEYS.includes(ev.key)) return true;
-        ws.send(JSON.stringify({ type: 'key', key: ev.key }));
-        ev.preventDefault();
-        return false;
-    });
-    const screen = document.getElementById('screen');
-    screen.addEventListener('mousedown', (ev) => {
-        const rect = screen.getBoundingClientRect();
-        const col = Math.min(COLS - 1, Math.max(0, Math.floor(((ev.clientX - rect.left) * COLS) / rect.width)));
-        const row = Math.min(ROWS - 1, Math.max(0, Math.floor(((ev.clientY - rect.top) * ROWS) / rect.height)));
-        ws.send(JSON.stringify({ type: 'mouse', col, row }));
-    });
-</script>
-</body>
-</html>
-"#;
+const PAGE: &str = include_str!("page.html");
 
 enum ClientMsg {
     Key(String),

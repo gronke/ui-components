@@ -1,0 +1,66 @@
+/* The terminal-specific residue above the generated Bootstrap: decisions
+   that are ours, not Bootstrap's. The overrides origin outranks the
+   generated sheet, importance included, so every entry here is reliable. */
+
+/* The bright ANSI variants read on dark terminal themes; the web pane maps
+   the same classes to Bootstrap's text emphasis. */
+.text-danger { color: ansi(light-red); }
+.text-success { color: ansi(light-green); }
+.text-warning { color: ansi(light-yellow); }
+.text-info { color: ansi(light-cyan); }
+.text-muted, .text-secondary, .text-body-secondary { color: ansi(dark-gray); }
+
+/* The label reads bold in cells, where the browser relies on spacing. */
+.form-label { font-weight: bold; }
+
+/* Sub-line sizes render dim. */
+.small, .text-small { font-size: smaller; }
+
+
+/* The bordered blocks reserve their cells here; paint draws the block and
+   owns the focus/error ring colors. One cell of horizontal padding is the
+   closest cells get to the form-control's side padding in the browser.
+   Display and paddings pin the terminal shapes against Bootstrap's own
+   card/flex values from the generated sheet. */
+.card {
+    display: block;
+    border-width: 1px;
+    padding: 0 1ch;
+}
+.card-body {
+    /* One blank row between the card's cap and its content, nothing else —
+       the browser's inset does not translate to cells. */
+    padding: 1lh 0 0;
+}
+.card-header {
+    padding: 0;
+}
+.input-group {
+    display: flex;
+    flex-wrap: nowrap;
+    border-width: 1px;
+    padding: 0 1ch;
+}
+[seamless] .input-group {
+    /* Seamless inputs drop the chrome: no border block, no inset. */
+    border-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* The input-group affix keeps one cell off the value, nothing more. */
+.input-group-text { padding: 0 0 0 1ch; }
+
+/* Bootstrap's gap-2 in cells: one column, zero rows — a zero column gap
+   would fuse the items. */
+.gap-2 { gap: 0 1ch; }
+
+/* Form controls hug their content in cells with no inner inset —
+   Bootstrap's width: 100% and field paddings are browser-form conventions.
+   The explicit utility re-asserts itself below so templates opting in with
+   w-100 keep stretching. */
+.form-control, .form-select {
+    width: auto;
+    padding: 0;
+}
+.w-100 { width: 100% !important; }
