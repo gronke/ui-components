@@ -1,1 +1,1 @@
-export { map } from '../../directives.js';
+export { map } from '../../lit-html/directives/map.js';

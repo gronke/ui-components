@@ -66,8 +66,11 @@ fn focused_path(host: &JsHost) -> Option<String> {
 #[test]
 fn keyboard_navigation_and_click_toggle() {
     let mut host = JsHost::new().unwrap();
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
-        .unwrap();
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )
+    .unwrap();
     let root = host.mount("json-viewer", &[("data", &data())]).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
 
@@ -123,8 +126,11 @@ fn keyboard_navigation_and_click_toggle() {
 #[test]
 fn a_click_on_the_generated_marker_hits_the_key_span() {
     let mut host = JsHost::new().unwrap();
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
-        .unwrap();
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )
+    .unwrap();
     host.mount("json-viewer", &[("data", &data())]).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
     let frame = paint(&host, &mut terminal);

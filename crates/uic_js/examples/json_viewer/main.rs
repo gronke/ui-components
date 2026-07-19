@@ -40,7 +40,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let started = Instant::now();
     let mut host = JsHost::new()?;
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")?;
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )?;
     let node = host.mount("json-viewer", &[("data", &data)])?;
     host.focus(node)?;
     let startup = started.elapsed();

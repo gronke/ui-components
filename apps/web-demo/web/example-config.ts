@@ -22,6 +22,9 @@ export type ExampleConfig = {
     channel?: string;
     /** Words answering `query-changed` through the page's pool textarea. */
     pool?: string[] | null;
+    /** A foreign npm element for the Boa pane: its vendored package, ESM
+     *  entry and module list (the page fetches and registers them). */
+    foreign?: { package: string; entry: string; modules: string[] } | null;
 };
 
 export function exampleConfig(): ExampleConfig {

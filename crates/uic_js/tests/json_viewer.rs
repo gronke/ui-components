@@ -33,8 +33,11 @@ fn screen_text(terminal: &Terminal<TestBackend>) -> String {
 #[test]
 fn json_viewer_renders_a_collapsed_tree() {
     let mut host = JsHost::new().unwrap();
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
-        .unwrap();
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )
+    .unwrap();
     let _node = host.mount("json-viewer", &[("data", &data())]).unwrap();
 
     let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();

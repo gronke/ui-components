@@ -1,5 +1,7 @@
-// The `lit` module components import — the mock's public face.
+// The `lit` package face: pure re-exports of its producing channels, like
+// upstream — templating from lit-html, the css tag from
+// @lit/reactive-element, the base class from lit-element.
 
-export { css, html, nothing } from './runtime.js';
-export { html as svg } from './runtime.js';
-export { LitElement } from './element.js';
+export { html, svg, nothing } from './lit-html.js';
+export { css } from './@lit/reactive-element.js';
+export { LitElement } from './lit-element.js';

@@ -46,19 +46,63 @@ impl JsHost {
         self.loader.insert(specifier, source);
     }
 
-    /// Registers every `.js` module of a vendored dist directory and loads
-    /// the entry — the byte-unmodified npm package enters the engine here.
+    /// Registers every `.js` module of a vendored dist tree — subdirectories
+    /// included, each under its dist-root-relative path — and loads the
+    /// entry (itself possibly a subpath): the byte-unmodified npm package
+    /// enters the engine here.
     pub fn load_dist_dir(&mut self, dir: &std::path::Path, entry: &str) -> Result<(), Error> {
+        self.register_dist_tree(dir, dir)?;
+        self.load_registered(entry)
+    }
+
+    fn register_dist_tree(
+        &self,
+        root: &std::path::Path,
+        dir: &std::path::Path,
+    ) -> Result<(), Error> {
         let entries = std::fs::read_dir(dir).map_err(|err| Error::Js(err.to_string()))?;
         for file in entries.flatten() {
-            let name = file.file_name().to_string_lossy().to_string();
-            if name.ends_with(".js") {
-                let source = std::fs::read_to_string(file.path())
-                    .map_err(|err| Error::Js(err.to_string()))?;
-                self.loader.insert(&name, &source);
+            let path = file.path();
+            if path.is_dir() {
+                self.register_dist_tree(root, &path)?;
+                continue;
             }
+            if path.extension().and_then(|extension| extension.to_str()) != Some("js") {
+                continue;
+            }
+            let specifier = path
+                .strip_prefix(root)
+                .map_err(|err| Error::Js(err.to_string()))?
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+            let source =
+                std::fs::read_to_string(&path).map_err(|err| Error::Js(err.to_string()))?;
+            self.loader.insert(&specifier, &source);
         }
-        self.load_registered(entry)
+        Ok(())
+    }
+
+    /// Loads a vendored npm package by name: the ESM entry derives from its
+    /// own manifest (`exports` "." → `module` → `main`), the package tree
+    /// registers path-preserving, and the entry evaluates — any lit element
+    /// enters the engine here, no per-package knowledge required.
+    pub fn load_package(
+        &mut self,
+        vendor_root: &std::path::Path,
+        package: &str,
+    ) -> Result<(), Error> {
+        let root = vendor_root.join(package);
+        let manifest_path = root.join("package.json");
+        let manifest = std::fs::read_to_string(&manifest_path)
+            .map_err(|err| Error::Js(format!("read {}: {err}", manifest_path.display())))?;
+        let entry = package_entry(&manifest).ok_or_else(|| {
+            Error::Js(format!(
+                "{package}: no ESM entry in package.json (exports \".\", module, main)"
+            ))
+        })?;
+        self.load_dist_dir(&root, &entry)
     }
 
     /// Registers, links and evaluates a module (a component definition).
@@ -150,5 +194,71 @@ impl JsHost {
     pub fn run_jobs(&mut self) -> Result<(), Error> {
         self.context.run_jobs()?;
         Ok(())
+    }
+}
+
+/// The package's ESM entry per its manifest: `exports` "." (conditions
+/// `import`/`module`/`default`, nested), then `module`, then `main` —
+/// normalized without the leading `./`.
+fn package_entry(manifest: &str) -> Option<String> {
+    fn export_target(value: &serde_json::Value) -> Option<String> {
+        match value {
+            serde_json::Value::String(path) => Some(path.clone()),
+            serde_json::Value::Object(conditions) => ["import", "module", "default"]
+                .iter()
+                .find_map(|key| conditions.get(*key).and_then(export_target)),
+            _ => None,
+        }
+    }
+    let json: serde_json::Value = serde_json::from_str(manifest).ok()?;
+    let from_exports = json.get("exports").and_then(|exports| match exports {
+        serde_json::Value::String(_) => export_target(exports),
+        serde_json::Value::Object(map) => match map.get(".") {
+            Some(dot) => export_target(dot),
+            None => export_target(exports),
+        },
+        _ => None,
+    });
+    from_exports
+        .or_else(|| {
+            json.get("module")
+                .and_then(|m| m.as_str())
+                .map(str::to_string)
+        })
+        .or_else(|| {
+            json.get("main")
+                .and_then(|m| m.as_str())
+                .map(str::to_string)
+        })
+        .map(|entry| entry.trim_start_matches("./").to_string())
+}
+
+#[cfg(test)]
+mod entry_tests {
+    use super::package_entry;
+
+    #[test]
+    fn entries_derive_from_exports_module_and_main() {
+        assert_eq!(
+            package_entry(r#"{"exports": {".": {"import": "./dist/x.js"}}}"#).as_deref(),
+            Some("dist/x.js")
+        );
+        assert_eq!(
+            package_entry(r#"{"exports": "./index.js"}"#).as_deref(),
+            Some("index.js")
+        );
+        assert_eq!(
+            package_entry(r#"{"exports": {"import": "./esm/y.js"}}"#).as_deref(),
+            Some("esm/y.js")
+        );
+        assert_eq!(
+            package_entry(r#"{"module": "./m.js", "main": "./c.js"}"#).as_deref(),
+            Some("m.js")
+        );
+        assert_eq!(
+            package_entry(r#"{"main": "c.js"}"#).as_deref(),
+            Some("c.js")
+        );
+        assert_eq!(package_entry(r#"{"name": "bare"}"#), None);
     }
 }

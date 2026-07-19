@@ -6,10 +6,10 @@
 //! `web_modules::build`.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use web_modules::build::{build, BuildOptions};
-use web_modules::vendor::specs_from_package_json;
+use web_modules::vendor::{specs_from_package_json, vendor, PackageSpec};
 
 /// One gallery entry: a component with its seeds, mirroring the terminal
 /// demo's (`apps/tui-demo`). The page config carries what the shared boot
@@ -291,6 +291,103 @@ const EXAMPLES: &[Example] = &[
     },
 ];
 
+/// A maintained end-to-end example: a foreign npm lit element rendered in
+/// both panes — the browser pane through the real lit family, the terminal
+/// pane through the Boa host bundle (/tui-js). The page fetches the
+/// vendored dist sources and hands them to the session; entry and module
+/// list derive from the vendored tree at build time.
+struct ForeignExample {
+    name: &'static str,
+    route: &'static str,
+    title: &'static str,
+    blurb: &'static str,
+    package: &'static str,
+    range: &'static str,
+    tag: &'static str,
+    attrs: &'static [(&'static str, &'static str)],
+    props_json: &'static str,
+    cols: u16,
+    rows: u16,
+    hint: &'static str,
+}
+
+const FOREIGN_EXAMPLES: &[ForeignExample] = &[ForeignExample {
+    name: "json-viewer",
+    route: "examples/json-viewer",
+    title: "Foreign element: json-viewer",
+    blurb: "A third-party npm lit element, byte-unmodified in both panes: the real lit in the browser, the Boa host in the terminal — its own stylesheet parsed into the cascade.",
+    package: "@alenaksu/json-viewer",
+    range: "^2",
+    tag: "json-viewer",
+    attrs: &[],
+    props_json: r#"{"data": {"project": "schuhkarton/ui-components", "renderers": 2, "panes": {"browser": "real lit", "terminal": "Boa + mocked lit"}, "styled": true}}"#,
+    cols: 72,
+    rows: 18,
+    hint: "Arrows navigate, Right/Left expand and collapse, a click toggles — the component's own code.",
+}];
+
+/// The vendored package's ESM entry per its manifest: `exports` "." →
+/// `module` → `main` (the loader's own rule, mirrored for the build).
+fn foreign_entry(package_root: &Path) -> String {
+    fn export_target(value: &serde_json::Value) -> Option<String> {
+        match value {
+            serde_json::Value::String(path) => Some(path.clone()),
+            serde_json::Value::Object(conditions) => ["import", "module", "default"]
+                .iter()
+                .find_map(|key| conditions.get(*key).and_then(export_target)),
+            _ => None,
+        }
+    }
+    let manifest =
+        fs::read_to_string(package_root.join("package.json")).expect("vendored package manifest");
+    let json: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
+    let entry = json
+        .get("exports")
+        .and_then(|exports| match exports {
+            serde_json::Value::String(_) => export_target(exports),
+            serde_json::Value::Object(map) => match map.get(".") {
+                Some(dot) => export_target(dot),
+                None => export_target(exports),
+            },
+            _ => None,
+        })
+        .or_else(|| {
+            json.get("module")
+                .and_then(|module| module.as_str())
+                .map(str::to_string)
+        })
+        .or_else(|| {
+            json.get("main")
+                .and_then(|main| main.as_str())
+                .map(str::to_string)
+        })
+        .expect("an ESM entry in the vendored manifest");
+    entry.trim_start_matches("./").to_string()
+}
+
+/// Every `.js` module of the vendored tree, package-root-relative — what
+/// the page fetches and registers with the Boa session.
+fn foreign_modules(package_root: &Path, dir: &Path, out: &mut Vec<String>) {
+    for entry in fs::read_dir(dir).expect("read vendored tree").flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            foreign_modules(package_root, &path, out);
+            continue;
+        }
+        if path.extension().and_then(|extension| extension.to_str()) != Some("js") {
+            continue;
+        }
+        let relative = path
+            .strip_prefix(package_root)
+            .expect("under the package root")
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join("/");
+        out.push(relative);
+    }
+}
+
 /// The notify wiring of a tag, from the registry: every notifying property
 /// with a JSON-faithful scalar type contributes its event and JS property
 /// name. Rich types stay out — a Zoned crossing JSON arrives as a plain
@@ -431,15 +528,100 @@ fn example_page(example: &Example) -> String {
     )
 }
 
+fn foreign_config_json(example: &ForeignExample, entry: &str, modules: &[String]) -> String {
+    let attrs: serde_json::Map<String, serde_json::Value> = example
+        .attrs
+        .iter()
+        .map(|(name, value)| ((*name).to_string(), serde_json::json!(value)))
+        .collect();
+    let props: serde_json::Value =
+        serde_json::from_str(example.props_json).expect("manifest props are valid JSON");
+    serde_json::json!({
+        "tag": example.tag,
+        "attrs": attrs,
+        "props": props,
+        "optionProps": {},
+        "notify": [],
+        "cols": example.cols,
+        "rows": example.rows,
+        "foreign": {
+            "package": example.package,
+            "entry": entry,
+            "modules": modules,
+        },
+    })
+    .to_string()
+}
+
+fn foreign_page(example: &ForeignExample, entry: &str, modules: &[String]) -> String {
+    let config = foreign_config_json(example, entry, modules);
+    let depth = example.route.matches('/').count() + 1;
+    let base = format!("<base href=\"{}\">\n", "../".repeat(depth));
+    let head = head(&format!("ui-components · {}", example.title), &base);
+    format!(
+        r##"<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+{head}
+<script type="module">import '{package}';</script>
+<script type="module" src="./example.js"></script>
+</head>
+<body class="pt-5 bg-body-tertiary">
+<div class="container-fluid px-4 px-xl-5">
+<header class="d-flex align-items-center gap-3 mb-4">
+<a href="./" class="text-decoration-none">&larr; examples</a>
+<h1 class="h4 mb-0">{title}</h1>
+<div class="ms-auto d-flex align-items-center gap-3">
+<label class="d-none d-md-flex align-items-center gap-2 small text-body-secondary mb-0">width
+<input id="pane-width" type="range" class="form-range" min="320" step="4">
+</label>
+<button id="theme-toggle" class="btn btn-sm btn-outline-secondary" data-qa="theme-toggle">&#9790;</button>
+</div>
+</header>
+<ul class="nav nav-tabs d-md-none mb-3" role="tablist">
+<li class="nav-item"><a class="nav-link active" href="#" data-pane-tab="web-pane">Web</a></li>
+<li class="nav-item" id="tui-tab-item"><a class="nav-link" href="#" data-pane-tab="tui-pane">Terminal</a></li>
+</ul>
+<div id="panes" class="example-panes d-md-flex align-items-md-start gap-5">
+<section id="web-pane" class="example-pane pane-active" data-qa="web-pane"></section>
+<aside id="tui-pane" class="example-pane d-none" data-qa="tui-pane">
+<div id="terminal" class="tui-screen"></div>
+<p class="text-body-secondary small mt-2 mb-0">{hint}</p>
+</aside>
+</div>
+</div>
+<footer id="debug-bar" class="fixed-bottom bg-body border-top" data-qa="debug-bar">
+<button id="debug-toggle" class="btn btn-sm w-100 py-0 text-body-secondary" aria-expanded="true" aria-controls="debug-body" title="Toggle the debug bar">&#9662;</button>
+<div id="debug-body" class="debug-body container-fluid px-4 pb-2">
+<h2 class="h6">notify events</h2>
+<pre id="events" class="border bg-body p-2 small mb-0" data-qa="events"></pre>
+</div>
+</footer>
+<script type="application/json" id="example-config">{config}</script>
+</body>
+</html>
+"##,
+        head = head,
+        package = example.package,
+        title = example.title,
+        hint = example.hint,
+        config = config,
+    )
+}
+
 fn gallery_page() -> String {
     let head = head("ui-components", "");
     let section = |title: &str, blurb: &str, prefix: &str| -> String {
-        let cards: String = EXAMPLES
+        let catalog = EXAMPLES
             .iter()
-            .filter(|example| {
-                example.route == prefix || example.route.starts_with(&format!("{prefix}/"))
-            })
-            .map(|example| {
+            .map(|example| (example.route, example.tag, example.title, example.blurb));
+        let foreign = FOREIGN_EXAMPLES
+            .iter()
+            .map(|example| (example.route, example.tag, example.title, example.blurb));
+        let cards: String = catalog
+            .chain(foreign)
+            .filter(|(route, ..)| *route == prefix || route.starts_with(&format!("{prefix}/")))
+            .map(|(route, tag, title, blurb)| {
                 format!(
                     r#"<div class="col">
 <a class="card h-100 text-decoration-none" href="./{route}/">
@@ -450,10 +632,6 @@ fn gallery_page() -> String {
 </a>
 </div>
 "#,
-                    route = example.route,
-                    tag = example.tag,
-                    title = example.title,
-                    blurb = example.blurb,
                 )
             })
             .collect();
@@ -481,7 +659,7 @@ fn gallery_page() -> String {
         ),
         section(
             "examples",
-            "Maintained end-to-end examples.",
+            "Maintained end-to-end examples — foreign npm elements in both panes, the Boa host running the terminal side.",
             "examples",
         ),
     ]
@@ -542,6 +720,31 @@ fn main() {
         let dir = pages.join(example.route);
         fs::create_dir_all(&dir).expect("create example page dir");
         fs::write(dir.join("index.html.tera"), page).expect("write example page");
+    }
+    // Foreign examples: the packages pre-vendor here so the entry and the
+    // module list derive from the real tree; the page fetches the same
+    // files from the site's own web_modules copy.
+    let foreign_vendor = out.join("vendor_foreign");
+    for example in FOREIGN_EXAMPLES {
+        let package_root = foreign_vendor.join(example.package);
+        if !package_root.join("package.json").is_file() {
+            let spec = PackageSpec::npm(example.package, example.range);
+            vendor(&foreign_vendor, "/vendor", &[spec]).expect("vendor the foreign package");
+        }
+        let entry = foreign_entry(&package_root);
+        let mut modules = Vec::new();
+        foreign_modules(&package_root, &package_root, &mut modules);
+        modules.sort();
+        let page = foreign_page(example, &entry, &modules);
+        assert_eq!(
+            page.matches("{{").count(),
+            1,
+            "exactly the importmap hole survives templating for {}",
+            example.name
+        );
+        let dir = pages.join(example.route);
+        fs::create_dir_all(&dir).expect("create foreign page dir");
+        fs::write(dir.join("index.html.tera"), page).expect("write foreign page");
     }
     fs::create_dir_all(&pages).expect("create pages root");
     fs::write(pages.join("index.html.tera"), gallery_page()).expect("write gallery page");

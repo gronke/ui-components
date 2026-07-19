@@ -1,5 +1,6 @@
 /target
 /dist
 /apps/web-demo/web-tui
+/apps/web-demo/web-tui-js
 .*.swp
 /crates/uic_codegen_web/tests/parity/build

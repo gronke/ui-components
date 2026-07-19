@@ -2,7 +2,7 @@
 // customElements registry and the flat entry points the Rust host calls by
 // name (mount, property writes, event delivery, focus).
 
-import { LitElement } from './element.js';
+import { LitElement } from './lit-element.js';
 import {
     deliver,
     focusNode,

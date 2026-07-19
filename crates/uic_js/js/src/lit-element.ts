@@ -1,6 +1,6 @@
-// The mocked LitElement base: property accessors scheduling microtask
-// updates, converter-aware attribute sync, and the render-to-string commit
-// through the host natives.
+// The lit-element channel: the mocked LitElement base — property accessors
+// scheduling microtask updates, converter-aware attribute sync, and the
+// render-to-string commit through the host natives.
 
 import {
     attributeName,

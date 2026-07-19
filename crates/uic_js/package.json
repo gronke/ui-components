@@ -1,7 +1,7 @@
 {
     "name": "uic_js",
     "private": true,
-    "description": "npm packages vendored at build time: the demo component, the browser terminal, and the real lit family for the split view's DOM pane.",
+    "description": "npm packages vendored at build time for the tests and examples: the pinned test component, the browser terminal, and the real lit family for the split view's DOM pane.",
     "dependencies": {
         "@alenaksu/json-viewer": "^2",
         "@lit/reactive-element": "^2",

@@ -53,8 +53,11 @@ fn foreground(terminal: &Terminal<TestBackend>, x: u16, y: u16) -> Option<Color>
 #[test]
 fn the_component_stylesheet_styles_the_terminal() {
     let mut host = JsHost::new().unwrap();
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
-        .unwrap();
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )
+    .unwrap();
     let root = host.mount("json-viewer", &[("data", &data())]).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
     paint(&host, &mut terminal);

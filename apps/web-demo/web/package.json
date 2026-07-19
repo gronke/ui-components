@@ -3,6 +3,7 @@
   "private": true,
   "description": "Browser dependencies for the demo, vended at build time by web_modules (see ../build.rs). devDependencies are tooling and are NOT vended.",
   "dependencies": {
+    "@alenaksu/json-viewer": "^2",
     "@lit/reactive-element": "^2",
     "@xterm/xterm": "6.0.0",
     "bootstrap": "^5",

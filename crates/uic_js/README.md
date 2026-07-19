@@ -1,22 +1,52 @@
 # uic_js
 
-A Boa-embedded JS engine hosting real LitElement components on the terminal runtime.
+A Boa-embedded JS engine hosting real LitElement components on the terminal runtime — any npm lit element, byte-unmodified.
 
-Components import a mocked `lit` — TypeScript modules under js/src/ mirroring the specifiers (`lit.ts`, `lit/decorators.ts`, …), compiled per module by the build script through web_modules and served by the in-memory loader: `LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
-
-Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint (a focused plain node reads as a one-row selection bar); focus survives each subtree swap by re-resolving its `data-path`.
-
-A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — json-viewer's own palette, `calc()` indentation and `ul` reset style the pane with no hardcoded entries.
-Its `.collapsable::before` marker renders as a generated box (▶ turning ▼ through `transform: rotate(90deg)`), keys and values flow on one row through the anonymous inline rows, and clicking the marker cell hits the owning key span.
-
-The demo component runs byte-unmodified: `build.rs` vendors the packages declared in `package.json` (the component, xterm.js, and the real lit family for the split view's DOM pane), and json-viewer's own LitElement code — decorators, directives, roving-tabindex keyboard navigation, click-to-toggle — drives the terminal.
+Loading is generic: `JsHost::load_package(vendor_root, "@scope/name")` derives the package's ESM entry from its own manifest (`exports` ".", then `module`, then `main`), registers the whole dist tree under path-preserving specifiers, and evaluates the entry; `mount(tag, attrs)` takes any tag.
+Packages arrive through the same registry-read-only vendoring the rest of the repo uses (ADR 0004): `build.rs` vendors whatever `package.json` declares for the tests and examples, and the `third_party` example vendors any `name@range` at runtime.
 
 ```sh
 cargo test -p uic_js
-cargo run -p uic_js --example json_viewer        # interactive terminal demo
+cargo run -p uic_js --example third_party        # the vendored test component, offline
+cargo run -p uic_js --example third_party -- 'some-pkg@^1' some-tag --prop 'data={"a":1}'
+cargo run -p uic_js --example json_viewer        # the pinned reference, interactive
 cargo run -p uic_js --example json_viewer_web    # browser split view on :8091
 cargo test -p uic_js --release --test measure -- --ignored --nocapture
 ```
+
+## The mocked lit, shaped like upstream's channels
+
+Components import a mocked `lit` — TypeScript modules under `js/src/`, compiled per module by the build script and served by the in-memory loader.
+The tree mirrors who produces each feature upstream, and `lit` is pure re-exports:
+
+| Channel | Provides |
+| --- | --- |
+| `lit-html` | `html`, `svg`, `nothing`, and every directive under `lit-html/directives/*` |
+| `@lit/reactive-element` | the `css` tag; the decorators under `@lit/reactive-element/decorators` |
+| `lit-element` | the `LitElement` base |
+| `lit`, `lit/decorators.js`, `lit/directives/*` | re-export shims over the producers |
+| `@lit-labs/*` | reserved for mocked labs features |
+
+Both import spellings resolve (`lit/directives/when.js` and `lit-html/directives/when.js`); every module also registers under its extension-less stem.
+A missing module reports itself: the error names the specifier beside everything the runtime provides — extending the surface is adding a file here.
+
+## Directives
+
+Supported with full semantics: `classMap`, `map`, `when`, `repeat` (unkeyed — the subtree-swap commit rebuilds either way; focus survives by `data-path`), `ifDefined` (the attribute renders empty rather than absent under the serialize commit), `choose`, `join`, `range`, `keyed` (degrades to its value), `styleMap`.
+Identities where the renderer's model makes memoization moot: `guard` (recomputes), `cache`, `live`.
+Not provided (async model, raw HTML injection): `until`, `asyncAppend`, `asyncReplace`, `ref`, `unsafeHTML`, `unsafeSVG` — importing one reports the gap.
+
+## Runtime mechanics
+
+`LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
+
+Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint; focus survives each subtree swap by re-resolving its `data-path`.
+
+A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — no Bootstrap assumed, the element's own stylesheet drives colors, indentation and generated content (json-viewer's `.collapsable::before` marker renders as a generated box, ▶ turning ▼ through `transform: rotate(90deg)`).
+
+## The pinned test component
+
+`@alenaksu/json-viewer` is the crate's pinned integration fixture: the `json_viewer*` tests and examples prove the runtime against a real published element — its decorators, directives, roving-tabindex keyboard navigation and click-to-toggle drive the terminal, and the browser split view renders the same bytes against the real lit family for comparison.
 
 The render path is a deliberate simplification: a subtree swap (serialize, `parse_fragment`, `import_node`), not per-part diffing — instant at form scale, measurably slow on very wide documents; per-part commits are the recorded follow-up.
 

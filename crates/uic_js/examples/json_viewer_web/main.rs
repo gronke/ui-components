@@ -55,7 +55,10 @@ fn session_thread(
 ) {
     let run = move || -> Result<(), Box<dyn std::error::Error>> {
         let mut host = JsHost::new()?;
-        host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")?;
+        host.load_package(
+            Path::new(env!("UIC_JS_VENDOR_ROOT")),
+            "@alenaksu/json-viewer",
+        )?;
         let node = host.mount("json-viewer", &[("data", &data)])?;
         host.focus(node)?;
 
@@ -123,7 +126,9 @@ async fn handle_socket(mut socket: WebSocket, data: String) {
 }
 
 fn asset(relative: &str) -> String {
-    let path = Path::new(env!("UIC_JS_VENDOR_XTERM")).join(relative);
+    let path = Path::new(env!("UIC_JS_VENDOR_ROOT"))
+        .join("@xterm/xterm")
+        .join(relative);
     std::fs::read_to_string(path).expect("vendored xterm asset")
 }
 

@@ -113,6 +113,11 @@ async function boot(): Promise<void> {
 
     const el = document.createElement(config.tag) as any;
     el.classList.add('d-block');
+    if (config.foreign) {
+        // A foreign element's own theme variables follow the page.
+        el.style.setProperty('--background-color', 'var(--bs-body-bg)');
+        el.style.setProperty('--color', 'var(--bs-body-color)');
+    }
     for (const [name, value] of Object.entries(config.attrs ?? {})) {
         el.setAttribute(name, value);
     }
@@ -136,26 +141,29 @@ async function boot(): Promise<void> {
     let sync: { fromSession: (event: string, json: string) => void } | null = null;
     let stateOut: { changed: (state: AppState) => void } | null = null;
 
-    const tui = await mountTuiPane({
-        config,
-        pane: document.getElementById('tui-pane')!,
-        terminal: document.getElementById('terminal')!,
-        seed: (session, index) => {
-            if (config.channel) {
-                // The form's state property seeds from the settled DOM side.
-                session.set_prop_json(index, 'state', JSON.stringify(el.state ?? {}));
-            }
-        },
-        onNotify: (event, json) => {
-            if (pool && event === 'query-changed') {
-                pool.answerTui(tui!.session, tui!.index, tui!.flush, json);
-            } else if (config.channel) {
-                stateOut?.changed(JSON.parse(json).value as AppState);
-            } else {
-                sync?.fromSession(event, json);
-            }
-        },
-    });
+    const tui = config.foreign
+        ? null // the worker host lands with the next commit
+        : await mountTuiPane({
+              config,
+              pane: document.getElementById('tui-pane')!,
+              terminal: document.getElementById('terminal')!,
+              seed: (session, index) => {
+                  if (config.channel) {
+                      // The form's state property seeds from the settled DOM side.
+                      session.set_prop_json(index, 'state', JSON.stringify(el.state ?? {}));
+                  }
+              },
+              onNotify: (event, json) => {
+                  if (pool && event === 'query-changed') {
+                      const pane = tui as any;
+                      pool.answerTui(pane.session, pane.index, pane.flush, json);
+                  } else if (config.channel) {
+                      stateOut?.changed(JSON.parse(json).value as AppState);
+                  } else {
+                      sync?.fromSession(event, json);
+                  }
+              },
+          });
     if (!tui) {
         // No wasm bundle: the page degrades to the web pane alone.
         document.getElementById('tui-tab-item')?.classList.add('d-none');
@@ -163,7 +171,10 @@ async function boot(): Promise<void> {
     }
     document.getElementById('tui-pane')!.classList.remove('d-none');
 
-    if (config.channel) {
+    if (config.foreign) {
+        // Foreign elements carry no notify contract; the panes render the
+        // same seeds independently.
+    } else if (config.channel) {
         // Whole-state snapshots over the broadcast channel — the form's
         // cross-tab story, unchanged from the original demo.
         stateOut = wireStatePane({
@@ -190,7 +201,7 @@ async function boot(): Promise<void> {
         sync = wirePropertySync({
             element: el,
             session: tui.session,
-            index: tui.index,
+            index: (tui as any).index ?? 0,
             notify: syncedNotify,
             flush: tui.flush,
             record,

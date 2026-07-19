@@ -52,7 +52,20 @@ impl MapLoader {
         }
         let sources = self.sources.borrow();
         let source = sources.get(&specifier).ok_or_else(|| {
-            JsNativeError::error().with_message(format!("unknown module specifier {specifier:?}"))
+            // A gap in the mocked lit surface reports itself: name the
+            // missing module beside what the runtime provides, so the next
+            // element's needs become a small PR instead of a mystery.
+            let mut provided: Vec<&str> = sources
+                .keys()
+                .map(String::as_str)
+                .filter(|known| known.ends_with(".js") && !known.starts_with("test:"))
+                .collect();
+            provided.sort_unstable();
+            JsNativeError::error().with_message(format!(
+                "unknown module specifier {specifier:?} — the mocked lit runtime provides: {}. \
+                 Extensions live in crates/uic_js/js/src/.",
+                provided.join(", ")
+            ))
         })?;
         let module = Module::parse(
             Source::from_bytes(source.as_bytes()).with_path(std::path::Path::new(&specifier)),
@@ -125,8 +138,17 @@ mod tests {
             "directives.js"
         );
         assert_eq!(
-            normalize(Some("json-viewer.js"), "./chunk-ABC.js"),
+            normalize(Some("entry.js"), "./chunk-ABC.js"),
             "chunk-ABC.js"
+        );
+        // Dist trees keep their directories: relative imports cross them.
+        assert_eq!(
+            normalize(Some("nested/entry.js"), "./deep/part.js"),
+            "nested/deep/part.js"
+        );
+        assert_eq!(
+            normalize(Some("nested/deep/part.js"), "../shared.js"),
+            "nested/shared.js"
         );
     }
 }

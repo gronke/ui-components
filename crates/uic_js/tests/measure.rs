@@ -33,8 +33,11 @@ fn magnitudes() {
     );
 
     let t = Instant::now();
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
-        .unwrap();
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )
+    .unwrap();
     println!(
         "json-viewer modules load+link+evaluate:   {:?}",
         t.elapsed()
@@ -73,8 +76,11 @@ fn magnitudes() {
         serde_json::Value::Object(rows).to_string()
     };
     let mut host = JsHost::new().unwrap();
-    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
-        .unwrap();
+    host.load_package(
+        Path::new(env!("UIC_JS_VENDOR_ROOT")),
+        "@alenaksu/json-viewer",
+    )
+    .unwrap();
     let node = host.mount("json-viewer", &[("data", &wide)]).unwrap();
     let t = Instant::now();
     host.focus(node).unwrap();
