@@ -11,8 +11,10 @@ mod parse;
 mod select;
 mod value;
 
-pub use cascade::{resolve_document, Origin, SheetRef, StyleTable};
+pub use cascade::{resolve_document, ElementStyles, Origin, SheetRef, StyleTable};
 pub use computed::{ComputedStyle, Dimension, Display, FlexDirection, TextAlign};
 pub use parse::{parse_stylesheet, Declaration, DropReport, Rule, Stylesheet};
-pub use select::{matches, parse_selector_list, CssString, El, PseudoClass, TuiSelectors};
+pub use select::{
+    matches, parse_selector_list, CssString, El, PseudoClass, PseudoElement, TuiSelectors,
+};
 pub use value::{AnsiColor, Axis, Color, Length};

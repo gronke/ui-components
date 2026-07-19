@@ -220,6 +220,9 @@ pub struct El<'a, T> {
     pub node: NodeId,
     pub scope: Option<NodeId>,
     pub focused: Option<NodeId>,
+    /// Set when matching for a pseudo-element style
+    /// (`MatchingMode::ForStatelessPseudoElement`).
+    pub pseudo: Option<PseudoElement>,
 }
 
 impl<T> Clone for El<'_, T> {
@@ -229,6 +232,7 @@ impl<T> Clone for El<'_, T> {
             node: self.node,
             scope: self.scope,
             focused: self.focused,
+            pseudo: self.pseudo.clone(),
         }
     }
 }
@@ -246,6 +250,9 @@ impl<'a, T> El<'a, T> {
             node,
             scope: self.scope,
             focused: self.focused,
+            // Ancestors and siblings are ordinary elements; the pseudo
+            // target applies to the subject only.
+            pseudo: None,
         }
     }
 
@@ -375,10 +382,10 @@ impl<T> selectors::Element for El<'_, T> {
 
     fn match_pseudo_element(
         &self,
-        _pe: &PseudoElement,
+        pe: &PseudoElement,
         _context: &mut MatchingContext<Self::Impl>,
     ) -> bool {
-        false
+        self.pseudo.as_ref() == Some(pe)
     }
 
     fn apply_selector_flags(&self, _flags: ElementSelectorFlags) {}
@@ -473,6 +480,7 @@ pub fn matches<T>(
         node,
         scope,
         focused,
+        pseudo: None,
     };
     selectors
         .slice()

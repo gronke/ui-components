@@ -20,7 +20,7 @@ fn json_viewer_stylesheet_parses_with_a_drop_report() {
         .count();
     assert!(custom >= 10, "custom properties kept: {custom}");
     // The terminal-meaningless declarations land in the report.
-    for expected in ["font-family", "cursor", "user-select", "transform"] {
+    for expected in ["font-family", "cursor", "user-select", "transition"] {
         assert!(
             report.declarations.iter().any(|name| name == expected),
             "{expected} should be reported dropped: {:?}",
@@ -144,4 +144,47 @@ fn the_bootstrap_filter_keeps_a_meaningful_subset() {
     }
     assert!(sheet.rules.len() > 300, "kept {}", sheet.rules.len());
     assert!(report.at_rules.iter().any(|r| r == "@media"));
+}
+
+#[test]
+fn pseudo_elements_resolve_with_content_and_rotation() {
+    use uic_css::{resolve_document, Origin, SheetRef};
+
+    let (sheet, _) = parse_stylesheet(
+        ":where(:host) { --accent: #ff0000; }\n\
+         .collapsable::before { content: '\u{25b6}'; transform: rotate(90deg); font-size: 0.8em; color: var(--accent); }\n\
+         .collapsable--collapsed::before { transform: rotate(0); }\n",
+    );
+    let doc: Document<()> = Document::parse_html(
+        "<x-demo><span class='collapsable'>open</span><span class='collapsable collapsable--collapsed'>closed</span></x-demo>",
+    );
+    let root = doc.root();
+    let host = doc
+        .descendants(root)
+        .find(|&n| doc.tag_name(n).map(|t| &**t == "x-demo") == Some(true))
+        .unwrap();
+    let sheets = [SheetRef {
+        origin: Origin::Component,
+        sheet: &sheet,
+        scope: Some(host),
+    }];
+    let table = resolve_document(&doc, &sheets, None);
+
+    let spans: Vec<_> = doc
+        .descendants(root)
+        .filter(|&n| doc.tag_name(n).map(|t| &**t == "span") == Some(true))
+        .collect();
+    let open = table.get(&spans[0]).unwrap().before.as_ref().unwrap();
+    assert_eq!(open.content.as_deref(), Some("\u{25b6}"));
+    assert_eq!(open.rotation, 90, "expanded marker rotates");
+    assert!(open.dim, "sub-em font-size reads dim");
+    assert_eq!(
+        open.color,
+        Some(uic_css::Color::Rgb(0xff, 0, 0)),
+        "var() resolves in the pseudo cascade"
+    );
+    let closed = table.get(&spans[1]).unwrap().before.as_ref().unwrap();
+    assert_eq!(closed.rotation, 0, "collapsed marker stays unrotated");
+    // No ::after rules — no generated box.
+    assert!(table.get(&spans[0]).unwrap().after.is_none());
 }

@@ -75,6 +75,11 @@ pub struct ComputedStyle {
     pub text_align: TextAlign,
     /// Inherited custom properties, raw token text.
     pub custom: HashMap<String, String>,
+
+    // Pseudo-element payload: only meaningful on ::before/::after styles.
+    pub content: Option<String>,
+    /// Right-angle rotation for single-glyph content (the marker quirk).
+    pub rotation: u16,
 }
 
 impl Default for ComputedStyle {
@@ -104,6 +109,8 @@ impl Default for ComputedStyle {
             crossed_out: false,
             text_align: TextAlign::Start,
             custom: HashMap::new(),
+            content: None,
+            rotation: 0,
         }
     }
 }
@@ -230,6 +237,8 @@ impl ComputedStyle {
                     _ => return,
                 };
             }
+            ("content", Value::Text(text)) => self.content = Some(text.clone()),
+            ("transform", Value::Rotation(degrees)) => self.rotation = *degrees,
             ("text-decoration" | "text-decoration-line", Value::Keyword(kw)) => match kw.as_str() {
                 "underline" => self.underlined = true,
                 "line-through" => self.crossed_out = true,

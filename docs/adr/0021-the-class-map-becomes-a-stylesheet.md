@@ -26,10 +26,17 @@ The generated sheet is committed; regenerating on a Bootstrap bump is a reviewab
 
 The refactor is gated by byte-identical frames: the entire existing TestBackend suite passes unchanged with the engine active.
 
+The inline stage builds the boxes CSS generates beyond the document tree.
+Rules targeting `::before`/`::after` resolve in a pseudo pass per element (inheriting from the owner, gated by a sheet-level fast-path flag), and a cascade that produced `content` synthesizes a generated box: sized by the pseudo style, hit-testing to its owner, its marker glyph swapped by right-angle `transform: rotate(...)` at synthesis — json-viewer's ▶ turning ▼.
+Block containers wrap runs of two or more consecutive inline-level boxes (text, `display: inline`/`inline-flex` elements, generated content) into anonymous wrapping flex rows; inline whitespace processing collapses interiors, trims run edges like line ends, and keeps one separator cell where the markup had one.
+Flex and grid containers blockify their children, exactly as before — which is what kept the catalog goldens byte-identical even through this stage.
+An inline element is itself a wrapping row: each inline box breaks lines on its own, the stage's approximation of one shared inline formatting context.
+The ua sheet marks the prose tags (`span, a, b, i, em, strong, small, code, mark`) inline.
+
 ## Consequences
 
 - Styling gaps close with sheet edits, not runtime edits; the dropped-declaration counts are the future lint's input (ADR 0016's reserved slot).
-- `display: inline`, anonymous inline rows and `::before`/`::after` content are staged follow-ups; the ua sheet deliberately ships without inline entries until the goldens update with that stage.
+- Generated content carries text only (`content`, sized by the pseudo style); counters, images and `attr()` stay out of the dialect.
 - What stays in code: the focus/error ring colors on bordered blocks, the mounted-root flow margin, and widget intrinsic sizing — runtime behavior, not stylesheet fact.
 - Inheritance is per-property (color, text styling, custom properties); background inherits as the terminal's stand-in for transparency — a documented approximation.
 - `uic_tui` carries the sheets and resolves them per layout pass; a per-commit style cache is the recorded performance knob.

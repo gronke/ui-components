@@ -51,6 +51,7 @@ const SUPPORTED: &[&str] = &[
     "text-decoration",
     "text-decoration-line",
     "content",
+    "transform",
 ];
 
 /// One kept declaration: the property name, the raw value text (custom

@@ -29,7 +29,8 @@ fn paint(host: &JsHost, terminal: &mut Terminal<TestBackend>) {
         .unwrap();
 }
 
-/// The buffer position of a substring's first cell, as (x, y).
+/// The buffer position of a substring's first cell, as (x, y). Cells count
+/// as characters — the ▶ marker is multi-byte, so a byte offset would lie.
 fn locate(terminal: &Terminal<TestBackend>, needle: &str) -> (u16, u16) {
     let buffer = terminal.backend().buffer();
     let area = buffer.area;
@@ -37,8 +38,9 @@ fn locate(terminal: &Terminal<TestBackend>, needle: &str) -> (u16, u16) {
         let row: String = (area.left()..area.right())
             .map(|x| buffer[(x, y)].symbol().chars().next().unwrap_or(' '))
             .collect();
-        if let Some(pos) = row.find(needle) {
-            return (pos as u16, y);
+        if let Some(byte_pos) = row.find(needle) {
+            let cell = row[..byte_pos].chars().count() as u16;
+            return (cell, y);
         }
     }
     panic!("{needle:?} not on screen");
@@ -58,9 +60,18 @@ fn the_component_stylesheet_styles_the_terminal() {
     paint(&host, &mut terminal);
 
     // The component's `ul { padding: 0 }` beats the ua indent inside its
-    // scope: top-level keys sit at the left edge.
+    // scope: top-level keys sit at the left edge — the collapsable key
+    // behind its two-cell ::before marker box (width: var(--line-height)).
+    let (active_x, _) = locate(&terminal, "active:");
+    assert_eq!(active_x, 0, "component ul reset applies within its scope");
     let (tags_x, tags_y) = locate(&terminal, "tags:");
-    assert_eq!(tags_x, 0, "component ul reset applies within its scope");
+    assert_eq!(tags_x, 2, "the generated marker box precedes the key");
+    let (marker_x, marker_y) = locate(&terminal, "\u{25b6}");
+    assert_eq!(
+        (marker_x, marker_y),
+        (0, tags_y),
+        "collapsed marker: \u{25b6}"
+    );
 
     // Its palette arrives through custom properties and var(): the key
     // color is --property-color (#6fb3d2), the string --string-color
@@ -87,4 +98,10 @@ fn the_component_stylesheet_styles_the_terminal() {
     paint(&host, &mut terminal);
     let (first_x, _) = locate(&terminal, "first:");
     assert_eq!(first_x, 2, "nested rows indent by the component's calc()");
+    let (rotated_x, rotated_y) = locate(&terminal, "\u{25bc}");
+    assert_eq!(
+        (rotated_x, rotated_y),
+        (0, tags_y),
+        "expanding rotates the marker: rotate(90deg) turns \u{25b6} into \u{25bc}"
+    );
 }

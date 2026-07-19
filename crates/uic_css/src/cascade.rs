@@ -12,7 +12,7 @@ use uic_dom::{Document, NodeData, NodeId};
 
 use crate::computed::ComputedStyle;
 use crate::parse::Stylesheet;
-use crate::select::El;
+use crate::select::{El, PseudoElement};
 use crate::value::parse_value;
 
 /// The cascade origins, weakest first.
@@ -31,8 +31,17 @@ pub struct SheetRef<'a> {
     pub scope: Option<NodeId>,
 }
 
+/// One element's resolved styles: its own, plus generated-content pseudos
+/// (present only when their cascade produced non-empty `content`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ElementStyles {
+    pub style: ComputedStyle,
+    pub before: Option<ComputedStyle>,
+    pub after: Option<ComputedStyle>,
+}
+
 /// The resolved table: element nodes to computed styles.
-pub type StyleTable = HashMap<NodeId, ComputedStyle>;
+pub type StyleTable = HashMap<NodeId, ElementStyles>;
 
 /// Resolves the whole document against the sheet set.
 pub fn resolve_document<T>(
@@ -42,9 +51,27 @@ pub fn resolve_document<T>(
 ) -> StyleTable {
     let mut table = StyleTable::new();
     let root_style = ComputedStyle::default();
+    // The pseudo pass only runs when some sheet targets pseudo-elements —
+    // the catalog without adopted sheets keeps its zero-cost path.
+    let has_pseudo_rules = sheets.iter().any(|sheet_ref| {
+        sheet_ref.sheet.rules.iter().any(|rule| {
+            rule.selectors
+                .slice()
+                .iter()
+                .any(|selector| selector.has_pseudo_element())
+        })
+    });
     let children: Vec<NodeId> = doc.children(doc.root()).collect();
     for child in children {
-        resolve_into(doc, child, &root_style, sheets, focused, &mut table);
+        resolve_into(
+            doc,
+            child,
+            &root_style,
+            sheets,
+            focused,
+            has_pseudo_rules,
+            &mut table,
+        );
     }
     table
 }
@@ -55,17 +82,43 @@ fn resolve_into<T>(
     parent: &ComputedStyle,
     sheets: &[SheetRef<'_>],
     focused: Option<NodeId>,
+    has_pseudo_rules: bool,
     table: &mut StyleTable,
 ) {
     if !matches!(doc.node(node), Some(NodeData::Element(_))) {
         return;
     }
-    let style = resolve_element(doc, node, parent, sheets, focused);
+    let style = resolve_element(doc, node, parent, sheets, focused, None);
     let children: Vec<NodeId> = doc.children(node).collect();
     for child in children {
-        resolve_into(doc, child, &style, sheets, focused, table);
+        resolve_into(doc, child, &style, sheets, focused, has_pseudo_rules, table);
     }
-    table.insert(node, style);
+    let mut styles = ElementStyles {
+        style,
+        before: None,
+        after: None,
+    };
+    if has_pseudo_rules {
+        // Pseudo-elements inherit from their originating element; only a
+        // cascade that produced content generates a box.
+        for which in [PseudoElement::Before, PseudoElement::After] {
+            let pseudo = resolve_element(
+                doc,
+                node,
+                &styles.style,
+                sheets,
+                focused,
+                Some(which.clone()),
+            );
+            if pseudo.content.is_some() {
+                match which {
+                    PseudoElement::Before => styles.before = Some(pseudo),
+                    PseudoElement::After => styles.after = Some(pseudo),
+                }
+            }
+        }
+    }
+    table.insert(node, styles);
 }
 
 /// (origin, importance, specificity, source order): ascending application,
@@ -78,6 +131,7 @@ fn resolve_element<T>(
     parent: &ComputedStyle,
     sheets: &[SheetRef<'_>],
     focused: Option<NodeId>,
+    pseudo: Option<PseudoElement>,
 ) -> ComputedStyle {
     let mut matched: Vec<(SortKey, &str, &str)> = Vec::new();
     for sheet_ref in sheets {
@@ -89,7 +143,14 @@ fn resolve_element<T>(
             }
         }
         for rule in &sheet_ref.sheet.rules {
-            let specificity = best_matching_specificity(doc, node, rule, sheet_ref.scope, focused);
+            let specificity = best_matching_specificity(
+                doc,
+                node,
+                rule,
+                sheet_ref.scope,
+                focused,
+                pseudo.clone(),
+            );
             let Some(specificity) = specificity else {
                 continue;
             };
@@ -142,15 +203,21 @@ fn best_matching_specificity<T>(
     rule: &crate::parse::Rule,
     scope: Option<NodeId>,
     focused: Option<NodeId>,
+    pseudo: Option<PseudoElement>,
 ) -> Option<u32> {
     use selectors::context::{
         MatchingContext, MatchingForInvalidation, MatchingMode, NeedsSelectorFlags, QuirksMode,
         SelectorCaches,
     };
 
+    let matching_mode = if pseudo.is_some() {
+        MatchingMode::ForStatelessPseudoElement
+    } else {
+        MatchingMode::Normal
+    };
     let mut caches = SelectorCaches::default();
     let mut context = MatchingContext::new(
-        MatchingMode::Normal,
+        matching_mode,
         None,
         &mut caches,
         QuirksMode::NoQuirks,
@@ -158,14 +225,28 @@ fn best_matching_specificity<T>(
         MatchingForInvalidation::No,
     );
     context.current_host = scope.map(crate::select::opaque_of);
+    // Without this hook the crate treats every pseudo-element selector as
+    // matching in ForStatelessPseudoElement mode: ::before rules would land
+    // on the ::after pass and vice versa.
+    let wanted = pseudo.clone();
+    let pseudo_matches = |candidate: &PseudoElement| wanted.as_ref() == Some(candidate);
+    if pseudo.is_some() {
+        context.pseudo_element_matching_fn = Some(&pseudo_matches);
+    }
     let element = El {
         doc,
         node,
         scope,
         focused,
+        pseudo,
     };
     let mut best: Option<u32> = None;
     for selector in rule.selectors.slice() {
+        // In pseudo mode only pseudo-targeting selectors are candidates;
+        // in normal mode they never match (the crate asserts on misuse).
+        if selector.has_pseudo_element() != element.pseudo.is_some() {
+            continue;
+        }
         if matches_selector(selector, 0, None, &element, &mut context) {
             let specificity = selector.specificity();
             best = Some(best.map_or(specificity, |b| b.max(specificity)));

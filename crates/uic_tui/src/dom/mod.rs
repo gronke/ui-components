@@ -3,6 +3,7 @@
 //! paint read the tree, and events travel it.
 
 mod app;
+mod character_manipulation;
 mod composite;
 pub(crate) mod css;
 mod host;
@@ -44,7 +45,9 @@ pub fn hit_test(
     fn find(nodes: &[layout::LaidNode], x: u16, y: u16) -> Option<uic_dom::NodeId> {
         for laid in nodes {
             if laid.rect.contains(ratatui::layout::Position { x, y }) {
-                return find(&laid.children, x, y).or(Some(laid.node));
+                // Anonymous wrappers are transparent (no target of their
+                // own); generated content hits its owning element.
+                return find(&laid.children, x, y).or_else(|| laid.kind.hit_target());
             }
         }
         None

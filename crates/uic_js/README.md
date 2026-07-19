@@ -7,6 +7,7 @@ Components import a mocked `lit` — TypeScript modules under js/src/ mirroring 
 Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint (a focused plain node reads as a one-row selection bar); focus survives each subtree swap by re-resolving its `data-path`.
 
 A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — json-viewer's own palette, `calc()` indentation and `ul` reset style the pane with no hardcoded entries.
+Its `.collapsable::before` marker renders as a generated box (▶ turning ▼ through `transform: rotate(90deg)`), keys and values flow on one row through the anonymous inline rows, and clicking the marker cell hits the owning key span.
 
 The demo component runs byte-unmodified: `build.rs` vendors the packages declared in `package.json` (the component, xterm.js, and the real lit family for the split view's DOM pane), and json-viewer's own LitElement code — decorators, directives, roving-tabindex keyboard navigation, click-to-toggle — drives the terminal.
 

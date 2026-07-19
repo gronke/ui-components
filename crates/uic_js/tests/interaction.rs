@@ -119,3 +119,29 @@ fn keyboard_navigation_and_click_toggle() {
         "clicked-open members paint:\n{frame}"
     );
 }
+
+#[test]
+fn a_click_on_the_generated_marker_hits_the_key_span() {
+    let mut host = JsHost::new().unwrap();
+    host.load_dist_dir(Path::new(env!("UIC_JS_VENDOR_DIST")), "json-viewer.js")
+        .unwrap();
+    host.mount("json-viewer", &[("data", &data())]).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
+    let frame = paint(&host, &mut terminal);
+    assert!(!expanded(&host), "starts collapsed");
+
+    // The ▶ marker is generated content, not a document node: hit-testing
+    // its cell resolves the owning key span, so a terminal mouse click on
+    // the marker toggles the node like the browser's.
+    let marker_row = frame
+        .lines()
+        .position(|line| line.contains('\u{25b6}'))
+        .expect("marker on screen") as u16;
+    let area = uic_tui::ratatui::layout::Rect::new(0, 0, 60, 16);
+    let hit = {
+        let state = host.state.borrow();
+        uic_tui::dom::hit_test(&state.doc, area, 0, marker_row).expect("marker cell hits")
+    };
+    host.click(hit).unwrap();
+    assert!(expanded(&host), "clicking the marker cell expands");
+}

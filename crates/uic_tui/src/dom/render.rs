@@ -14,7 +14,7 @@ use uic_dom::{NodeData, NodeId};
 
 use uic_css::{ComputedStyle, StyleTable};
 
-use super::layout::{self, collapse_whitespace, component_attr, effective_classes, LaidNode};
+use super::layout::{self, component_attr, effective_classes, LaidKind, LaidNode};
 use super::{css, DomDocument};
 
 /// The browser's focus ring as a palette color: the terminal's own scheme
@@ -51,15 +51,14 @@ fn paint(
     if laid.rect.width == 0 || laid.rect.height == 0 {
         return;
     }
-    match doc.node(laid.node) {
-        Some(NodeData::Text(text)) => {
-            let text = collapse_whitespace(text);
+    let node = match &laid.kind {
+        LaidKind::Text { text, .. } => {
+            // The layout prepared the string — run-boundary spaces decided,
+            // interior whitespace collapsed — so the paint renders it
+            // verbatim, wrapped like the browser flows prose (`trim: false`
+            // keeps prepared boundary and non-breaking spaces).
             let (style, center) = css::text_style(inherited);
-            // Wrapped like the browser flows prose; the layout reserved the
-            // rows (`wrapped_lines`). The collapse already trimmed the ends,
-            // so an untrimmed wrap only preserves leading non-breaking
-            // spaces — ratatui's trim would strip them as whitespace.
-            let paragraph = Paragraph::new(Line::from(text))
+            let paragraph = Paragraph::new(Line::from(text.clone()))
                 .style(style)
                 .wrap(Wrap { trim: false });
             let paragraph = if center {
@@ -68,65 +67,89 @@ fn paint(
                 paragraph
             };
             frame.render_widget(paragraph, laid.rect);
+            return;
         }
-        Some(NodeData::Element(el)) => {
-            if el.attr("data-tui").is_some() {
-                paint_widget(frame, laid.rect, doc, laid.node, focused);
-                return;
+        LaidKind::Anonymous => {
+            // A synthesized run wrapper is styleless: the children paint
+            // with the block container's inheritance, as if unwrapped.
+            for child in &laid.children {
+                paint(frame, child, doc, focused, styles, inherited);
             }
-            let computed = styles
-                .get(&laid.node)
-                .cloned()
-                .unwrap_or_else(|| inherited.inherited());
-            if computed.background != inherited.background {
-                // An element's own background fills its box — a component's
-                // `:host { background-color }` paints the whole component
-                // area, not just its text runs. `Highlight` stays a
-                // text-run effect (the mark).
-                if let Some(background) = computed.background {
-                    if background != uic_css::Color::Highlight {
-                        frame
-                            .buffer_mut()
-                            .set_style(laid.rect, Style::new().bg(css::convert_color(background)));
-                    }
+            return;
+        }
+        LaidKind::Generated { owner, which, text } => {
+            // Generated content paints from the owner's pseudo style — the
+            // cascade resolved color/emphasis against the owner's inherited
+            // values (json-viewer's `color: inherit` marker).
+            let pseudo = styles.get(owner).and_then(|e| match which {
+                uic_css::PseudoElement::Before => e.before.as_ref(),
+                uic_css::PseudoElement::After => e.after.as_ref(),
+            });
+            let (style, _) = css::text_style(pseudo.unwrap_or(inherited));
+            frame.render_widget(
+                Paragraph::new(Line::from(text.clone())).style(style),
+                laid.rect,
+            );
+            return;
+        }
+        LaidKind::Node(node) => *node,
+    };
+    if let Some(NodeData::Element(el)) = doc.node(node) {
+        if el.attr("data-tui").is_some() {
+            paint_widget(frame, laid.rect, doc, node, focused);
+            return;
+        }
+        let computed = styles
+            .get(&node)
+            .map(|e| e.style.clone())
+            .unwrap_or_else(|| inherited.inherited());
+        if computed.background != inherited.background {
+            // An element's own background fills its box — a component's
+            // `:host { background-color }` paints the whole component
+            // area, not just its text runs. `Highlight` stays a
+            // text-run effect (the mark).
+            if let Some(background) = computed.background {
+                if background != uic_css::Color::Highlight {
+                    frame
+                        .buffer_mut()
+                        .set_style(laid.rect, Style::new().bg(css::convert_color(background)));
                 }
             }
-            if computed.border > 0.0 {
-                // The cascade reserves the cells; the ring colors stay the
-                // runtime's: error wins over focus on the input group, like
-                // the browser keeping the red outline on a focused invalid
-                // input — read off the component's reflected attribute, its
-                // `[error]` stylesheet selector. Other bordered blocks (the
-                // card) stay static dark gray (ADR 0017).
-                let classes = effective_classes(doc, laid.node);
-                let border = if classes.iter().any(|c| c == "input-group") {
-                    if component_attr(doc, laid.node, "error").is_some() {
-                        Style::new().fg(ERROR_BORDER)
-                    } else if contains_focus(doc, laid.node, focused) {
-                        Style::new().fg(FOCUS_RING)
-                    } else {
-                        Style::new().dark_gray()
-                    }
+        }
+        if computed.border > 0.0 {
+            // The cascade reserves the cells; the ring colors stay the
+            // runtime's: error wins over focus on the input group, like
+            // the browser keeping the red outline on a focused invalid
+            // input — read off the component's reflected attribute, its
+            // `[error]` stylesheet selector. Other bordered blocks (the
+            // card) stay static dark gray (ADR 0017).
+            let classes = effective_classes(doc, node);
+            let border = if classes.iter().any(|c| c == "input-group") {
+                if component_attr(doc, node, "error").is_some() {
+                    Style::new().fg(ERROR_BORDER)
+                } else if contains_focus(doc, node, focused) {
+                    Style::new().fg(FOCUS_RING)
                 } else {
                     Style::new().dark_gray()
-                };
-                frame.render_widget(Block::bordered().border_style(border), laid.rect);
-            }
-            for child in &laid.children {
-                paint(frame, child, doc, focused, styles, &computed);
-            }
-            if focused == Some(laid.node) {
-                // A focused plain node (a JS component's roving focus)
-                // reads as a one-row selection bar over its first line;
-                // widgets paint their own ring instead.
-                let row = Rect {
-                    height: 1,
-                    ..laid.rect
-                };
-                frame.buffer_mut().set_style(row, Style::new().reversed());
-            }
+                }
+            } else {
+                Style::new().dark_gray()
+            };
+            frame.render_widget(Block::bordered().border_style(border), laid.rect);
         }
-        _ => {}
+        for child in &laid.children {
+            paint(frame, child, doc, focused, styles, &computed);
+        }
+        if focused == Some(node) {
+            // A focused plain node (a JS component's roving focus)
+            // reads as a one-row selection bar over its first line;
+            // widgets paint their own ring instead.
+            let row = Rect {
+                height: 1,
+                ..laid.rect
+            };
+            frame.buffer_mut().set_style(row, Style::new().reversed());
+        }
     }
 }
 

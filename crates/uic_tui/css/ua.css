@@ -1,7 +1,17 @@
 /* The terminal's user-agent sheet: the tag defaults the hardcoded pipeline
    carried, as data. Cell-native units where the value is an editorial
-   choice. Inline display entries deliberately absent — they arrive with the
-   anonymous inline-row stage and updated golden frames. */
+   choice. */
+
+[hidden] {
+    /* The HTML attribute, the ua default. */
+    display: none;
+}
+
+span, a, b, i, em, strong, small, code, mark {
+    /* The browser's inline prose tags: consecutive inline boxes flow in
+       anonymous rows instead of stacking (ADR 0021 stage 3). */
+    display: inline;
+}
 
 ul, ol {
     /* The browser's UA default indents lists (padding-inline-start);

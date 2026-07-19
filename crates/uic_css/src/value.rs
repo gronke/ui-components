@@ -99,6 +99,8 @@ pub enum Value {
     Keyword(String),
     /// `content: "…"` strings.
     Text(String),
+    /// `transform: rotate(…)`, right angles only.
+    Rotation(u16),
     /// Up to four lengths (margin/padding shorthands).
     Sides(Vec<Length>),
 }
@@ -138,6 +140,7 @@ pub fn parse_value(name: &str, raw: &str) -> Option<Value> {
                 None => vec![first],
             }))
         }
+        "transform" => parse_rotation(&mut parser),
         "content" => {
             let token = parser.next().ok()?.clone();
             match token {
@@ -172,6 +175,40 @@ pub fn parse_value(name: &str, raw: &str) -> Option<Value> {
                 _ => None,
             }
         }
+    }
+}
+
+/// `rotate(90deg)`, `rotate(0)`, `none` — the single-glyph marker quirk.
+fn parse_rotation(parser: &mut Parser) -> Option<Value> {
+    let token = parser.next().ok()?.clone();
+    match token {
+        Token::Ident(ident) if ident.eq_ignore_ascii_case("none") => Some(Value::Rotation(0)),
+        Token::Function(name) if name.eq_ignore_ascii_case("rotate") => parser
+            .parse_nested_block(|p| -> Result<Value, cssparser::ParseError<'_, ()>> {
+                let location = p.current_source_location();
+                let inner = p.next()?.clone();
+                let degrees = match inner {
+                    Token::Dimension { value, unit, .. } if unit.eq_ignore_ascii_case("deg") => {
+                        value
+                    }
+                    // The unitless zero angle, the only unitless value CSS
+                    // allows here.
+                    Token::Number { value, .. } => {
+                        if value != 0.0 {
+                            return Err(location.new_custom_error(()));
+                        }
+                        0.0
+                    }
+                    _ => return Err(location.new_custom_error(())),
+                };
+                let normalized = degrees.rem_euclid(360.0);
+                if normalized.rem_euclid(90.0) != 0.0 {
+                    return Err(location.new_custom_error(()));
+                }
+                Ok(Value::Rotation(normalized as u16))
+            })
+            .ok(),
+        _ => None,
     }
 }
 

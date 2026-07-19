@@ -9,13 +9,85 @@ use unicode_width::UnicodeWidthStr;
 use uic_css::StyleTable;
 use uic_dom::NodeData;
 
+use super::character_manipulation::{
+    collapse_whitespace, ends_spaced, longest_word, rotated_glyph, starts_spaced, wrapped_lines,
+};
 use super::{css, DomDocument};
 
-/// A document node with its computed absolute cell rectangle.
+/// A laid box with its computed absolute cell rectangle.
 pub(crate) struct LaidNode {
-    pub node: uic_dom::NodeId,
+    pub kind: LaidKind,
     pub rect: Rect,
     pub children: Vec<LaidNode>,
+}
+
+/// What a laid box stands for. Besides real document nodes, the tree holds
+/// boxes the layout synthesized: anonymous rows wrapping inline runs and
+/// `::before`/`::after` generated content (ADR 0021 stage 3).
+#[derive(Clone)]
+pub(crate) enum LaidKind {
+    /// An element node.
+    Node(uic_dom::NodeId),
+    /// A text node with its flow-prepared string: interior whitespace
+    /// collapsed, run-boundary spaces already decided — the paint renders
+    /// it verbatim.
+    Text { node: uic_dom::NodeId, text: String },
+    /// A synthesized flex row wrapping a run of inline boxes; styleless and
+    /// transparent to hit-testing.
+    Anonymous,
+    /// A generated-content box; `owner` carries the pseudo style and takes
+    /// the hits (clicking the marker clicks the element).
+    Generated {
+        owner: uic_dom::NodeId,
+        which: uic_css::PseudoElement,
+        text: String,
+    },
+}
+
+impl LaidKind {
+    /// The node a pointer event on this box lands on.
+    pub(crate) fn hit_target(&self) -> Option<uic_dom::NodeId> {
+        match self {
+            LaidKind::Node(node) | LaidKind::Text { node, .. } => Some(*node),
+            LaidKind::Generated { owner, .. } => Some(*owner),
+            LaidKind::Anonymous => None,
+        }
+    }
+}
+
+/// One child in an element's flow, before boxes exist: document nodes plus
+/// the generated-content items the styles synthesized.
+enum FlowItem<'a> {
+    Text {
+        node: uic_dom::NodeId,
+        raw: &'a str,
+    },
+    Element {
+        node: uic_dom::NodeId,
+        inline: bool,
+    },
+    Generated {
+        which: uic_css::PseudoElement,
+        style: &'a uic_css::ComputedStyle,
+    },
+}
+
+impl FlowItem<'_> {
+    /// Inline-level items flow in runs; block-level items break them.
+    fn is_inline(&self) -> bool {
+        match self {
+            FlowItem::Text { .. } | FlowItem::Generated { .. } => true,
+            FlowItem::Element { inline, .. } => *inline,
+        }
+    }
+
+    /// Whitespace-only text contributes separators, never content.
+    fn is_blank(&self) -> bool {
+        match self {
+            FlowItem::Text { raw, .. } => collapse_whitespace(raw).is_empty(),
+            _ => false,
+        }
+    }
 }
 
 enum Measured {
@@ -26,10 +98,10 @@ enum Measured {
     Widget(Option<u16>),
 }
 
-/// A node paired with its taffy handle during the build, so the collect
-/// pass can zip computed layouts back onto document nodes.
+/// A box paired with its taffy handle during the build, so the collect
+/// pass can zip computed layouts back onto the laid tree.
 struct Shadow {
-    node: uic_dom::NodeId,
+    kind: LaidKind,
     taffy: NodeId,
     children: Vec<Shadow>,
 }
@@ -113,32 +185,21 @@ fn build(
     styles: &StyleTable,
 ) -> Option<Shadow> {
     match doc.node(node)? {
-        NodeData::Text(text) => {
-            let collapsed = collapse_whitespace(text);
-            if collapsed.is_empty() {
-                return None;
-            }
-            let taffy = tree
-                .new_leaf_with_context(
-                    Style {
-                        flex_shrink: 0.0,
-                        ..Default::default()
-                    },
-                    Measured::Text(collapsed),
-                )
-                .expect("taffy text leaf");
-            Some(Shadow {
-                node,
-                taffy,
-                children: Vec::new(),
-            })
-        }
+        NodeData::Text(text) => build_text(tree, node, collapse_whitespace(text)),
         NodeData::Element(el) => {
             // Conditional anchors render nothing; their bodies are siblings.
             if &**el.tag() == "template" {
                 return None;
             }
-            let computed = styles.get(&node).cloned().unwrap_or_default();
+            let computed = styles
+                .get(&node)
+                .map(|e| e.style.clone())
+                .unwrap_or_default();
+            if computed.display == uic_css::Display::None {
+                // display:none removes the subtree from layout entirely —
+                // json-viewer's filtered rows, the ua sheet's [hidden].
+                return None;
+            }
             if el.attr("data-tui").is_some() {
                 let height = widget_height(doc, node);
                 let width = widget_width(doc, node);
@@ -149,7 +210,7 @@ fn build(
                     )
                     .expect("taffy widget leaf");
                 return Some(Shadow {
-                    node,
+                    kind: LaidKind::Node(node),
                     taffy,
                     children: Vec::new(),
                 });
@@ -159,12 +220,7 @@ fn build(
                     return Some(shadow);
                 }
             }
-            let children: Vec<Shadow> = doc
-                .children(node)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .filter_map(|child| build(tree, doc, child, false, styles))
-                .collect();
+            let children = build_flow(tree, doc, node, &computed, styles);
             let mut style = taffy_style(&computed);
             if root_child {
                 // Mounted roots stack like block elements with one blank
@@ -176,13 +232,299 @@ fn build(
                 .new_with_children(style, &ids)
                 .expect("taffy container");
             Some(Shadow {
-                node,
+                kind: LaidKind::Node(node),
                 taffy,
                 children,
             })
         }
         _ => None,
     }
+}
+
+/// Builds an element's child boxes: document children plus generated
+/// `::before`/`::after` items, flowed by the container's inner display.
+///
+/// A flex or grid container blockifies: every item becomes a direct child,
+/// exactly the pre-inline behavior. A block container wraps runs of two or
+/// more consecutive inline-level items into an anonymous wrapping flex row —
+/// the inline formatting context, one box at a time. An inline container is
+/// itself the row, so its flow items attach directly.
+fn build_flow(
+    tree: &mut TaffyTree<Measured>,
+    doc: &DomDocument,
+    node: uic_dom::NodeId,
+    computed: &uic_css::ComputedStyle,
+    styles: &StyleTable,
+) -> Vec<Shadow> {
+    use uic_css::{Display as CssDisplay, PseudoElement};
+
+    let element_styles = styles.get(&node);
+    let mut items: Vec<FlowItem<'_>> = Vec::new();
+    if let Some(before) = element_styles.and_then(|e| e.before.as_ref()) {
+        items.push(FlowItem::Generated {
+            which: PseudoElement::Before,
+            style: before,
+        });
+    }
+    for child in doc.children(node).collect::<Vec<_>>() {
+        match doc.node(child) {
+            Some(NodeData::Text(raw)) => items.push(FlowItem::Text { node: child, raw }),
+            Some(NodeData::Element(child_el)) => {
+                if &**child_el.tag() == "template" {
+                    continue;
+                }
+                let display = styles
+                    .get(&child)
+                    .map(|e| e.style.display)
+                    .unwrap_or_default();
+                if display == CssDisplay::None {
+                    // Generates no box and never breaks a run, like the
+                    // browser's inline flow around display:none.
+                    continue;
+                }
+                // Widgets keep their block-level flow (their own row) even
+                // under an inline display.
+                let inline = matches!(display, CssDisplay::Inline | CssDisplay::InlineFlex)
+                    && child_el.attr("data-tui").is_none();
+                items.push(FlowItem::Element {
+                    node: child,
+                    inline,
+                });
+            }
+            _ => {}
+        }
+    }
+    if let Some(after) = element_styles.and_then(|e| e.after.as_ref()) {
+        items.push(FlowItem::Generated {
+            which: PseudoElement::After,
+            style: after,
+        });
+    }
+
+    let mut children: Vec<Shadow> = Vec::new();
+    if matches!(
+        computed.display,
+        CssDisplay::Flex | CssDisplay::InlineFlex | CssDisplay::Grid
+    ) {
+        // Blockified: each item is a flex/grid child of its own.
+        for item in items {
+            build_plain_item(tree, doc, node, item, styles, &mut children);
+        }
+        return children;
+    }
+
+    let container_is_row = computed.display == CssDisplay::Inline;
+    let mut run: Vec<FlowItem<'_>> = Vec::new();
+    for item in items {
+        if item.is_inline() {
+            run.push(item);
+            continue;
+        }
+        flush_run(
+            tree,
+            doc,
+            node,
+            &mut run,
+            styles,
+            container_is_row,
+            &mut children,
+        );
+        build_plain_item(tree, doc, node, item, styles, &mut children);
+    }
+    flush_run(
+        tree,
+        doc,
+        node,
+        &mut run,
+        styles,
+        container_is_row,
+        &mut children,
+    );
+    children
+}
+
+/// Ends the pending inline run: two or more content items under a block
+/// container get the anonymous flex row; an inline container takes the
+/// prepared items directly (it is the row); a single item stays a plain
+/// block child, the pre-inline layout.
+fn flush_run(
+    tree: &mut TaffyTree<Measured>,
+    doc: &DomDocument,
+    owner: uic_dom::NodeId,
+    run: &mut Vec<FlowItem<'_>>,
+    styles: &StyleTable,
+    container_is_row: bool,
+    out: &mut Vec<Shadow>,
+) {
+    if run.is_empty() {
+        return;
+    }
+    let items = std::mem::take(run);
+    let content = items.iter().filter(|item| !item.is_blank()).count();
+    if content == 0 {
+        return;
+    }
+    if container_is_row {
+        out.extend(build_run_items(tree, doc, owner, items, styles));
+        return;
+    }
+    if content == 1 {
+        for item in items {
+            build_plain_item(tree, doc, owner, item, styles, out);
+        }
+        return;
+    }
+    let children = build_run_items(tree, doc, owner, items, styles);
+    let ids: Vec<NodeId> = children.iter().map(|shadow| shadow.taffy).collect();
+    let style = Style {
+        display: Display::Flex,
+        flex_wrap: FlexWrap::Wrap,
+        ..Default::default()
+    };
+    let taffy = tree
+        .new_with_children(style, &ids)
+        .expect("taffy anonymous row");
+    out.push(Shadow {
+        kind: LaidKind::Anonymous,
+        taffy,
+        children,
+    });
+}
+
+/// Builds one flow item outside a run: text trimmed like a lone block
+/// child, elements through the ordinary recursion.
+fn build_plain_item(
+    tree: &mut TaffyTree<Measured>,
+    doc: &DomDocument,
+    owner: uic_dom::NodeId,
+    item: FlowItem<'_>,
+    styles: &StyleTable,
+    out: &mut Vec<Shadow>,
+) {
+    match item {
+        FlowItem::Text { node, raw } => {
+            out.extend(build_text(tree, node, collapse_whitespace(raw)));
+        }
+        FlowItem::Element { node, .. } => {
+            out.extend(build(tree, doc, node, false, styles));
+        }
+        FlowItem::Generated { which, style } => {
+            out.extend(build_generated(tree, owner, which, style));
+        }
+    }
+}
+
+/// Builds a run's boxes with inline whitespace processing: interior
+/// whitespace collapses, the run's edges trim like line ends, and interior
+/// boundaries keep a single space when the markup had one — whitespace-only
+/// nodes between items become exactly one separator.
+fn build_run_items(
+    tree: &mut TaffyTree<Measured>,
+    doc: &DomDocument,
+    owner: uic_dom::NodeId,
+    items: Vec<FlowItem<'_>>,
+    styles: &StyleTable,
+) -> Vec<Shadow> {
+    let Some(last) = items.iter().rposition(|item| !item.is_blank()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    // The run start behaves like text after a space: leading whitespace
+    // never renders at a line start.
+    let mut prev_spaced = true;
+    for (index, item) in items.into_iter().enumerate() {
+        if index > last {
+            break;
+        }
+        match item {
+            FlowItem::Text { node, raw } => {
+                let collapsed = collapse_whitespace(raw);
+                if collapsed.is_empty() {
+                    if !prev_spaced {
+                        out.extend(build_text(tree, node, " ".to_string()));
+                        prev_spaced = true;
+                    }
+                    continue;
+                }
+                let lead = starts_spaced(raw) && !prev_spaced;
+                let trail = ends_spaced(raw) && index != last;
+                let mut text = String::new();
+                if lead {
+                    text.push(' ');
+                }
+                text.push_str(&collapsed);
+                if trail {
+                    text.push(' ');
+                }
+                out.extend(build_text(tree, node, text));
+                prev_spaced = trail;
+            }
+            FlowItem::Element { node, .. } => {
+                if let Some(shadow) = build(tree, doc, node, false, styles) {
+                    out.push(shadow);
+                    prev_spaced = false;
+                }
+            }
+            FlowItem::Generated { which, style } => {
+                if let Some(shadow) = build_generated(tree, owner, which, style) {
+                    out.push(shadow);
+                    prev_spaced = false;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A text leaf carrying its prepared string; empty text builds nothing.
+fn build_text(
+    tree: &mut TaffyTree<Measured>,
+    node: uic_dom::NodeId,
+    text: String,
+) -> Option<Shadow> {
+    if text.is_empty() {
+        return None;
+    }
+    let taffy = tree
+        .new_leaf_with_context(
+            Style {
+                flex_shrink: 0.0,
+                ..Default::default()
+            },
+            Measured::Text(text.clone()),
+        )
+        .expect("taffy text leaf");
+    Some(Shadow {
+        kind: LaidKind::Text { node, text },
+        taffy,
+        children: Vec::new(),
+    })
+}
+
+/// A `::before`/`::after` box: the pseudo style sizes it, its `content`
+/// paints, and a right-angle `transform` picks the rotated glyph at
+/// synthesis — json-viewer's ▶ marker turning ▼ on expand.
+fn build_generated(
+    tree: &mut TaffyTree<Measured>,
+    owner: uic_dom::NodeId,
+    which: uic_css::PseudoElement,
+    pseudo: &uic_css::ComputedStyle,
+) -> Option<Shadow> {
+    if pseudo.display == uic_css::Display::None {
+        return None;
+    }
+    let content = pseudo.content.clone().filter(|text| !text.is_empty())?;
+    let text = rotated_glyph(content, pseudo.rotation);
+    let mut style = taffy_style(pseudo);
+    style.flex_shrink = 0.0;
+    let taffy = tree
+        .new_leaf_with_context(style, Measured::Text(text.clone()))
+        .expect("taffy generated leaf");
+    Some(Shadow {
+        kind: LaidKind::Generated { owner, which, text },
+        taffy,
+        children: Vec::new(),
+    })
 }
 
 /// Lays a `<table>` out as a grid with shared column tracks (ADR 0019).
@@ -292,7 +634,7 @@ fn build_table(
     let ids: Vec<NodeId> = children.iter().map(|shadow| shadow.taffy).collect();
     let taffy = tree.new_with_children(style, &ids).expect("taffy table");
     Some(Shadow {
-        node,
+        kind: LaidKind::Node(node),
         taffy,
         children,
     })
@@ -362,8 +704,11 @@ fn taffy_style(computed: &uic_css::ComputedStyle) -> Style {
         display: match computed.display {
             CssDisplay::Flex | CssDisplay::InlineFlex => Display::Flex,
             CssDisplay::Grid => Display::Grid,
-            // Inline flow approximates as block until the anonymous-row
-            // stage; display:none subtrees are skipped by the caller.
+            // An inline box is its own wrapping row: its children continue
+            // the flow inside it (each inline box breaks lines on its own,
+            // the stage-3 approximation of one shared inline context).
+            CssDisplay::Inline => Display::Flex,
+            // display:none subtrees are skipped by the caller.
             _ => Display::Block,
         },
         ..Default::default()
@@ -372,7 +717,7 @@ fn taffy_style(computed: &uic_css::ComputedStyle) -> Style {
         CssFlexDir::Row => FlexDirection::Row,
         CssFlexDir::Column => FlexDirection::Column,
     };
-    style.flex_wrap = if computed.flex_wrap {
+    style.flex_wrap = if computed.flex_wrap || computed.display == CssDisplay::Inline {
         FlexWrap::Wrap
     } else {
         FlexWrap::NoWrap
@@ -475,60 +820,10 @@ fn collect(
         .map(|child| collect(tree, child, (x, y), bounds))
         .collect();
     LaidNode {
-        node: shadow.node,
+        kind: shadow.kind.clone(),
         rect,
         children,
     }
-}
-
-/// Collapses runs of ASCII whitespace to single spaces and trims the ends,
-/// like the browser flows prose. Non-breaking spaces are content, not
-/// separators — the browser renders `&nbsp;`, so the terminal keeps it too
-/// (indentation would otherwise collapse away).
-pub(crate) fn collapse_whitespace(text: &str) -> String {
-    words(text).collect::<Vec<_>>().join(" ")
-}
-
-/// The wrap words of a text: runs unbroken by ASCII whitespace, so a
-/// non-breaking space glues its neighbors into one word.
-fn words(text: &str) -> impl Iterator<Item = &str> {
-    text.split(|c: char| c.is_ascii_whitespace())
-        .filter(|word| !word.is_empty())
-}
-
-/// Greedy word wrap in cells, the reservation behind ratatui's `Wrap`:
-/// words fill each line up to the width and an oversized word breaks
-/// across lines.
-fn wrapped_lines(text: &str, width: f32) -> u16 {
-    let width = width.round().max(1.0) as usize;
-    let mut lines: u16 = 1;
-    let mut used = 0usize;
-    for word in words(text) {
-        let len = word.width();
-        if used > 0 && used + 1 + len <= width {
-            used += 1 + len;
-            continue;
-        }
-        if used == 0 && len <= width {
-            used = len;
-            continue;
-        }
-        if used > 0 {
-            lines += 1;
-        }
-        let mut rest = len;
-        while rest > width {
-            lines += 1;
-            rest -= width;
-        }
-        used = rest;
-    }
-    lines
-}
-
-/// The widest single word — the narrowest a text can measure (MinContent).
-fn longest_word(text: &str) -> f32 {
-    words(text).map(|word| word.width()).max().unwrap_or(0) as f32
 }
 
 /// Rounds to whole cells and clips to the drawable area (rounding lives here
@@ -547,28 +842,73 @@ fn clamp_rect(x: f32, y: f32, width: f32, height: f32, bounds: Rect) -> Rect {
 }
 
 #[cfg(test)]
-mod text_tests {
+mod inline_tests {
     use super::*;
+    use crate::dom::DomDocument;
 
-    #[test]
-    fn ascii_whitespace_collapses_and_trims() {
-        assert_eq!(collapse_whitespace("  a \n\t b  "), "a b");
+    fn add_span(doc: &mut DomDocument, parent: uic_dom::NodeId, text: &str) -> uic_dom::NodeId {
+        let span = doc.create_element_named("span");
+        doc.set_attribute(span, "class", "d-inline");
+        let content = doc.create_text_node(text);
+        doc.append_child(span, content);
+        doc.append_child(parent, span);
+        span
+    }
+
+    /// Collects every text box with its rect, in paint order.
+    fn text_boxes(laid: &[LaidNode], out: &mut Vec<(String, Rect)>) {
+        for node in laid {
+            if let LaidKind::Text { text, .. } = &node.kind {
+                out.push((text.clone(), node.rect));
+            }
+            text_boxes(&node.children, out);
+        }
     }
 
     #[test]
-    fn non_breaking_spaces_survive_the_collapse() {
-        assert_eq!(
-            collapse_whitespace("\n  \u{a0}\u{a0}indented rest\n"),
-            "\u{a0}\u{a0}indented rest"
-        );
+    fn an_inline_run_shares_a_row_and_keeps_the_markup_space() {
+        let mut doc = DomDocument::new();
+        let div = doc.create_element_named("div");
+        let root = doc.root();
+        doc.append_child(root, div);
+        add_span(&mut doc, div, "issue:");
+        let separator = doc.create_text_node("\n    ");
+        doc.append_child(div, separator);
+        add_span(&mut doc, div, "65");
+
+        let laid = compute(&doc, Rect::new(0, 0, 40, 4));
+        // The two spans and the separator wrap into one anonymous row.
+        let anonymous = &laid[0].children[0];
+        assert!(matches!(anonymous.kind, LaidKind::Anonymous));
+        let mut texts = Vec::new();
+        text_boxes(&laid, &mut texts);
+        let issue = texts.iter().find(|(t, _)| t == "issue:").expect("issue:");
+        let value = texts.iter().find(|(t, _)| t == "65").expect("65");
+        assert_eq!(issue.1.y, value.1.y, "inline boxes share the row");
+        // The whitespace-only node between them became exactly one cell.
+        assert_eq!(value.1.x, 7, "issue: (6) + one separator space");
     }
 
     #[test]
-    fn non_breaking_spaces_glue_wrap_words() {
-        // One 8-cell word (two NBSPs plus "abcdef"): it wraps as a unit, so
-        // a 10-cell line holds it and pushes the next word down.
-        assert_eq!(wrapped_lines("\u{a0}\u{a0}abcdef xyz", 10.0), 2);
-        assert_eq!(longest_word("\u{a0}\u{a0}abcdef xyz"), 8.0);
+    fn boundary_whitespace_trims_and_a_lone_inline_child_stays_plain() {
+        let mut doc = DomDocument::new();
+        let div = doc.create_element_named("div");
+        let root = doc.root();
+        doc.append_child(root, div);
+        let leading = doc.create_text_node("\n  ");
+        doc.append_child(div, leading);
+        let span = add_span(&mut doc, div, "alone");
+        let trailing = doc.create_text_node("  \n");
+        doc.append_child(div, trailing);
+
+        let laid = compute(&doc, Rect::new(0, 0, 40, 4));
+        // One content item: no anonymous wrapper, the span is the block
+        // child itself and the blank edges drop like line ends.
+        assert_eq!(laid[0].children.len(), 1);
+        match laid[0].children[0].kind {
+            LaidKind::Node(node) => assert_eq!(node, span),
+            _ => panic!("a lone inline child lays out as a plain block child"),
+        }
     }
 }
 

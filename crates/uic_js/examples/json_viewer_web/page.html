@@ -25,7 +25,7 @@
     .pane h2 { font-size: 1rem; font-weight: normal; color: #888; }
     #dom {
         display: block; width: 46rem; height: 34rem; overflow: auto;
-        border: 1px solid #444; padding: 0.5rem; box-sizing: border-box;
+        padding: 0.5rem; box-sizing: border-box;
         --background-color: #1e1e1e;
         --color: #ccc;
         --string-color: #a5d6a7;
@@ -35,7 +35,7 @@
         --property-color: #80deea;
         --preview-color: #777;
     }
-    #screen { width: fit-content; border: 1px solid #444; }
+    #screen { width: fit-content; }
     p { max-width: 66rem; }
 </style>
 </head>
@@ -62,7 +62,10 @@ the terminal pipeline and streamed here as ANSI. Each pane takes its own keyboar
 <script>
     const COLS = __COLS__;
     const ROWS = __ROWS__;
-    const term = new Terminal({ cols: COLS, rows: ROWS, cursorBlink: false });
+    const term = new Terminal({
+        cols: COLS, rows: ROWS, cursorBlink: false,
+        theme: { background: '#1e1e1e' },
+    });
     term.open(document.getElementById('screen'));
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${proto}://${location.host}/session`);
