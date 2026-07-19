@@ -64,3 +64,18 @@
     padding: 0;
 }
 .w-100 { width: 100% !important; }
+
+/* <uic-tree>: the collapse markers as generated content — the browser twin
+   of these rules lives in tree.scss; keep the pair in sync. */
+.uic-tree-row .uic-tree-marker {
+    display: inline-flex;
+    width: 2ch;
+}
+
+.uic-tree-row[aria-expanded] .uic-tree-marker::before {
+    content: '▶';
+}
+
+.uic-tree-row[aria-expanded="true"] .uic-tree-marker::before {
+    transform: rotate(90deg);
+}

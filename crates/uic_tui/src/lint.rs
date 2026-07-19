@@ -233,11 +233,11 @@ fn check_element(
                     Severity::Error,
                 );
             }
-        } else {
+        } else if name != "click" {
             push(
                 format!(
-                    "@{name} on <{}> never dispatches in the terminal — only data-tui \
-                     widgets receive events (a web-only handler stays legal)",
+                    "@{name} on <{}> never dispatches in the terminal — plain elements \
+                     receive only @click (a web-only handler stays legal)",
                     el.tag
                 ),
                 Severity::Warning,
@@ -337,8 +337,12 @@ mod tests {
     }
 
     #[test]
-    fn an_event_on_a_plain_element_warns_only() {
-        let findings = check(r#"<div @click=${on_click}>x</div>"#);
+    fn a_click_on_a_plain_element_passes_and_other_events_warn() {
+        // @click dispatches natively (the pointer path), so it lints clean.
+        let clean = check(r#"<div @click=${on_click}>x</div>"#);
+        assert!(clean.is_empty(), "{clean:?}");
+
+        let findings = check(r#"<div @keydown=${on_key}>x</div>"#);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Warning);
         assert!(findings[0].message.contains("web-only"));
@@ -369,7 +373,7 @@ mod tests {
     #[test]
     fn branches_are_walked_and_the_breadcrumb_names_the_spot() {
         let findings = check(
-            r#"<div><template if=${open}><section><a @click=${on_go}>go</a></section></template></div>"#,
+            r#"<div><template if=${open}><section><a @keydown=${on_go}>go</a></section></template></div>"#,
         );
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].path, "div > section > a");

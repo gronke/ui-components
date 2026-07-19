@@ -91,8 +91,19 @@ impl TuiSession {
     /// from a plain array (ADR 0006): a host mounting a bare `<input-select>`
     /// feeds the rows through here so they land as `Value::Options`.
     pub fn set_options_json(&mut self, index: u32, json: &str) -> Result<(), JsError> {
+        self.set_option_rows_json(index, "options", json)
+    }
+
+    /// The same replay for any option-rows property by name — a suggestion
+    /// input's `suggestions`, or whatever a component declares as options.
+    pub fn set_option_rows_json(
+        &mut self,
+        index: u32,
+        name: &str,
+        json: &str,
+    ) -> Result<(), JsError> {
         let options = options_from_json(json).map_err(js_err)?;
-        self.app.set_prop(index as usize, "options", options);
+        self.app.set_prop(index as usize, name, options);
         Ok(())
     }
 
@@ -110,6 +121,29 @@ impl TuiSession {
             });
             let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(&json.to_string()));
         });
+    }
+
+    /// Sets the Bootstrap color mode (`"light"` | `"dark"`) on every
+    /// mounted root: the cascade resolves the matching variable block for
+    /// the whole document, since custom properties inherit from the hosts.
+    /// Returns the repaint ANSI; roots mounted later start light until the
+    /// next call.
+    pub fn set_theme(&mut self, theme: &str) -> Result<String, JsError> {
+        for index in 0..self.app.mount_count() {
+            self.app.set_dom_attr(index, "data-bs-theme", Some(theme));
+        }
+        self.app.draw().map_err(js_err)?;
+        Ok(self.out.take())
+    }
+
+    /// Resizes the terminal and returns the full-repaint ANSI (a clear plus
+    /// every cell): ratatui's autoresize sees the new backend size during
+    /// the draw, resizes its buffers and resets the diff base. Call
+    /// `term.resize(cols, rows)` before writing the result.
+    pub fn resize(&mut self, cols: u16, rows: u16) -> Result<String, JsError> {
+        self.app.terminal_mut().backend_mut().resize(cols, rows);
+        self.app.draw().map_err(js_err)?;
+        Ok(self.out.take())
     }
 
     /// Renders and returns the pending ANSI.

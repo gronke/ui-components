@@ -147,6 +147,44 @@ fn the_bootstrap_filter_keeps_a_meaningful_subset() {
 }
 
 #[test]
+fn translucent_tints_leave_the_inherited_background_alone() {
+    use uic_css::{resolve_document, Origin, SheetRef};
+
+    // Bootstrap's card cap: a 3% body-color tint over the card background.
+    // A terminal cell cannot composite, so the tint declaration drops and
+    // the header keeps the card's own background instead of painting the
+    // alpha-stripped near-black.
+    let (sheet, _) = parse_stylesheet(
+        ":root { --bs-body-bg: #fff; --bs-body-color-rgb: 33, 37, 41; }\n         .card { background-color: var(--bs-body-bg); }\n         .card-header { background-color: rgba(var(--bs-body-color-rgb), 0.03); }\n",
+    );
+    let doc: Document<()> =
+        Document::parse_html("<div class='card'><div class='card-header'>Head</div></div>");
+    let root = doc.root();
+    let sheets = [SheetRef {
+        origin: Origin::Target,
+        sheet: &sheet,
+        scope: None,
+    }];
+    let table = resolve_document(&doc, &sheets, None);
+
+    let card = doc
+        .descendants(root)
+        .find(|&n| doc.attribute(n, "class") == Some("card"))
+        .unwrap();
+    let header = doc
+        .descendants(root)
+        .find(|&n| doc.attribute(n, "class") == Some("card-header"))
+        .unwrap();
+    let card_bg = table.get(&card).unwrap().style.background;
+    assert_eq!(card_bg, Some(uic_css::Color::Rgb(255, 255, 255)));
+    assert_eq!(
+        table.get(&header).unwrap().style.background,
+        card_bg,
+        "the dropped tint leaves the inherited card background"
+    );
+}
+
+#[test]
 fn pseudo_elements_resolve_with_content_and_rotation() {
     use uic_css::{resolve_document, Origin, SheetRef};
 

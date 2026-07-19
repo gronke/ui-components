@@ -30,7 +30,8 @@ fn generate(test: &str) -> PathBuf {
             "input-textarea",
             "input-timezone",
             "nav-breadcrumb",
-            "nav-tabs"
+            "nav-tabs",
+            "uic-tree"
         ]
     );
     assert_eq!(root.module_path("input-date"), "components/input-date.js");
@@ -94,6 +95,9 @@ fn emits_the_full_generated_root() {
         "components/nav-tabs.ts",
         "components/nav-tabs.impl.ts",
         "components/_nav-tabs.scss",
+        "components/uic-tree.ts",
+        "components/uic-tree.impl.ts",
+        "components/_uic-tree.scss",
         "components/_input-default.scss",
         "components/uic-runtime.ts",
         "components/uic-impl-helpers.ts",
@@ -201,6 +205,13 @@ fn generated_nav_breadcrumb_class_matches_the_snapshot() {
 }
 
 #[test]
+fn generated_tree_class_matches_the_snapshot() {
+    let root = generate("snapshot-tree");
+    let generated = fs::read_to_string(root.join("components/uic-tree.ts")).unwrap();
+    assert_matches_snapshot(&generated, "uic-tree.ts");
+}
+
+#[test]
 fn generated_typescript_transpiles_with_oxc() {
     let root = generate("oxc");
     for file in [
@@ -215,6 +226,8 @@ fn generated_typescript_transpiles_with_oxc() {
         "components/input-timezone.ts",
         "components/nav-breadcrumb.ts",
         "components/nav-tabs.ts",
+        "components/uic-tree.ts",
+        "components/uic-tree.impl.ts",
         "components/uic-runtime.ts",
         "components/uic-impl-helpers.ts",
         "components/uic-connectors.ts",

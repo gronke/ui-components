@@ -4485,9 +4485,11 @@ name = "uic_web_demo"
 version = "0.1.0"
 dependencies = [
  "include_dir",
+ "serde_json",
  "tokio",
  "ui_components",
  "uic_codegen_web",
+ "uic_core",
  "web_modules",
 ]
 

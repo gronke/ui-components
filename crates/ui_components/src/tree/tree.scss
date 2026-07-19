@@ -1,0 +1,27 @@
+// The collapse markers are generated content on the branch rows — the same
+// rules drive the terminal from tui-overrides.css; keep the pair in sync.
+.el-uic-tree {
+  display: block;
+
+  .uic-tree-row {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .uic-tree-marker {
+    display: inline-flex;
+    width: 1.2rem;
+    justify-content: center;
+  }
+
+  .uic-tree-row[aria-expanded] .uic-tree-marker::before {
+    content: '▶';
+    font-size: 0.8em;
+    align-self: center;
+    transition: transform 120ms ease-out;
+  }
+
+  .uic-tree-row[aria-expanded='true'] .uic-tree-marker::before {
+    transform: rotate(90deg);
+  }
+}

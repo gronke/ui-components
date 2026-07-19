@@ -43,6 +43,14 @@ impl XtermBackend {
         (backend, out)
     }
 
+    /// Resizes the reported terminal size; the shadow grid resets blank
+    /// (ratatui's autoresize clears and fully repaints on the next draw).
+    pub fn resize(&mut self, cols: u16, rows: u16) {
+        self.cols = cols.max(1);
+        self.rows = rows.max(1);
+        self.screen = vec![vec![" ".to_string(); self.cols as usize]; self.rows as usize];
+    }
+
     /// The screen as text rows, trailing blanks trimmed.
     pub fn screen_text(&self) -> String {
         self.screen

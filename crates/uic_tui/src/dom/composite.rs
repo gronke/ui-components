@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use uic_core::{CustomElementRegistry, NotifyEvent, UiEvent};
+use uic_core::{CustomElementRegistry, NotifyEvent, ObjectMap, UiEvent};
 use uic_dom::NodeId;
 
 use super::host::Mount;
@@ -188,6 +188,55 @@ impl Mount {
         Vec::new()
     }
 
+    /// Routes a pointer click on a plain node into the nearest enclosing
+    /// `@click` binding — the clicked element or an ancestor within this
+    /// instance — descending into the child mount that owns the node first,
+    /// so an unclaimed click bubbles out of the child like the browser's.
+    /// `None` when no binding anywhere claims the click.
+    pub(crate) fn dispatch_click(
+        &mut self,
+        doc: &mut DomDocument,
+        node: NodeId,
+    ) -> Option<Vec<NotifyEvent>> {
+        let child_hosts: Vec<NodeId> = self.children.keys().copied().collect();
+        for host in child_hosts {
+            if host == node || doc.ancestors(node).any(|ancestor| ancestor == host) {
+                let claimed = {
+                    let child = self.children.get_mut(&host).expect("listed");
+                    child.dispatch_click(doc, node)
+                };
+                if let Some(events) = claimed {
+                    return Some(self.route_child_events(doc, host, events));
+                }
+                break;
+            }
+        }
+        let mut current = Some(node);
+        while let Some(candidate) = current {
+            let handlers: Vec<String> = self
+                .bindings
+                .iter()
+                .filter(|binding| binding.node == candidate && binding.event == "click")
+                .map(|binding| binding.handler.clone())
+                .collect();
+            if !handlers.is_empty() {
+                let ui_event = UiEvent::click(dataset_of(doc, candidate));
+                let mut events = Vec::new();
+                for handler in handlers {
+                    events.extend(self.update_cycle(doc, |behavior, ctx| {
+                        behavior.handle(ctx, &handler, &ui_event);
+                    }));
+                }
+                return Some(events);
+            }
+            if candidate == self.host {
+                break;
+            }
+            current = doc.parent(candidate);
+        }
+        None
+    }
+
     /// Runs `f` on the mount whose host node is `node`, anywhere below.
     pub(super) fn with_mount_at(
         &mut self,
@@ -217,4 +266,34 @@ impl Mount {
         }
         Vec::new()
     }
+}
+
+/// The element's `data-*` attributes with camelCased keys — the browser's
+/// DOMStringMap (`data-row-id` reads as `dataset.rowId`).
+fn dataset_of(doc: &DomDocument, node: NodeId) -> ObjectMap {
+    let mut dataset = ObjectMap::default();
+    if let Some(el) = doc.element(node) {
+        for (name, value) in el.attrs() {
+            if let Some(rest) = name.strip_prefix("data-") {
+                dataset.insert(camel_case(rest), value.to_string());
+            }
+        }
+    }
+    dataset
+}
+
+fn camel_case(kebab: &str) -> String {
+    let mut out = String::with_capacity(kebab.len());
+    let mut upper = false;
+    for c in kebab.chars() {
+        if c == '-' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }

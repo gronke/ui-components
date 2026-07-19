@@ -9,11 +9,13 @@ pub mod demo;
 pub mod input;
 pub mod nav_breadcrumb;
 pub mod nav_tabs;
+pub mod tree;
 
 pub use demo::AppRoot;
 pub use input::InputDate;
 pub use nav_breadcrumb::NavBreadcrumb;
 pub use nav_tabs::NavTabs;
+pub use tree::Tree;
 
 /// Anchors this crate's object code so `inventory` registrations survive the
 /// linker in consuming binaries and build scripts. `inline(never)` keeps the

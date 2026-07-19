@@ -192,3 +192,105 @@ fn json_option_rows_serve_a_bare_select() {
     let bad = uic_tui_web::options_from_json(r#"[{"short":"nope"}]"#);
     assert!(bad.is_err(), "rows require a value");
 }
+
+#[test]
+fn the_theme_attribute_flips_the_resolved_variables() {
+    let (mut app, out) = app(60, 20);
+    let el = app.mount("app-root").unwrap();
+    app.draw().unwrap();
+    let light = out.take();
+    assert!(
+        light.contains("48;2;255;255;255"),
+        "the light card fill paints white: {light:?}"
+    );
+    assert!(
+        !light.contains("48;2;33;37;41"),
+        "no dark body background in light mode"
+    );
+
+    // The host attribute selects the dark variable block; source order
+    // lets [data-bs-theme=dark] win over the light :root at equal
+    // specificity — this pins the generated sheet's block order.
+    app.set_dom_attr(0, "data-bs-theme", Some("dark"));
+    app.draw().unwrap();
+    let dark = out.take();
+    assert!(
+        dark.contains("48;2;33;37;41"),
+        "the dark card fill paints the dark body background: {dark:?}"
+    );
+    assert!(
+        !dark.contains("48;2;255;255;255"),
+        "no white card fill in dark mode"
+    );
+
+    app.set_dom_attr(0, "data-bs-theme", None);
+    app.draw().unwrap();
+    let back = out.take();
+    assert!(
+        back.contains("48;2;255;255;255"),
+        "removing the attribute returns to light"
+    );
+    let _ = el;
+}
+
+#[test]
+fn a_resize_reflows_and_fully_repaints() {
+    let (mut app, out) = app(44, 10);
+    let el = app.mount("input-text").unwrap();
+    app.set_attr(el, "label", "A reasonably long label line");
+    app.draw().unwrap();
+    let _ = out.take();
+
+    app.terminal_mut().backend_mut().resize(70, 10);
+    app.draw().unwrap();
+    let wider = out.take();
+    assert!(
+        wider.contains("\x1b[2J"),
+        "the resize clears before the repaint: {wider:?}"
+    );
+    assert!(
+        wider.contains("A reasonably long label line"),
+        "content repaints at the new width"
+    );
+    let screen = app.terminal().backend().screen_text();
+    assert!(
+        screen.lines().count() <= 10,
+        "rows stay at the resized height:\n{screen}"
+    );
+
+    app.terminal_mut().backend_mut().resize(30, 10);
+    app.draw().unwrap();
+    let narrower = out.take();
+    assert!(narrower.contains("\x1b[2J"));
+    let screen = app.terminal().backend().screen_text();
+    assert!(
+        screen.lines().all(|line| line.chars().count() <= 30),
+        "content reflows inside the narrow width:\n{screen}"
+    );
+}
+
+#[test]
+fn option_rows_seed_by_property_name() {
+    let (mut app, out) = app(50, 12);
+    let el = app.mount("input-suggestion").unwrap();
+    app.set_attr(el, "label", "Word");
+    // The rows land as Value::Options (ADR 0006), the type a plain JSON
+    // array cannot express — the widget offers them once the popup opens.
+    app.set_prop(
+        el,
+        "suggestions",
+        vec![
+            uic_core::SelectOption::new("apple"),
+            uic_core::SelectOption::new("apricot"),
+        ],
+    );
+    app.draw().unwrap();
+    let _ = out.take();
+    key(&mut app, KeyCode::F(4));
+    app.draw().unwrap();
+    let ansi = out.take();
+    assert!(
+        ansi.contains("apple") && ansi.contains("apricot"),
+        "the popup offers the seeded rows: {ansi:?}"
+    );
+}

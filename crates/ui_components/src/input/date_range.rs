@@ -177,6 +177,7 @@ mod tests {
                     name: "value-changed".to_string(),
                     target_value: Some("America/New_York".to_string()),
                     detail: Some(Value::Str("America/New_York".into())),
+                    dataset: Default::default(),
                 },
             )
         });

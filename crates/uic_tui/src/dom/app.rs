@@ -33,6 +33,9 @@ pub struct App<B: Backend> {
     blurred: bool,
     listeners: Vec<((usize, String), Listener)>,
     status: Option<Box<dyn Fn() -> String>>,
+    /// The content area of the last paint — what plain-node hit testing
+    /// resolves against (the widget path keeps its per-adapter areas).
+    content_area: Rect,
 }
 
 // The OS event loop; a browser host drives `from_terminal` + `handle_event`
@@ -78,6 +81,7 @@ impl<B: Backend> App<B> {
             blurred: false,
             listeners: Vec::new(),
             status: None,
+            content_area: Rect::default(),
         }
     }
 
@@ -138,6 +142,32 @@ impl<B: Backend> App<B> {
         &self.terminal
     }
 
+    /// The underlying terminal, mutably — backend-specific control, like a
+    /// browser host resizing its pane.
+    pub fn terminal_mut(&mut self) -> &mut Terminal<B> {
+        &mut self.terminal
+    }
+
+    /// The number of mounted roots.
+    pub fn mount_count(&self) -> usize {
+        self.mounts.len()
+    }
+
+    /// A plain DOM attribute write on a mounted host element — the
+    /// browser's setAttribute for names outside observedAttributes. The
+    /// next draw's cascade sees it (`[data-bs-theme]` and friends); no
+    /// update cycle runs.
+    pub fn set_dom_attr(&mut self, index: usize, name: &str, value: Option<&str>) {
+        let Some(mount) = self.mounts.get(index) else {
+            return;
+        };
+        let host = mount.host;
+        match value {
+            Some(value) => self.doc.set_attribute(host, name, value),
+            None => self.doc.remove_attribute(host, name),
+        }
+    }
+
     /// A dim one-line status bar rendered at the bottom.
     pub fn status_bar(&mut self, text: impl Fn() -> String + 'static) {
         self.status = Some(Box::new(text));
@@ -150,6 +180,7 @@ impl<B: Backend> App<B> {
             focused,
             blurred,
             status,
+            content_area,
             ..
         } = self;
         let focused = if *blurred { None } else { *focused };
@@ -170,6 +201,7 @@ impl<B: Backend> App<B> {
                         area.height -= 1;
                     }
                 }
+                *content_area = area;
                 render::render_document(frame, area, doc, focused);
                 // The focused widget's overlay paints after all content;
                 // ratatui buffers are last-write-wins per cell, so it wins
@@ -281,7 +313,14 @@ impl<B: Backend> App<B> {
                         // a select opens its list.
                         self.place_cursor(mouse.column, mouse.row, false);
                     }
-                    None => self.blur(),
+                    None => {
+                        // No widget under the pointer: the click may still
+                        // land on a plain bound element (a tree row's
+                        // @click); only an unclaimed click blurs.
+                        if !self.dispatch_click_at(mouse.column, mouse.row) {
+                            self.blur();
+                        }
+                    }
                 }
                 Control::Continue
             }
@@ -505,6 +544,30 @@ impl<B: Backend> App<B> {
         self.doc.dispatch_event(node, &mut change);
         self.publish(index, events);
         self.ensure_focus();
+    }
+
+    /// Dispatches a click on a plain element into the nearest `@click`
+    /// template binding, and bubbles a DOM `click` through the document —
+    /// the two halves the widget commit path has for `@change`.
+    fn dispatch_click_at(&mut self, column: u16, row: u16) -> bool {
+        let area = self.content_area;
+        if area.width == 0 || area.height == 0 {
+            return false;
+        }
+        let Some(node) = super::hit_test(&self.doc, area, column, row) else {
+            return false;
+        };
+        let Some(index) = self.root_index_of(node) else {
+            return false;
+        };
+        let Some(events) = self.mounts[index].dispatch_click(&mut self.doc, node) else {
+            return false;
+        };
+        let mut click = DomEvent::click();
+        self.doc.dispatch_event(node, &mut click);
+        self.publish(index, events);
+        self.ensure_focus();
+        true
     }
 
     fn root_index_of(&self, node: NodeId) -> Option<usize> {

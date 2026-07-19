@@ -124,6 +124,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "Left/Right or a click switches the tab · panes are the host's job · Esc quits"
                     .into();
         }
+        "uic-tree" => {
+            let node = |id: &str, label: &str, children: Vec<uic_core::Value>| {
+                let mut node = uic_core::ObjectMap::new();
+                node.insert("id", id);
+                node.insert("label", label);
+                if !children.is_empty() {
+                    node.insert("children", uic_core::Value::Array(children));
+                }
+                uic_core::Value::Object(node)
+            };
+            app.set_prop(
+                element,
+                "nodes",
+                uic_core::Value::Array(vec![
+                    node(
+                        "documents",
+                        "Documents",
+                        vec![
+                            node(
+                                "reports",
+                                "Reports",
+                                vec![
+                                    node("q3", "Q3 Report", vec![]),
+                                    node("q4", "Q4 Report", vec![]),
+                                ],
+                            ),
+                            node("notes", "Notes", vec![]),
+                        ],
+                    ),
+                    node(
+                        "pictures",
+                        "Pictures",
+                        vec![node("logo", "logo.svg", vec![])],
+                    ),
+                    node("readme", "README.md", vec![]),
+                ]),
+            );
+            *status.borrow_mut() = "a click toggles a branch or selects a leaf · Esc quits".into();
+        }
         _ => {}
     }
     let notify = status.clone();
@@ -143,6 +182,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let notify = status.clone();
     app.on(element, "query-changed", move |event| {
         *notify.borrow_mut() = format!("query-changed: {:?}", event.value);
+    });
+    let notify = status.clone();
+    app.on(element, "selected-changed", move |event| {
+        *notify.borrow_mut() = format!("selected-changed: {:?}", event.value);
     });
 
     let line = status.clone();

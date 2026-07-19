@@ -287,9 +287,10 @@ fn parse_color(parser: &mut Parser) -> Option<Color> {
                         let g = component(p)?;
                         let _ = p.try_parse(|p| p.expect_comma());
                         let b = component(p)?;
-                        // Alpha (slash or comma form) is ignored: cells have
-                        // no compositor.
-                        while p.next().is_ok() {}
+                        let location = p.current_source_location();
+                        if alpha(p)? < ALPHA_THRESHOLD {
+                            return Err(location.new_custom_error(()));
+                        }
                         Ok::<_, cssparser::ParseError<'_, ()>>(Color::Rgb(r, g, b))
                     })
                     .ok()?,
@@ -307,6 +308,31 @@ fn component<'i>(parser: &mut Parser<'i, '_>) -> Result<u8, cssparser::ParseErro
     match parser.next()?.clone() {
         Token::Number { value, .. } => Ok(value.clamp(0.0, 255.0) as u8),
         Token::Percentage { unit_value, .. } => Ok((unit_value * 255.0).clamp(0.0, 255.0) as u8),
+        _ => Err(location.new_custom_error(())),
+    }
+}
+
+/// Below one half the backdrop dominates a translucent color, so painting
+/// it opaque would lie; such declarations drop instead — cells have no
+/// compositor (the degradation contract, ADR 0016). At or above, the color
+/// dominates and opaque is the closest honest cell.
+const ALPHA_THRESHOLD: f32 = 0.5;
+
+/// The optional alpha of `rgb()`/`rgba()`, comma or slash form; opaque when
+/// absent.
+fn alpha<'i>(parser: &mut Parser<'i, '_>) -> Result<f32, cssparser::ParseError<'i, ()>> {
+    if parser.is_exhausted() {
+        return Ok(1.0);
+    }
+    let location = parser.current_source_location();
+    match parser.next()?.clone() {
+        Token::Comma | Token::Delim('/') => {}
+        _ => return Err(location.new_custom_error(())),
+    }
+    let location = parser.current_source_location();
+    match parser.next()?.clone() {
+        Token::Number { value, .. } => Ok(value.clamp(0.0, 1.0)),
+        Token::Percentage { unit_value, .. } => Ok(unit_value.clamp(0.0, 1.0)),
         _ => Err(location.new_custom_error(())),
     }
 }
@@ -348,12 +374,21 @@ fn parse_hex(hash: &str) -> Option<Color> {
             let r = nibble(hex[0])?;
             let g = nibble(hex[1])?;
             let b = nibble(hex[2])?;
+            if hex.len() == 4 && f32::from(nibble(hex[3])?) / 15.0 < ALPHA_THRESHOLD {
+                return None;
+            }
             Some(Color::Rgb(r * 17, g * 17, b * 17))
         }
         6 | 8 => {
             let r = nibble(hex[0])? * 16 + nibble(hex[1])?;
             let g = nibble(hex[2])? * 16 + nibble(hex[3])?;
             let b = nibble(hex[4])? * 16 + nibble(hex[5])?;
+            if hex.len() == 8 {
+                let a = f32::from(nibble(hex[6])? * 16 + nibble(hex[7])?) / 255.0;
+                if a < ALPHA_THRESHOLD {
+                    return None;
+                }
+            }
             Some(Color::Rgb(r, g, b))
         }
         _ => None,
@@ -402,6 +437,34 @@ mod tests {
         assert_eq!(
             parse_value("background-color", "Highlight"),
             Some(Value::Color(Color::Highlight))
+        );
+    }
+
+    #[test]
+    fn translucent_colors_drop_and_dominant_ones_stay_opaque() {
+        // Below the threshold the backdrop wins: the declaration drops.
+        assert_eq!(
+            parse_value("background-color", "rgba(33, 37, 41, 0.03)"),
+            None
+        );
+        assert_eq!(
+            parse_value("background-color", "rgb(33 37 41 / 0.25)"),
+            None
+        );
+        assert_eq!(parse_value("background-color", "#21252908"), None);
+        assert_eq!(parse_value("color", "#0004"), None);
+        // At or above, the color dominates and paints opaque.
+        assert_eq!(
+            parse_value("color", "rgba(33, 37, 41, 0.75)"),
+            Some(Value::Color(Color::Rgb(33, 37, 41)))
+        );
+        assert_eq!(
+            parse_value("background-color", "rgb(33 37 41 / 50%)"),
+            Some(Value::Color(Color::Rgb(33, 37, 41)))
+        );
+        assert_eq!(
+            parse_value("color", "#212529c0"),
+            Some(Value::Color(Color::Rgb(0x21, 0x25, 0x29)))
         );
     }
 

@@ -682,6 +682,7 @@ mod tests {
             name: "value-changed".to_string(),
             target_value: Some("Europe/Berlin".to_string()),
             detail: Some(Value::Str("Europe/Berlin".into())),
+            dataset: Default::default(),
         };
         let events = cycle(&mut store, &mut behavior, |b, ctx| {
             b.handle(ctx, "on_timezone_changed", &picked)
@@ -695,6 +696,7 @@ mod tests {
             name: "value-changed".to_string(),
             target_value: Some(String::new()),
             detail: Some(Value::Null),
+            dataset: Default::default(),
         };
         cycle(&mut store, &mut behavior, |b, ctx| {
             b.handle(ctx, "on_timezone_changed", &cleared)

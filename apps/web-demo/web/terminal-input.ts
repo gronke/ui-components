@@ -6,10 +6,8 @@ export function wireTerminalInput(options: {
   term: Terminal;
   session: any;
   screen: HTMLElement;
-  cols: number;
-  rows: number;
 }): void {
-  const { term, session, screen, cols, rows } = options;
+  const { term, session, screen } = options;
 
   term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
     if (ev.type !== 'keydown') return false;
@@ -27,10 +25,18 @@ export function wireTerminalInput(options: {
   // cells and feed the session directly. Clicks focus and pick, drags select
   // text, the wheel browses an open list, and losing the pane blurs the
   // focused widget (commit, ring and caret gone), like the browser.
+  // The live term.cols/rows keep the pixel-to-cell math true across
+  // resizes; captured values would go stale with the first slider move.
   const pointer = (kind: string, ev: MouseEvent) => {
     const rect = screen.getBoundingClientRect();
-    const col = Math.min(cols - 1, Math.max(0, Math.floor(((ev.clientX - rect.left) * cols) / rect.width)));
-    const row = Math.min(rows - 1, Math.max(0, Math.floor(((ev.clientY - rect.top) * rows) / rect.height)));
+    const col = Math.min(
+      term.cols - 1,
+      Math.max(0, Math.floor(((ev.clientX - rect.left) * term.cols) / rect.width)),
+    );
+    const row = Math.min(
+      term.rows - 1,
+      Math.max(0, Math.floor(((ev.clientY - rect.top) * term.rows) / rect.height)),
+    );
     term.write(session.mouse(kind, col, row));
   };
   screen.addEventListener('mousedown', (ev) => pointer('down', ev));

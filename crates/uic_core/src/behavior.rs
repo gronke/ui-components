@@ -1,6 +1,7 @@
 //! The per-component behavior contract and the update context.
 
 use crate::meta::ComponentDef;
+use crate::object::ObjectMap;
 use crate::value::{Changed, PropertyStore, Value};
 
 /// An event delivered to a template `@event=${handler}` binding.
@@ -13,6 +14,10 @@ pub struct UiEvent {
     /// The notify payload when the event is a child element's `*-changed`
     /// (the browser's `event.detail.value`).
     pub detail: Option<Value>,
+    /// The bound element's `data-*` attributes, keys camelCased — the
+    /// browser's `event.currentTarget.dataset`, how a loop row tells the
+    /// handler which item it is.
+    pub dataset: ObjectMap,
 }
 
 impl UiEvent {
@@ -21,6 +26,7 @@ impl UiEvent {
             name: "change".to_string(),
             target_value: Some(target_value.into()),
             detail: None,
+            dataset: ObjectMap::default(),
         }
     }
 
@@ -31,6 +37,7 @@ impl UiEvent {
             name: "input".to_string(),
             target_value: Some(target_value.into()),
             detail: None,
+            dataset: ObjectMap::default(),
         }
     }
 
@@ -41,7 +48,25 @@ impl UiEvent {
             name: event.event_name.clone(),
             target_value: Some(event.value.display_text()),
             detail: Some(event.value.clone()),
+            dataset: ObjectMap::default(),
         }
+    }
+
+    /// A pointer click on a plain bound element; `dataset` carries the
+    /// element's `data-*` attributes.
+    pub fn click(dataset: ObjectMap) -> Self {
+        UiEvent {
+            name: "click".to_string(),
+            target_value: None,
+            detail: None,
+            dataset,
+        }
+    }
+
+    /// A dataset member as text — `event.data("id")` reads what the
+    /// browser twin reads as `event.currentTarget.dataset.id`.
+    pub fn data(&self, key: &str) -> Option<&str> {
+        self.dataset.get(key).and_then(Value::as_str)
     }
 }
 

@@ -1,0 +1,10 @@
+<div class="uic-tree" role="tree">
+    <template for=${rows} as=row>
+        <template if=${row.branch}>
+            <div class="uic-tree-row" role="treeitem" aria-expanded=${row.expanded} data-id=${row.id} @click=${on_row_click}><span class="uic-tree-indent">${row.indent}</span><span class="uic-tree-marker"></span><span class="uic-tree-label">${row.label}</span></div>
+        </template>
+        <template if=${row.leaf}>
+            <div class="uic-tree-row" role="treeitem" data-id=${row.id} @click=${on_row_click}><span class="uic-tree-indent">${row.indent}</span><span class="uic-tree-marker"></span><span class="uic-tree-label">${row.label}</span></div>
+        </template>
+    </template>
+</div>

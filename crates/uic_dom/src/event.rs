@@ -74,6 +74,12 @@ impl Event {
         Event::new("change").with_bubbles(true)
     }
 
+    /// `click`: fires on the element under the pointer; bubbles and
+    /// cancels, like the browser's.
+    pub fn click() -> Self {
+        Event::new("click").with_bubbles(true).with_cancelable(true)
+    }
+
     /// `submit`: fires on the form; bubbles AND cancels (the one place
     /// `prevent_default` matters among the three).
     pub fn submit() -> Self {
