@@ -880,7 +880,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2003,9 +2003,8 @@ dependencies = [
 
 [[package]]
 name = "npm-utils"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "484cf50294f6b5f6ad2cfe801c6668b614a2cbfaad01cb86f5b4e8fd6df7f2bb"
+version = "0.6.2"
+source = "git+https://github.com/gronke/npm-utils?rev=b0ed4fded875e97064163ab621b6c2321e6142bb#b0ed4fded875e97064163ab621b6c2321e6142bb"
 dependencies = [
  "base64",
  "flate2",
@@ -3335,7 +3334,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3392,7 +3391,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3741,7 +3740,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3970,7 +3969,7 @@ dependencies = [
  "parking_lot",
  "rustix",
  "signal-hook",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4392,6 +4391,7 @@ version = "0.1.0"
 dependencies = [
  "ui_components",
  "uic_codegen_web",
+ "uic_worker",
 ]
 
 [[package]]
@@ -4490,6 +4490,16 @@ dependencies = [
  "ui_components",
  "uic_codegen_web",
  "uic_core",
+ "uic_worker",
+ "web_modules",
+]
+
+[[package]]
+name = "uic_worker"
+version = "0.1.0"
+dependencies = [
+ "npm-utils",
+ "serde_json",
  "web_modules",
 ]
 
@@ -4877,7 +4887,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

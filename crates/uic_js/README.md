@@ -1,6 +1,7 @@
 # uic_js
 
 A Boa-embedded JS engine hosting real LitElement components on the terminal runtime — any npm lit element, byte-unmodified.
+Boa is the host for real terminals, where no JS engine exists; in the browser the same runtime modules run on the native engine in a worker against `uic_tui_web::DomSession` (ADR 0023), and the host operations behind both are one shared implementation (`uic_tui::dom::HostState`).
 
 Loading is generic: `JsHost::load_package(vendor_root, "@scope/name")` derives the package's ESM entry from its own manifest (`exports` ".", then `module`, then `main`), registers the whole dist tree under path-preserving specifiers, and evaluates the entry; `mount(tag, attrs)` takes any tag.
 Packages arrive through the same registry-read-only vendoring the rest of the repo uses (ADR 0004): `build.rs` vendors whatever `package.json` declares for the tests and examples, and the `third_party` example vendors any `name@range` at runtime.

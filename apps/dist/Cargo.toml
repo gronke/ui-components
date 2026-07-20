@@ -11,3 +11,4 @@ rust-version.workspace = true
 [dependencies]
 ui_components.workspace = true
 uic_codegen_web = { workspace = true, features = ["dist"] }
+uic_worker.workspace = true

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+{{ head | safe }}
+{% if component_script %}<script type="module" src="./components/{{ tag }}.js"></script>
+{% endif %}{% if foreign_import %}<script type="module">import '{{ foreign_import }}';</script>
+{% endif %}<script type="module" src="./example.js"></script>
+</head>
+<body class="pt-5 bg-body-tertiary">
+<div class="container-fluid px-4 px-xl-5">
+<header class="d-flex align-items-center gap-3 mb-4">
+<a href="./" class="text-decoration-none">&larr; examples</a>
+<h1 class="h4 mb-0">{{ title }}</h1>
+<div class="ms-auto d-flex align-items-center gap-3">
+<label class="d-none d-md-flex align-items-center gap-2 small text-body-secondary mb-0">width
+<input id="pane-width" type="range" class="form-range" min="320" step="4">
+</label>
+<button id="theme-toggle" class="btn btn-sm btn-outline-secondary" data-qa="theme-toggle">&#9790;</button>
+</div>
+</header>
+<ul class="nav nav-tabs d-md-none mb-3" role="tablist">
+<li class="nav-item"><a class="nav-link active" href="#" data-pane-tab="web-pane">Web</a></li>
+<li class="nav-item" id="tui-tab-item"><a class="nav-link" href="#" data-pane-tab="tui-pane">Terminal</a></li>
+</ul>
+<div id="panes" class="example-panes d-md-flex align-items-md-start gap-5">
+<section id="web-pane" class="example-pane pane-active" data-qa="web-pane"></section>
+<aside id="tui-pane" class="example-pane d-none" data-qa="tui-pane">
+<div id="terminal" class="tui-screen"></div>
+<p class="text-body-secondary small mt-2 mb-0">{{ hint }}</p>
+</aside>
+</div>
+{% if pool %}<section class="mt-4">
+<label class="form-label small text-body-secondary" for="word-pool">word pool — the page answers query-changed from these rows, one word per line</label>
+<textarea id="word-pool" class="form-control font-monospace" rows="5" data-qa="word-pool"></textarea>
+</section>
+{% endif %}</div>
+<footer id="debug-bar" class="fixed-bottom bg-body border-top" data-qa="debug-bar">
+<button id="debug-toggle" class="btn btn-sm w-100 py-0 text-body-secondary" aria-expanded="true" aria-controls="debug-body" title="Toggle the debug bar">&#9662;</button>
+<div id="debug-body" class="debug-body container-fluid px-4 pb-2">
+<h2 class="h6">notify events</h2>
+<pre id="events" class="border bg-body p-2 small mb-0" data-qa="events"></pre>
+</div>
+</footer>
+<script type="application/json" id="example-config">{{ config | safe }}</script>
+</body>
+</html>

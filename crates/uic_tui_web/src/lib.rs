@@ -3,9 +3,11 @@
 //! and pointer events back in as terminal events.
 
 mod backend;
+mod dom_session;
 mod keymap;
 mod session;
 
 pub use backend::{Output, XtermBackend};
+pub use dom_session::DomSession;
 pub use keymap::{translate_key, translate_mouse};
 pub use session::{options_from_json, TuiSession};

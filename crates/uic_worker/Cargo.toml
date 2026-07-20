@@ -1,0 +1,17 @@
+[package]
+name = "uic_worker"
+description = "The browser worker host for foreign lit elements: the worker, its page client, and the npm tree they publish as"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+# Compiles the TypeScript sources for the npm tree; consumers hand the
+# source root to their own web_modules build instead.
+web_modules = { version = "0.5", default-features = false, features = ["typescript"] }
+# Assembles the npm tree's package.json (package_json::manifest).
+npm-utils = "0.6.1"
+serde_json.workspace = true

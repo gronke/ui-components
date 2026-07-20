@@ -7,6 +7,7 @@ import { InMemorySource } from './components/uic-connectors.js';
 
 import { exampleConfig } from './example-config.js';
 import { mountTuiPane } from './tui-pane.js';
+import { mountWorkerPane } from './worker-pane.js';
 import { wirePropertySync } from './sync.js';
 import { wireThemeToggle } from './theme-mode.js';
 import { wireStatePane } from './wiring.js';
@@ -142,7 +143,11 @@ async function boot(): Promise<void> {
     let stateOut: { changed: (state: AppState) => void } | null = null;
 
     const tui = config.foreign
-        ? null // the worker host lands with the next commit
+        ? await mountWorkerPane({
+              config,
+              pane: document.getElementById('tui-pane')!,
+              terminal: document.getElementById('terminal')!,
+          })
         : await mountTuiPane({
               config,
               pane: document.getElementById('tui-pane')!,

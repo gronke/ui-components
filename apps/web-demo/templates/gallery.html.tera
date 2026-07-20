@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+<head>
+{{ head | safe }}
+<script type="module">
+import { wireThemeToggle } from './theme-mode.js';
+wireThemeToggle(document.getElementById('theme-toggle'));
+</script>
+</head>
+<body class="pt-5 bg-body-tertiary">
+<div class="container px-4">
+<header class="d-flex align-items-center mb-4">
+<h1 class="h4 mb-0">ui-components</h1>
+<button id="theme-toggle" class="btn btn-sm btn-outline-secondary ms-auto" data-qa="theme-toggle">&#9790;</button>
+</header>
+<p class="text-body-secondary">One Rust definition per component, rendered twice on every page: the
+real web component beside the same element in a terminal. Slide the width, flip the theme, resize
+the window — both variants respond.</p>
+{% for section in sections %}{% if section.cards %}<h2 class="h5 mt-5 mb-1">{{ section.title }}</h2>
+<p class="text-body-secondary">{{ section.blurb }}</p>
+<div class="row row-cols-1 row-cols-md-2 g-4 mb-4">
+{% for card in section.cards %}<div class="col">
+<a class="card h-100 text-decoration-none" href="./{{ card.route }}/">
+<div class="card-body">
+<h3 class="h5 card-title"><code>&lt;{{ card.tag }}&gt;</code> — {{ card.title }}</h3>
+<p class="card-text text-body-secondary mb-0">{{ card.blurb }}</p>
+</div>
+</a>
+</div>
+{% endfor %}</div>
+{% endif %}{% endfor %}</div>
+</body>
+</html>

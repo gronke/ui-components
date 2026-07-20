@@ -7,6 +7,7 @@ mod character_manipulation;
 mod composite;
 pub(crate) mod css;
 mod host;
+mod host_state;
 mod layout;
 mod render;
 mod resolve;
@@ -15,6 +16,7 @@ pub(crate) mod widget;
 pub use app::App;
 pub use css::adopt_component_sheet;
 pub use host::DomHost;
+pub use host_state::HostState;
 pub use widget::{OverlayOutcome, WidgetAdapter, WidgetPayload, WidgetRegistration};
 
 /// The runtime's document type: every element node can carry a terminal

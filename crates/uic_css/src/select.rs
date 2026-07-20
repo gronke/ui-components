@@ -78,6 +78,9 @@ pub enum PseudoClass {
     Active,
     Disabled,
     Checked,
+    /// `:dir(ltr)` / `:dir(rtl)` — the terminal renders left-to-right, so
+    /// ltr matches and rtl never does.
+    Dir(bool),
 }
 
 impl NonTSPseudoClassTrait for PseudoClass {
@@ -109,6 +112,8 @@ impl ToCss for PseudoClass {
             PseudoClass::Active => ":active",
             PseudoClass::Disabled => ":disabled",
             PseudoClass::Checked => ":checked",
+            PseudoClass::Dir(true) => ":dir(ltr)",
+            PseudoClass::Dir(false) => ":dir(rtl)",
         })
     }
 }
@@ -163,6 +168,30 @@ impl<'i> selectors::parser::Parser<'i> for TuiSelectorParser {
 
     fn parse_host(&self) -> bool {
         true
+    }
+
+    fn parse_non_ts_functional_pseudo_class<'t>(
+        &self,
+        name: cssparser::CowRcStr<'i>,
+        parser: &mut cssparser::Parser<'i, 't>,
+        _after_part: bool,
+    ) -> Result<PseudoClass, cssparser::ParseError<'i, Self::Error>> {
+        if name.eq_ignore_ascii_case("dir") {
+            let location = parser.current_source_location();
+            let direction = parser.expect_ident()?.to_ascii_lowercase();
+            return match direction.as_str() {
+                "ltr" => Ok(PseudoClass::Dir(true)),
+                "rtl" => Ok(PseudoClass::Dir(false)),
+                _ => Err(location.new_custom_error(
+                    SelectorParseErrorKind::UnsupportedPseudoClassOrElement(name),
+                )),
+            };
+        }
+        Err(
+            parser.new_custom_error(SelectorParseErrorKind::UnsupportedPseudoClassOrElement(
+                name,
+            )),
+        )
     }
 
     fn parse_non_ts_pseudo_class(
@@ -369,6 +398,7 @@ impl<T> selectors::Element for El<'_, T> {
     ) -> bool {
         match pc {
             PseudoClass::Focus => self.focused == Some(self.node),
+            PseudoClass::Dir(ltr) => *ltr,
             PseudoClass::FocusWithin => {
                 let Some(focused) = self.focused else {
                     return false;

@@ -9,7 +9,27 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use web_modules::build::{build, BuildOptions};
+use web_modules::templates::{render_file, Context};
 use web_modules::vendor::{specs_from_package_json, vendor, PackageSpec};
+
+fn templates_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("templates")
+}
+
+/// The shared head, rendered once per page: theme-before-paint, the
+/// stylesheets, and the literal importmap hole web_modules fills when it
+/// renders the emitted page (a raw block in the source template).
+fn rendered_head(title: &str, depth: usize) -> String {
+    let base = if depth == 0 {
+        String::new()
+    } else {
+        format!("<base href=\"{}\">\n", "../".repeat(depth))
+    };
+    let mut context = Context::new();
+    context.insert("title", title);
+    context.insert("base", &base);
+    render_file(&templates_dir().join("head.html.tera"), &context).expect("render head template")
+}
 
 /// One gallery entry: a component with its seeds, mirroring the terminal
 /// demo's (`apps/tui-demo`). The page config carries what the shared boot
@@ -315,12 +335,12 @@ const FOREIGN_EXAMPLES: &[ForeignExample] = &[ForeignExample {
     name: "json-viewer",
     route: "examples/json-viewer",
     title: "Foreign element: json-viewer",
-    blurb: "A third-party npm lit element, byte-unmodified in both panes: the real lit in the browser, the Boa host in the terminal — its own stylesheet parsed into the cascade.",
+    blurb: "A third-party npm lit element, byte-unmodified in both panes: the real lit in the browser, the browser's own engine in a worker for the terminal — its stylesheet parsed into the cascade.",
     package: "@alenaksu/json-viewer",
     range: "^2",
     tag: "json-viewer",
     attrs: &[],
-    props_json: r#"{"data": {"project": "schuhkarton/ui-components", "renderers": 2, "panes": {"browser": "real lit", "terminal": "Boa + mocked lit"}, "styled": true}}"#,
+    props_json: r#"{"data": {"project": "schuhkarton/ui-components", "renderers": 2, "panes": {"browser": "real lit", "terminal": "worker + mocked lit"}, "styled": true}}"#,
     cols: 72,
     rows: 18,
     hint: "Arrows navigate, Right/Left expand and collapse, a click toggles — the component's own code.",
@@ -388,6 +408,103 @@ fn foreign_modules(package_root: &Path, dir: &Path, out: &mut Vec<String>) {
     }
 }
 
+/// Compiles the mocked-lit runtime (crates/uic_js/js/src) into a served
+/// module tree: the same per-module TypeScript compile the Boa host bakes,
+/// shipped as files here so the browser's own engine — in the worker —
+/// imports them natively.
+fn compile_worker_runtime(src_root: &Path, out_root: &Path) {
+    println!("cargo:rerun-if-changed={}", src_root.display());
+    compile_worker_tree(src_root, src_root, out_root);
+}
+
+fn compile_worker_tree(root: &Path, dir: &Path, out_root: &Path) {
+    for entry in fs::read_dir(dir).expect("read js/src").flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            compile_worker_tree(root, &path, out_root);
+            continue;
+        }
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        if !name.ends_with(".ts") || name.ends_with(".d.ts") {
+            continue;
+        }
+        let relative = path.strip_prefix(root).expect("under js/src");
+        let specifier = relative
+            .to_string_lossy()
+            .trim_end_matches(".ts")
+            .to_string()
+            + ".js";
+        let source = fs::read_to_string(&path).expect("read runtime module");
+        let compiled = web_modules::typescript::compile_str(&source, relative)
+            .unwrap_or_else(|err| panic!("compile {relative:?}: {err}"));
+        let target = out_root.join(&specifier);
+        fs::create_dir_all(target.parent().expect("module dir")).expect("worker module dir");
+        fs::write(&target, compiled).expect("write worker module");
+    }
+}
+
+/// The bare specifier families the mocked runtime provides at the worker
+/// tree's root — a vendored component's imports of these rewrite to
+/// relative paths, since import maps do not reach workers.
+const MOCK_FAMILIES: &[&str] = &["lit", "lit-html", "lit-element", "@lit/"];
+
+/// Rewrites a dist module's bare `lit*` imports to relative paths into the
+/// worker tree. The grammar is the finite quoted-specifier set of ES
+/// modules (`from "…"`, `import "…"`, `import("…")`); web_modules' AST
+/// readers are not public yet (upstream proposal pending), and the
+/// browser's own resolution fails loudly on anything this misses.
+fn rewrite_bare_imports(source: &str, depth: usize) -> String {
+    let up = "../".repeat(depth);
+    let mut out = source.to_string();
+    for family in MOCK_FAMILIES {
+        let family = family.trim_end_matches('/');
+        for quote in ['"', '\''] {
+            for lead in ["from", "import"] {
+                // `from"lit"`, `from "lit/x.js"`, `import("lit")`, with or
+                // without whitespace and the call parenthesis.
+                for spacer in ["", " ", "("] {
+                    let needle = format!("{lead}{spacer}{quote}{family}");
+                    let replacement = format!("{lead}{spacer}{quote}{up}{family}");
+                    out = out.replace(&needle, &replacement);
+                }
+            }
+        }
+    }
+    // An extension-less rewritten family entry points at its module file.
+    for family in MOCK_FAMILIES {
+        let family = family.trim_end_matches('/');
+        for quote in ['"', '\''] {
+            let bare = format!("{up}{family}{quote}");
+            let file = format!("{up}{family}.js{quote}");
+            out = out.replace(&bare, &file);
+        }
+    }
+    out
+}
+
+/// Copies the vendored foreign package into the worker tree with its bare
+/// imports rewritten.
+fn copy_rewritten(package_root: &Path, dir: &Path, out_root: &Path, base_depth: usize) {
+    for entry in fs::read_dir(dir).expect("read vendored tree").flatten() {
+        let path = entry.path();
+        let relative = path.strip_prefix(package_root).expect("under package");
+        if path.is_dir() {
+            copy_rewritten(package_root, &path, out_root, base_depth);
+            continue;
+        }
+        let target = out_root.join(relative);
+        fs::create_dir_all(target.parent().expect("module dir")).expect("worker package dir");
+        if path.extension().and_then(|extension| extension.to_str()) == Some("js") {
+            let depth = base_depth + relative.components().count() - 1;
+            let source = fs::read_to_string(&path).expect("read vendored module");
+            fs::write(&target, rewrite_bare_imports(&source, depth))
+                .expect("write rewritten module");
+        } else {
+            fs::copy(&path, &target).expect("copy vendored file");
+        }
+    }
+}
+
 /// The notify wiring of a tag, from the registry: every notifying property
 /// with a JSON-faithful scalar type contributes its event and JS property
 /// name. Rich types stay out — a Zoned crossing JSON arrives as a plain
@@ -441,93 +558,25 @@ fn config_json(example: &Example) -> String {
     .to_string()
 }
 
-/// The shared head: theme-before-paint, the stylesheets, the importmap hole
-/// web_modules fills per page. `base` anchors a nested page at the site
-/// root, so the one importmap and every `./…` asset resolve from anywhere.
-fn head(title: &str, base: &str) -> String {
-    format!(
-        r#"<meta charset="utf-8">
-<script>
-document.documentElement.setAttribute('data-bs-theme',
-    localStorage.getItem('uic-theme')
-        ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-</script>
-{base}<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
-<link rel="stylesheet" href="./web_modules/bootstrap/dist/css/bootstrap.min.css">
-<link rel="stylesheet" href="./web_modules/@xterm/xterm/css/xterm.css">
-<link rel="stylesheet" href="./elements.css">
-<link rel="stylesheet" href="./styles.css">
-{{{{ importmap | safe }}}}"#
-    )
-}
-
 fn example_page(example: &Example) -> String {
-    let config = config_json(example);
     let depth = example.route.matches('/').count() + 1;
-    let base = format!("<base href=\"{}\">\n", "../".repeat(depth));
-    let pool_block = if example.pool.is_some() {
-        r#"<section class="mt-4">
-<label class="form-label small text-body-secondary" for="word-pool">word pool — the page answers query-changed from these rows, one word per line</label>
-<textarea id="word-pool" class="form-control font-monospace" rows="5" data-qa="word-pool"></textarea>
-</section>
-"#
-    } else {
-        ""
-    };
-    let head = head(&format!("ui-components · {}", example.title), &base);
-    format!(
-        r##"<!doctype html>
-<html lang="en" data-bs-theme="light">
-<head>
-{head}
-<script type="module" src="./components/{tag}.js"></script>
-<script type="module" src="./example.js"></script>
-</head>
-<body class="pt-5 bg-body-tertiary">
-<div class="container-fluid px-4 px-xl-5">
-<header class="d-flex align-items-center gap-3 mb-4">
-<a href="./" class="text-decoration-none">&larr; examples</a>
-<h1 class="h4 mb-0">{title}</h1>
-<div class="ms-auto d-flex align-items-center gap-3">
-<label class="d-none d-md-flex align-items-center gap-2 small text-body-secondary mb-0">width
-<input id="pane-width" type="range" class="form-range" min="320" step="4">
-</label>
-<button id="theme-toggle" class="btn btn-sm btn-outline-secondary" data-qa="theme-toggle">&#9790;</button>
-</div>
-</header>
-<ul class="nav nav-tabs d-md-none mb-3" role="tablist">
-<li class="nav-item"><a class="nav-link active" href="#" data-pane-tab="web-pane">Web</a></li>
-<li class="nav-item" id="tui-tab-item"><a class="nav-link" href="#" data-pane-tab="tui-pane">Terminal</a></li>
-</ul>
-<div id="panes" class="example-panes d-md-flex align-items-md-start gap-5">
-<section id="web-pane" class="example-pane pane-active" data-qa="web-pane"></section>
-<aside id="tui-pane" class="example-pane d-none" data-qa="tui-pane">
-<div id="terminal" class="tui-screen"></div>
-<p class="text-body-secondary small mt-2 mb-0">{hint}</p>
-</aside>
-</div>
-{pool_block}</div>
-<footer id="debug-bar" class="fixed-bottom bg-body border-top" data-qa="debug-bar">
-<button id="debug-toggle" class="btn btn-sm w-100 py-0 text-body-secondary" aria-expanded="true" aria-controls="debug-body" title="Toggle the debug bar">&#9662;</button>
-<div id="debug-body" class="debug-body container-fluid px-4 pb-2">
-<h2 class="h6">notify events</h2>
-<pre id="events" class="border bg-body p-2 small mb-0" data-qa="events"></pre>
-</div>
-</footer>
-<script type="application/json" id="example-config">{config}</script>
-</body>
-</html>
-"##,
-        head = head,
-        tag = example.tag,
-        title = example.title,
-        hint = example.hint,
-        pool_block = pool_block,
-        config = config,
-    )
+    let mut context = Context::new();
+    context.insert(
+        "head",
+        &rendered_head(&format!("ui-components · {}", example.title), depth),
+    );
+    context.insert("component_script", &true);
+    context.insert("foreign_import", "");
+    context.insert("tag", example.tag);
+    context.insert("title", example.title);
+    context.insert("hint", example.hint);
+    context.insert("pool", &example.pool.is_some());
+    context.insert("config", &config_json(example));
+    render_file(&templates_dir().join("example.html.tera"), &context).expect("render example page")
 }
 
+/// The foreign page's config: no notify wiring, and the worker pane's
+/// module tree rides along.
 fn foreign_config_json(example: &ForeignExample, entry: &str, modules: &[String]) -> String {
     let attrs: serde_json::Map<String, serde_json::Value> = example
         .attrs
@@ -554,145 +603,60 @@ fn foreign_config_json(example: &ForeignExample, entry: &str, modules: &[String]
 }
 
 fn foreign_page(example: &ForeignExample, entry: &str, modules: &[String]) -> String {
-    let config = foreign_config_json(example, entry, modules);
     let depth = example.route.matches('/').count() + 1;
-    let base = format!("<base href=\"{}\">\n", "../".repeat(depth));
-    let head = head(&format!("ui-components · {}", example.title), &base);
-    format!(
-        r##"<!doctype html>
-<html lang="en" data-bs-theme="light">
-<head>
-{head}
-<script type="module">import '{package}';</script>
-<script type="module" src="./example.js"></script>
-</head>
-<body class="pt-5 bg-body-tertiary">
-<div class="container-fluid px-4 px-xl-5">
-<header class="d-flex align-items-center gap-3 mb-4">
-<a href="./" class="text-decoration-none">&larr; examples</a>
-<h1 class="h4 mb-0">{title}</h1>
-<div class="ms-auto d-flex align-items-center gap-3">
-<label class="d-none d-md-flex align-items-center gap-2 small text-body-secondary mb-0">width
-<input id="pane-width" type="range" class="form-range" min="320" step="4">
-</label>
-<button id="theme-toggle" class="btn btn-sm btn-outline-secondary" data-qa="theme-toggle">&#9790;</button>
-</div>
-</header>
-<ul class="nav nav-tabs d-md-none mb-3" role="tablist">
-<li class="nav-item"><a class="nav-link active" href="#" data-pane-tab="web-pane">Web</a></li>
-<li class="nav-item" id="tui-tab-item"><a class="nav-link" href="#" data-pane-tab="tui-pane">Terminal</a></li>
-</ul>
-<div id="panes" class="example-panes d-md-flex align-items-md-start gap-5">
-<section id="web-pane" class="example-pane pane-active" data-qa="web-pane"></section>
-<aside id="tui-pane" class="example-pane d-none" data-qa="tui-pane">
-<div id="terminal" class="tui-screen"></div>
-<p class="text-body-secondary small mt-2 mb-0">{hint}</p>
-</aside>
-</div>
-</div>
-<footer id="debug-bar" class="fixed-bottom bg-body border-top" data-qa="debug-bar">
-<button id="debug-toggle" class="btn btn-sm w-100 py-0 text-body-secondary" aria-expanded="true" aria-controls="debug-body" title="Toggle the debug bar">&#9662;</button>
-<div id="debug-body" class="debug-body container-fluid px-4 pb-2">
-<h2 class="h6">notify events</h2>
-<pre id="events" class="border bg-body p-2 small mb-0" data-qa="events"></pre>
-</div>
-</footer>
-<script type="application/json" id="example-config">{config}</script>
-</body>
-</html>
-"##,
-        head = head,
-        package = example.package,
-        title = example.title,
-        hint = example.hint,
-        config = config,
-    )
+    let mut context = Context::new();
+    context.insert(
+        "head",
+        &rendered_head(&format!("ui-components · {}", example.title), depth),
+    );
+    context.insert("component_script", &false);
+    context.insert("foreign_import", example.package);
+    context.insert("tag", example.tag);
+    context.insert("title", example.title);
+    context.insert("hint", example.hint);
+    context.insert("pool", &false);
+    context.insert("config", &foreign_config_json(example, entry, modules));
+    render_file(&templates_dir().join("example.html.tera"), &context).expect("render foreign page")
 }
 
 fn gallery_page() -> String {
-    let head = head("ui-components", "");
-    let section = |title: &str, blurb: &str, prefix: &str| -> String {
-        let catalog = EXAMPLES
-            .iter()
-            .map(|example| (example.route, example.tag, example.title, example.blurb));
+    let card = |route: &str, tag: &str, title: &str, blurb: &str| serde_json::json!({"route": route, "tag": tag, "title": title, "blurb": blurb});
+    let cards_for = |prefix: &str| -> Vec<serde_json::Value> {
+        let catalog = EXAMPLES.iter().map(|e| (e.route, e.tag, e.title, e.blurb));
         let foreign = FOREIGN_EXAMPLES
             .iter()
-            .map(|example| (example.route, example.tag, example.title, example.blurb));
-        let cards: String = catalog
+            .map(|e| (e.route, e.tag, e.title, e.blurb));
+        catalog
             .chain(foreign)
             .filter(|(route, ..)| *route == prefix || route.starts_with(&format!("{prefix}/")))
-            .map(|(route, tag, title, blurb)| {
-                format!(
-                    r#"<div class="col">
-<a class="card h-100 text-decoration-none" href="./{route}/">
-<div class="card-body">
-<h3 class="h5 card-title"><code>&lt;{tag}&gt;</code> — {title}</h3>
-<p class="card-text text-body-secondary mb-0">{blurb}</p>
-</div>
-</a>
-</div>
-"#,
-                )
-            })
-            .collect();
-        if cards.is_empty() {
-            return String::new();
-        }
-        format!(
-            r#"<h2 class="h5 mt-5 mb-1">{title}</h2>
-<p class="text-body-secondary">{blurb}</p>
-<div class="row row-cols-1 row-cols-md-2 g-4 mb-4">
-{cards}</div>
-"#
-        )
+            .map(|(route, tag, title, blurb)| card(route, tag, title, blurb))
+            .collect()
     };
-    let sections = [
-        section(
-            "demo",
-            "The composed form: every input around one state object, shared across panes and browser tabs.",
-            "demo",
-        ),
-        section(
-            "components",
-            "One page per catalog component — the web component beside the same element in a terminal.",
-            "components",
-        ),
-        section(
-            "examples",
-            "Maintained end-to-end examples — foreign npm elements in both panes, the Boa host running the terminal side.",
-            "examples",
-        ),
-    ]
-    .concat();
-    format!(
-        r#"<!doctype html>
-<html lang="en" data-bs-theme="light">
-<head>
-{head}
-<script type="module">
-import {{ wireThemeToggle }} from './theme-mode.js';
-wireThemeToggle(document.getElementById('theme-toggle'));
-</script>
-</head>
-<body class="pt-5 bg-body-tertiary">
-<div class="container px-4">
-<header class="d-flex align-items-center mb-4">
-<h1 class="h4 mb-0">ui-components</h1>
-<button id="theme-toggle" class="btn btn-sm btn-outline-secondary ms-auto" data-qa="theme-toggle">&#9790;</button>
-</header>
-<p class="text-body-secondary">One Rust definition per component, rendered twice on every page: the
-real web component beside the same element in a terminal. Slide the width, flip the theme, resize
-the window — both variants respond.</p>
-{sections}</div>
-</body>
-</html>
-"#,
-        head = head,
-        sections = sections,
-    )
+    let sections = serde_json::json!([
+        {
+            "title": "demo",
+            "blurb": "The composed form: every input around one state object, shared across panes and browser tabs.",
+            "cards": cards_for("demo"),
+        },
+        {
+            "title": "components",
+            "blurb": "One page per catalog component — the web component beside the same element in a terminal.",
+            "cards": cards_for("components"),
+        },
+        {
+            "title": "examples",
+            "blurb": "Maintained end-to-end examples — foreign npm elements in both panes, the terminal side on the browser's own engine in a worker.",
+            "cards": cards_for("examples"),
+        },
+    ]);
+    let mut context = Context::new();
+    context.insert("head", &rendered_head("ui-components", 0));
+    context.insert("sections", &sections);
+    render_file(&templates_dir().join("gallery.html.tera"), &context).expect("render gallery page")
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=templates");
     // Keep the catalog's inventory registrations linked into this build script.
     ui_components::link();
 
@@ -721,9 +685,20 @@ fn main() {
         fs::create_dir_all(&dir).expect("create example page dir");
         fs::write(dir.join("index.html.tera"), page).expect("write example page");
     }
-    // Foreign examples: the packages pre-vendor here so the entry and the
-    // module list derive from the real tree; the page fetches the same
-    // files from the site's own web_modules copy.
+    // Foreign examples: the packages pre-vendor here, the entry derives
+    // from the real tree, and the worker module tree carries the mocked
+    // runtime beside the package with its bare lit* imports rewritten —
+    // import maps do not reach workers.
+    let workspace = manifest
+        .parent()
+        .and_then(Path::parent)
+        .expect("workspace root");
+    let worker_root = out.join("gen_worker");
+    let _ = fs::remove_dir_all(&worker_root);
+    let worker_modules = worker_root.join("tui-worker/modules");
+    if !FOREIGN_EXAMPLES.is_empty() {
+        compile_worker_runtime(&workspace.join("crates/uic_js/js/src"), &worker_modules);
+    }
     let foreign_vendor = out.join("vendor_foreign");
     for example in FOREIGN_EXAMPLES {
         let package_root = foreign_vendor.join(example.package);
@@ -735,6 +710,13 @@ fn main() {
         let mut modules = Vec::new();
         foreign_modules(&package_root, &package_root, &mut modules);
         modules.sort();
+        let package_depth = example.package.split('/').count();
+        copy_rewritten(
+            &package_root,
+            &package_root,
+            &worker_modules.join(example.package),
+            package_depth,
+        );
         let page = foreign_page(example, &entry, &modules);
         assert_eq!(
             page.matches("{{").count(),
@@ -756,7 +738,13 @@ fn main() {
 
     build(&BuildOptions {
         specs: &specs,
-        roots: &[web, generated.root, pages],
+        roots: &[
+            web,
+            generated.root,
+            pages,
+            worker_root,
+            uic_worker::web_root(),
+        ],
         out: &out.join("dist"),
         // Document-relative importmap addresses: the gallery sits at the
         // site root and every example page anchors itself there with

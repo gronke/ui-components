@@ -19,5 +19,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for tag in dist.components {
         println!("  <{tag}>");
     }
+
+    // The worker host publishes beside the components (ADR 0023).
+    let worker_out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dist/npm-worker");
+    let modules = uic_worker::npm_tree(&worker_out, env!("CARGO_PKG_VERSION"))?;
+    println!("worker host tree: {}", worker_out.display());
+    for module in modules {
+        println!("  {module}");
+    }
     Ok(())
 }

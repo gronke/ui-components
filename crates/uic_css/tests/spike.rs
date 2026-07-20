@@ -37,6 +37,21 @@ fn json_viewer_stylesheet_parses_with_a_drop_report() {
 }
 
 #[test]
+fn dir_matches_ltr_and_never_rtl() {
+    let doc: Document<()> = Document::parse_html("<x-a><span id='t'>x</span></x-a>");
+    let root = doc.root();
+    let target = doc
+        .descendants(root)
+        .find(|&n| doc.attribute(n, "id") == Some("t"))
+        .unwrap();
+    let ltr = parse_selector_list(":dir(ltr)").expect(":dir(ltr)");
+    let rtl = parse_selector_list(":dir(rtl)").expect(":dir(rtl)");
+    assert!(matches(&doc, target, &ltr, None, None));
+    assert!(!matches(&doc, target, &rtl, None, None));
+    assert!(parse_selector_list(":dir(sideways)").is_err());
+}
+
+#[test]
 fn where_host_parses() {
     let list = parse_selector_list(":where(:host)").expect(":where(:host)");
     assert_eq!(list.slice().len(), 1);

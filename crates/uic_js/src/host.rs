@@ -135,14 +135,8 @@ impl JsHost {
     pub fn mount(&mut self, tag: &str, attrs: &[(&str, &str)]) -> Result<NodeId, Error> {
         let (node, handle) = {
             let mut state = self.state.borrow_mut();
-            let root = state.doc.root();
-            let node = state.doc.create_element_named(tag);
-            for (name, value) in attrs {
-                state.doc.set_attribute(node, name, value);
-            }
-            state.doc.append_child(root, node);
-            state.dirty = true;
-            let handle = state.handle(node);
+            let handle = state.create_root(tag, attrs);
+            let node = state.node(handle).expect("freshly created root");
             (node, handle)
         };
         self.eval(&format!("__uicMount({tag:?}, {handle})"))?;

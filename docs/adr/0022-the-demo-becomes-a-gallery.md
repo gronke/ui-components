@@ -11,7 +11,9 @@ light), and nothing could resize the terminal.
 
 One manifest in `apps/web-demo/build.rs` generates the site: a gallery index at the root and one
 page per entry under its route — `/demo/` for the composed form, `/components/<tag>/` for every
-catalog component, `/examples/<name>/` reserved for maintained end-to-end examples — seeded like
+catalog component, `/examples/<name>/` for maintained end-to-end examples (foreign npm
+elements in both panes; the terminal side runs on the browser's own engine in a worker,
+ADR 0023) — seeded like
 `apps/tui-demo`, with the notify wiring derived from the registry.
 The per-property pane sync carries JSON-faithful scalars only; rich types (a Zoned crossing JSON is
 a string, not a Temporal instance) stay per pane, their scalar twins carrying the information.

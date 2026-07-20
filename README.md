@@ -121,7 +121,7 @@ cargo run -p uic_dist                 # npm package tree in dist/npm (ADR 0004)
 scripts/build-wasm.sh                 # browser TUI for the web demo's split view (ADR 0007), then restart the demo
 ```
 
-With the wasm build in place the web demo is a gallery (ADR 0022): the root groups `/demo/` (the composed form), `/components/<tag>/` (one page per catalog component) and `/examples/` (maintained end-to-end examples); each page shows the element twice — the real web component beside the same element in a terminal, rendered by the TUI runtime.
+With the wasm build in place the web demo is a gallery (ADR 0022): the root groups `/demo/` (the composed form), `/components/<tag>/` (one page per catalog component) and `/examples/` (maintained end-to-end examples — foreign npm elements whose terminal pane runs on the browser's own engine in a dedicated worker, ADR 0023); each page shows the element twice — the real web component beside the same element in a terminal, rendered by the TUI runtime.
 The pages are responsive: side by side above the `md` breakpoint following the width slider (the terminal recomputes its columns live), tabs below it.
 The terminal pane follows the page theme — the OS scheme or the toggle choice — in its xterm palette and in the mounted document's cascade alike.
 The form example keeps the one-`state`-object story: both panes synchronize over a BroadcastChannel — edit either pane and the other follows, with the state messages landing in the shared log (ADR 0013); the component pages sync per notify property instead.
