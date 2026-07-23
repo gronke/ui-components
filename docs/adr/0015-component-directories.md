@@ -2,7 +2,7 @@
 
 ## Decision
 
-New components live in one directory holding every asset: the Rust definition and logic (`mod.rs`), the template (`.mhtml`), the stylesheet (`.scss`), the browser twin (`.impl.ts`) and the terminal twin (`tui.rs`) — `input/suggestion/` is the first.
+New components live in one directory holding every asset: the Rust definition and logic (`mod.rs`), the template (`.html`), the stylesheet (`.scss`), the browser twin (`.impl.ts`) and the terminal twin (`tui.rs`) — `input/suggestion/` is the first.
 
 The terminal twin registers itself through `uic_tui::WidgetRegistration { kind, build }`, collected by `inventory` like the custom-element registry; `WidgetBox::new` consults the registry after the built-in kinds, so a new `data-tui` kind edits nothing in the runtime.
 `uic_tui` exposes the implementation surface for such twins: `WidgetAdapter` and `OverlayOutcome` are public, and the crate re-exports `crossterm`, `ratatui`, `rat_widget` and `unicode_width` so adapters build against the runtime's own dependency versions.
@@ -10,7 +10,7 @@ The terminal twin registers itself through `uic_tui::WidgetRegistration { kind, 
 The catalog's terminal half sits behind the `tui` cargo feature (`ui_components = { workspace = true, features = ["tui"] }`).
 TUI consumers enable it — uic_tui's own integration tests, uic_tui_web, tui-demo; web-only consumers compile no terminal stack — the web-demo build script, apps/dist and uic_codegen_web's tests stay lean, which cargo's resolver guarantees because build-dependency features never unify with normal ones.
 
-Macro asset paths resolve beside the source file and then upward through its ancestors, stopping at the crate root, the nearest match winning — so `#[input_shared]`'s `_shared/chrome.mhtml` reaches components at any directory depth (and the trybuild fixtures keep their local copies).
+Macro asset paths resolve beside the source file and then upward through its ancestors, stopping at the crate root, the nearest match winning — so `#[input_shared]`'s `_shared/chrome.html` reaches components at any directory depth (and the trybuild fixtures keep their local copies).
 
 `.options` bindings gain a third valid placement: `data-tui` widgets, whose adapters store the rows through `set_options` (amends ADR 0006).
 

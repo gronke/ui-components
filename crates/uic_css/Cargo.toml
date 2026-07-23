@@ -20,4 +20,4 @@ cssparser = "0.36"
 
 [build-dependencies]
 # Vendors compiled Bootstrap for the generator (pinned via the workspace patch).
-web_modules = "0.5"
+web_modules = { workspace = true, default-features = true }

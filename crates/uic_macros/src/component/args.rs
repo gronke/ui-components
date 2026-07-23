@@ -142,7 +142,7 @@ pub(super) struct LoadedTemplate {
     pub(super) span: proc_macro2::Span,
     /// Tokens embedding the source into the definition:
     /// the inline literal, or `include_str!` for file templates so cargo
-    /// rebuilds when the `.mhtml` changes.
+    /// rebuilds when the `.html` changes.
     pub(super) src_tokens: TokenStream,
 }
 

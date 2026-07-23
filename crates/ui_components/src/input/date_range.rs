@@ -13,7 +13,7 @@ use uic_core::{input_shared, Changed, Ctx, CustomElement, PropertyStore, UiEvent
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-date-range",
-    template_file = "date_range.mhtml",
+    template_file = "date_range.html",
     scss_file = "date_range.scss",
     web_impl_file = "date_range.impl.ts"
 )]

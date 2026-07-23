@@ -1,5 +1,5 @@
 // The terminal-pane scaffolding shared by the catalog session (/tui) and
-// the Boa session (/tui-js): lazy open on the first nonzero width, cell
+// the worker session: lazy open on the first nonzero width, cell
 // calibration once the canvas measures plausibly, chrome overhead
 // subtracted from the width→columns math, one debounced observer for
 // slider, tab and window widths, and theme following.

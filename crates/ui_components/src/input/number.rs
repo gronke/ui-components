@@ -16,7 +16,7 @@ use uic_core::{input_shared, Ctx, CustomElement, PropertyStore, UiEvent, Value};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-number",
-    template_file = "number.mhtml",
+    template_file = "number.html",
     scss_file = "number.scss",
     web_impl_file = "number.impl.ts"
 )]

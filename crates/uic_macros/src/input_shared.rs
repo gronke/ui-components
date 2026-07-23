@@ -74,7 +74,7 @@ pub fn expand(mut item: ItemStruct) -> syn::Result<TokenStream> {
     // search resolves the `_shared/` paths from any component directory
     // depth (ADR 0015).
     item.attrs.push(parse_quote!(#[custom_element(
-        wraps_file = "_shared/chrome.mhtml",
+        wraps_file = "_shared/chrome.html",
         shared_style = "input-default",
         shared_scss = "_shared/input-default.scss"
     )]));

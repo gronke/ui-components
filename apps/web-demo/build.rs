@@ -313,9 +313,10 @@ const EXAMPLES: &[Example] = &[
 
 /// A maintained end-to-end example: a foreign npm lit element rendered in
 /// both panes — the browser pane through the real lit family, the terminal
-/// pane through the Boa host bundle (/tui-js). The page fetches the
-/// vendored dist sources and hands them to the session; entry and module
-/// list derive from the vendored tree at build time.
+/// pane through the dedicated worker on the browser's own engine (ADR
+/// 0023). The page hands the session the entry inside the rewritten worker
+/// module tree; entry and module list derive from the vendored tree at
+/// build time.
 struct ForeignExample {
     name: &'static str,
     route: &'static str,

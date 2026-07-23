@@ -9,7 +9,7 @@ use uic_core::{CustomElement, ObjectMap, PropertyStore, Value};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "nav-breadcrumb",
-    template_file = "nav_breadcrumb.mhtml",
+    template_file = "nav_breadcrumb.html",
     scss_file = "nav_breadcrumb.scss",
     web_impl_file = "nav_breadcrumb.impl.ts"
 )]

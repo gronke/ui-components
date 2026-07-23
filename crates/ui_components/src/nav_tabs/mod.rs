@@ -15,7 +15,7 @@ use uic_core::{Ctx, CustomElement, SelectOption, UiEvent};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "nav-tabs",
-    template_file = "nav_tabs.mhtml",
+    template_file = "nav_tabs.html",
     scss_file = "nav_tabs.scss",
     web_impl_file = "nav_tabs.impl.ts"
 )]

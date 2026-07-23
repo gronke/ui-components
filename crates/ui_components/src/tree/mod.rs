@@ -16,7 +16,7 @@ use uic_core::{Ctx, CustomElement, ObjectMap, PropertyStore, UiEvent, Value};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "uic-tree",
-    template_file = "tree.mhtml",
+    template_file = "tree.html",
     scss_file = "tree.scss",
     web_impl_file = "tree.impl.ts"
 )]

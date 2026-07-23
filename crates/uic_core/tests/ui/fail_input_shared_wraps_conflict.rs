@@ -5,7 +5,7 @@ use uic_core::{input_shared, CustomElement};
 #[custom_element(
     tag = "x-conflict",
     template = "<p>x</p>",
-    wraps_file = "_shared/chrome.mhtml"
+    wraps_file = "_shared/chrome.html"
 )]
 struct XConflict {}
 

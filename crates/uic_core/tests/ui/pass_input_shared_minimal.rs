@@ -1,4 +1,4 @@
-// Doubles as the span probe: the derive resolves _shared/chrome.mhtml
+// Doubles as the span probe: the derive resolves _shared/chrome.html
 // relative to THIS file even though it expands input_shared's re-emitted
 // struct.
 use uic_core::{input_shared, CustomElement};

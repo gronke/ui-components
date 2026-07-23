@@ -1,7 +1,7 @@
 //! Lit-flavored template string parser and IR.
 //!
 //! One parser serves both authoring forms — inline template strings and
-//! `.mhtml` files — and both render targets (generated Lit TypeScript, TUI).
+//! `.html` files — and both render targets (generated Lit TypeScript, TUI).
 //!
 //! The dialect is an HTML subset with lit-html binding sigils:
 //!

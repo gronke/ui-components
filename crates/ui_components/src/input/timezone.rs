@@ -35,7 +35,7 @@ static TIMEZONE_OPTIONS: LazyLock<Vec<SelectOption>> = LazyLock::new(|| {
 #[custom_element(
     tag = "input-timezone",
     style = "input-select",
-    template_file = "select.mhtml",
+    template_file = "select.html",
     web_impl_file = "timezone.impl.ts"
 )]
 pub struct InputTimezone {
@@ -139,7 +139,7 @@ mod tests {
         assert_eq!(
             def.template_src,
             crate::input::select::InputSelect::definition().template_src,
-            "shares select.mhtml"
+            "shares select.html"
         );
         assert!(def.property("options").is_none(), "the list is computed");
     }

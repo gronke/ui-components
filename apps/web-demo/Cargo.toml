@@ -11,9 +11,9 @@ build = "build.rs"
 
 [dependencies]
 # `dev` pulls the axum integration (Frontend factory + serve) and the dev server.
-# Declared directly (not via workspace.dependencies) because the two dependency
-# kinds need different feature sets.
-web_modules = { version = "0.5.1", features = ["dev"] }
+# The two dependency kinds enable different feature sets over the one
+# workspace version; the server side keeps the default stack plus dev.
+web_modules = { workspace = true, default-features = true, features = ["dev"] }
 tokio.workspace = true
 # include_dir's macro must be used from a direct dependency; same 0.7 line as
 # web_modules, so the `Dir` types unify.
@@ -21,7 +21,7 @@ include_dir.workspace = true
 
 [build-dependencies]
 # Build-time baking needs the compilers + Tera — no axum/tokio.
-web_modules = { version = "0.5.1", default-features = false, features = ["typescript", "scss", "tera"] }
+web_modules = { workspace = true, features = ["typescript", "scss", "tera"] }
 # The component catalog and its TypeScript generator run inside this script.
 ui_components.workspace = true
 uic_codegen_web.workspace = true

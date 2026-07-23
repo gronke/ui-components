@@ -36,6 +36,7 @@ uic_codegen_web = { path = "crates/uic_codegen_web", version = "0.1.0" }
 uic_tui = { path = "crates/uic_tui", version = "0.1.0" }
 uic_tui_web = { path = "crates/uic_tui_web", version = "0.1.0" }
 uic_worker = { path = "crates/uic_worker", version = "0.1.0" }
+uic_js = { path = "crates/uic_js", version = "0.1.0" }
 ui_components = { path = "crates/ui_components", version = "0.1.0" }
 
 # shared external dependencies
@@ -60,6 +61,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 include_dir = "0.7"
 wasm-bindgen = "0.2"
 js-sys = "0.3"
+# One version for every consumer; the [patch.crates-io] pins stay authoritative
+# for the source. Features differ per crate, so members enable their own.
+web_modules = { version = "0.5.1", default-features = false }
+npm-utils = "0.6.1"
 
 # The browser TUI build (scripts/build-wasm.sh). One codegen unit per crate:
 # wasm-ld extracts archive members lazily, and the element registry's

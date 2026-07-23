@@ -1,5 +1,5 @@
-error: chrome template chrome_no_slot.mhtml: chrome template contains no <slot/>
+error: chrome template chrome_no_slot.html: chrome template contains no <slot/>
  --> tests/ui/fail_wraps_no_slot.rs:7:18
   |
-7 |     wraps_file = "chrome_no_slot.mhtml"
-  |                  ^^^^^^^^^^^^^^^^^^^^^^
+7 |     wraps_file = "chrome_no_slot.html"
+  |                  ^^^^^^^^^^^^^^^^^^^^^

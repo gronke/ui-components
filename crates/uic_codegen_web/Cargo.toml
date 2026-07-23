@@ -16,13 +16,13 @@ uic_core.workspace = true
 uic_template.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true
-web_modules = { version = "0.5.1", default-features = false, features = ["typescript", "dts", "scss"], optional = true }
+web_modules = { workspace = true, features = ["typescript", "dts", "scss"], optional = true }
 
 [dev-dependencies]
 # Registers <input-date>/<input-text> in the test binary's registry.
 ui_components.workspace = true
 # oxc smoke test: the emitted TypeScript must transpile.
-web_modules = { version = "0.5.1", default-features = false, features = ["typescript"] }
+web_modules = { workspace = true, features = ["typescript"] }
 # The parity fixtures convert states through the shared JSON layer.
 uic_core = { workspace = true, features = ["json"] }
 

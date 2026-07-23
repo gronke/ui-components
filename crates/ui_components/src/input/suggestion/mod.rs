@@ -17,7 +17,7 @@ use uic_core::{input_shared, Ctx, CustomElement, SelectOption, UiEvent, Value};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-suggestion",
-    template_file = "suggestion.mhtml",
+    template_file = "suggestion.html",
     scss_file = "suggestion.scss",
     web_impl_file = "suggestion.impl.ts"
 )]

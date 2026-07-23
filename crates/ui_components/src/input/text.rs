@@ -7,7 +7,7 @@ use uic_core::{input_shared, Ctx, CustomElement, UiEvent, Value};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-text",
-    template_file = "text.mhtml",
+    template_file = "text.html",
     web_impl_file = "text.impl.ts"
 )]
 pub struct InputText {

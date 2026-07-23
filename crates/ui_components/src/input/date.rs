@@ -20,7 +20,7 @@ use uic_core::{input_shared, Changed, Ctx, CustomElement, PropertyStore, UiEvent
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-date",
-    template_file = "date.mhtml",
+    template_file = "date.html",
     scss_file = "date.scss",
     web_impl_file = "date.impl.ts"
 )]

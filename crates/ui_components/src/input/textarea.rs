@@ -13,7 +13,7 @@ use uic_core::{input_shared, Ctx, CustomElement, UiEvent, Value};
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-textarea",
-    template_file = "textarea.mhtml",
+    template_file = "textarea.html",
     scss_file = "textarea.scss",
     web_impl_file = "textarea.impl.ts"
 )]

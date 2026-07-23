@@ -14,7 +14,7 @@ The decisions behind every load-bearing shape live in [adr/](adr/README.md); thi
 | `uic_tui` | The terminal runtime: components mount on the document (`dom/host`, ADR 0011), composites route children and events (`dom/composite`) — commits through `@change` and live text through `@input` — holes resolve against the store (`dom/resolve`), one `WidgetAdapter` per rat widget (`dom/widget/`, built-in or registered via `WidgetRegistration`, ADR 0015), taffy layout and ratatui paint (`dom/layout`, `dom/render`), `App` hosts it all (ADR 0012), and `lint` gates template TUI-compatibility over the linked registry (ADR 0016). |
 | `uic_tui_web` | The browser host (ADR 0007): the same runtime compiled to wasm, an ANSI backend for xterm.js, and the `TuiSession` JSON boundary. |
 | `uic_codegen_web` | The web output: one Lit class per component, the Custom Elements Manifest, impl-partial checks (exports and arity), the shared impl helpers, and the npm dist build (feature `dist`, ADR 0004) which honors `dist = false`. |
-| `ui_components` | The catalog: the input components, the `nav_tabs` bar (ADR 0017) and the demo composition (`demo/app_root`), each a `.rs` definition beside its `.mhtml` template and `.impl.ts` twin — new components as one directory per component including the terminal widget twin (`tui.rs`, feature `tui`, ADR 0015) — plus the data connectors (`connect`, ADR 0014). |
+| `ui_components` | The catalog: the input components, the `nav_tabs` bar (ADR 0017) and the demo composition (`demo/app_root`), each a `.rs` definition beside its `.html` template and `.impl.ts` twin — new components as one directory per component including the terminal widget twin (`tui.rs`, feature `tui`, ADR 0015) — plus the data connectors (`connect`, ADR 0014). |
 | `apps/web-demo` | The split view: the DOM components and the wasm terminal pane side by side, synchronized over the state bridge (ADR 0013). |
 | `apps/dist`, `apps/tui-demo` | The npm tree builder and the native terminal demo. |
 
@@ -26,7 +26,7 @@ A trigger (attribute, property write, routed event) collects a `Changed` batch; 
 
 ## The component trio
 
-A component is one Rust struct (`#[derive(CustomElement)]`, properties as fields), one `.mhtml` template (the closed expression language of ADR 0001), and — when it has browser behavior — one hand-written `.impl.ts` twin mirroring the Rust `Logic` implementation.
+A component is one Rust struct (`#[derive(CustomElement)]`, properties as fields), one `.html` template (the closed expression language of ADR 0001), and — when it has browser behavior — one hand-written `.impl.ts` twin mirroring the Rust `Logic` implementation.
 Codegen enforces the twin's export set and simple-signature arity, the shared idioms live in the emitted `uic-impl-helpers.ts`, and the parity harness (`uic_codegen_web/tests/parity.rs` + `scripts/parity-check.mjs`) replays Rust-generated fixtures against the compiled twin.
 
 ## Load-bearing runtime semantics

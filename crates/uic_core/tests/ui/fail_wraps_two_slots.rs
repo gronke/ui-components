@@ -4,7 +4,7 @@ use uic_core::CustomElement;
 #[custom_element(
     tag = "x-twoslots",
     template = "<p>x</p>",
-    wraps_file = "chrome_two_slots.mhtml"
+    wraps_file = "chrome_two_slots.html"
 )]
 struct XTwoSlots {}
 

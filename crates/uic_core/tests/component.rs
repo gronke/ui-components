@@ -53,7 +53,7 @@ impl TestBoxLogic for TestBox {
 #[custom_element(
     tag = "test-wrapped",
     template = "<input data-tui=\"date-input\" .value=${value} @change=${on_change}>",
-    wraps_file = "fixtures/chrome.mhtml",
+    wraps_file = "fixtures/chrome.html",
     shared_style = "input-default"
 )]
 struct TestWrapped {

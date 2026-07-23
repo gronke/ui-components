@@ -50,7 +50,7 @@ pub static WORD_POOL: LazyLock<InMemorySource> = LazyLock::new(|| {
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "app-root",
-    template_file = "app_root.mhtml",
+    template_file = "app_root.html",
     web_impl_file = "app_root.impl.ts",
     dist = false
 )]

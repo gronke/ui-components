@@ -9,7 +9,7 @@ use uic_core::{input_shared, Changed, Ctx, CustomElement, SelectOption, UiEvent,
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "input-select",
-    template_file = "select.mhtml",
+    template_file = "select.html",
     scss_file = "select.scss",
     web_impl_file = "select.impl.ts"
 )]

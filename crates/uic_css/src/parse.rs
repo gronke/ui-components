@@ -5,7 +5,7 @@
 
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationParser, ParseError, Parser, ParserInput,
-    QualifiedRuleParser, RuleBodyItemParser, RuleBodyParser, SourceLocation, StyleSheetParser,
+    QualifiedRuleParser, RuleBodyItemParser, RuleBodyParser, StyleSheetParser,
 };
 use selectors::parser::{ParseRelative, SelectorList, SelectorParseErrorKind};
 
@@ -225,10 +225,4 @@ impl<'i> RuleBodyItemParser<'i, (), SelectorParseErrorKind<'i>> for BodyParser<'
     fn parse_qualified(&self) -> bool {
         false
     }
-}
-
-/// Where a `SourceLocation` diagnostic would go later; unused in the spike.
-#[allow(dead_code)]
-fn location_string(location: SourceLocation) -> String {
-    format!("{}:{}", location.line, location.column)
 }

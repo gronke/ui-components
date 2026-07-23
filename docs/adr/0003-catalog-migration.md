@@ -13,7 +13,7 @@ The upstream frontend's element catalog (`packages/frontend/web/src/elements/`, 
 ## Composition (implemented with the input-text port)
 
 1. `#[input_shared]` — an attribute macro above the derive that injects the contract properties (label, hint, error_message, disabled, name, required) and wires the shared chrome and stylesheet by appending a second `#[custom_element(...)]` attribute.
-2. The chrome template partial `input/_shared/chrome.mhtml`: the label/input-group/message markup with a `<slot/>` where the component's own input goes; `uic_template::splice` merges the trees at compile time (validation) and runtime.
+2. The chrome template partial `input/_shared/chrome.html`: the label/input-group/message markup with a `<slot/>` where the component's own input goes; `uic_template::splice` merges the trees at compile time (validation) and runtime.
 3. The shared stylesheet `input/_shared/input-default.scss` backs the stacked `el-input-default` host class, emitted once per style id.
 
 Generated classes stay flat (no reproduction of the catalog's 4-level JS mixin hierarchy); the hierarchy is an authoring device, and Rust is the authoring layer here.
@@ -38,7 +38,7 @@ External writes still win until the next commit.
 
 - The catalog hardcodes a curated ~430-entry zone array; our targets each ask their platform — Rust iterates chrono-tz (597 zones, including legacy aliases like `US/Pacific`), the browser `Intl.supportedValuesOf('timeZone')` (the ICU set) — both pinning UTC first, the rest in the platform's order.
   The two lists differ slightly by design: the implementations are specialized per target but kept side by side (`timezone.rs` next to `timezone.impl.ts`) so they stay comparable.
-- `input-timezone` shares `select.mhtml` and the `el-input-select` styles via the `style` override instead of subclassing (the component model is flat); the shared select computeds live once in `select.rs`/`select.impl.ts` and are delegated to.
+- `input-timezone` shares `select.html` and the `el-input-select` styles via the `style` override instead of subclassing (the component model is flat); the shared select computeds live once in `select.rs`/`select.impl.ts` and are delegated to.
 - The remaining select-family deviations (no `options` attribute, no object default, keyboard-only terminal popup) are recorded in ADR 0006.
 
 ## Deviations of the `show-timezone` embedding

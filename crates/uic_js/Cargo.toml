@@ -21,7 +21,7 @@ uic_tui.workspace = true
 # Vendors the npm packages declared in package.json (pinned via the
 # workspace patch); the manifest also drives the offline presence checks.
 serde_json.workspace = true
-web_modules = "0.5"
+web_modules = { workspace = true, default-features = true }
 
 [dev-dependencies]
 # The browser session example: an axum WebSocket bridges xterm.js to a
@@ -30,4 +30,4 @@ web_modules = "0.5"
 axum = { version = "0.8", features = ["ws"] }
 tokio.workspace = true
 uic_tui_web.workspace = true
-web_modules = "0.5"
+web_modules = { workspace = true, default-features = true }
