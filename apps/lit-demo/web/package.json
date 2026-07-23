@@ -1,0 +1,13 @@
+{
+    "name": "@schuhkarton/lit-todo",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "The todo demo's Lit sources. The dependencies are the browser vendoring set — vendoring is not transitive, so lit's own channels are named too; the terminal host mocks lit instead.",
+    "dependencies": {
+        "@lit/reactive-element": "^2",
+        "lit": "^3",
+        "lit-element": "^4",
+        "lit-html": "^3"
+    }
+}

@@ -40,8 +40,10 @@ Not provided (async model, raw HTML injection): `until`, `asyncAppend`, `asyncRe
 ## Runtime mechanics
 
 `LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
+A committed subtree upgrades the nested custom elements it names: components compose, and a parent's re-commit swaps its children in fresh, re-synced from their attributes (the serialize commit drops `.prop=` bindings, so composition data flows as attributes).
 
 Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint; focus survives each subtree swap by re-resolving its `data-path`.
+Template `@event` values want to be method references (`@click=${this.onPick}`) — the marker binding supplies the host `this`, compiled lit's own shape — with row context travelling as a `data-*` attribute read off `event.currentTarget`; an inline closure over render locals trips the second Boa 0.21 capture bug pinned in `tests/boa_quirks.rs`.
 
 A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — no Bootstrap assumed, the element's own stylesheet drives colors, indentation and generated content (json-viewer's `.collapsable::before` marker renders as a generated box, ▶ turning ▼ through `transform: rotate(90deg)`).
 

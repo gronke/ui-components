@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lit-todo</title>
+<link rel="stylesheet" href="./page.css">
+{{ importmap | safe }}
+<script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
+</head>
+<body>
+<todo-app></todo-app>
+</body>
+</html>

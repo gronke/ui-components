@@ -4422,6 +4422,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "uic_lit_demo"
+version = "0.1.0"
+dependencies = [
+ "include_dir",
+ "npm-utils",
+ "serde_json",
+ "tokio",
+ "uic_js",
+ "uic_tui",
+ "web_modules",
+]
+
+[[package]]
 name = "uic_macros"
 version = "0.1.0"
 dependencies = [

@@ -15,6 +15,7 @@ import {
     nothing,
     releaseListeners,
     renderToString,
+    upgradeDescendants,
 } from './runtime.js';
 
 export class LitElement {
@@ -161,6 +162,7 @@ export class LitElement {
         const markup = renderToString(result);
         this.__renderListeners = endRender();
         __uic_commit(this.__node, markup);
+        upgradeDescendants(this.__node);
         releaseListeners(previous);
         if (typeof (this as any).updated === 'function') {
             (this as any).updated(new Map());

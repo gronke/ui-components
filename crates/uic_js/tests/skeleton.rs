@@ -63,6 +63,21 @@ fn a_mock_lit_component_paints_a_frame() {
 }
 
 #[test]
+fn properties_round_trip_as_json() {
+    let mut host = JsHost::new().unwrap();
+    host.load_module("test:hello", HELLO).unwrap();
+    let node = host.mount("hello-world", &[]).unwrap();
+
+    assert_eq!(host.prop_json(node, "count").unwrap(), "0");
+    host.set_prop(node, "count", "7").unwrap();
+    assert_eq!(host.prop_json(node, "count").unwrap(), "7");
+    assert!(
+        host.prop_json(node, "no-such-property").is_err(),
+        "an absent property reports instead of serializing"
+    );
+}
+
+#[test]
 fn a_nested_dist_tree_loads_across_directories() {
     // A dist spanning subdirectories: the entry imports downward, the inner
     // module upward — both resolve because specifiers keep their paths.

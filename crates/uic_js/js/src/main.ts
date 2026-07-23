@@ -2,11 +2,11 @@
 // customElements registry and the flat entry points the Rust host calls by
 // name (mount, property writes, event delivery, focus).
 
-import { LitElement } from './lit-element.js';
 import {
     deliver,
     focusNode,
     instances,
+    mountAt,
     queryAllNodes,
     registry,
 } from './runtime.js';
@@ -42,22 +42,7 @@ function collectStyles(styles: unknown): string {
     },
 };
 
-// The host created the element node (with its markup attributes) before
-// instantiating: attribute reads in constructors and connectedCallback see
-// the real initial state.
-(globalThis as any).__uicMount = (tag: string, handle: number): number => {
-    const cls = registry.get(tag);
-    if (!cls) {
-        throw new Error(`unknown custom element <${tag}>`);
-    }
-    const el: LitElement = new cls();
-    el.__node = handle;
-    el.__upgradeOwnProperties();
-    el.__syncFromAttributes();
-    instances.set(handle, el);
-    el.connectedCallback();
-    return handle;
-};
+(globalThis as any).__uicMount = (tag: string, handle: number): number => mountAt(tag, handle);
 
 (globalThis as any).__uicSetProp = (handle: number, name: string, value: unknown): void => {
     const el = instances.get(handle);

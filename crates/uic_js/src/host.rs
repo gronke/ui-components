@@ -152,6 +152,17 @@ impl JsHost {
         Ok(())
     }
 
+    /// Reads a component property through the mocked accessor as JSON text —
+    /// the outbound mirror of [`set_prop`](Self::set_prop).
+    pub fn prop_json(&mut self, node: NodeId, name: &str) -> Result<String, Error> {
+        let handle = self.state.borrow_mut().handle(node);
+        let value = self.eval(&format!("JSON.stringify(__uicGetProp({handle}, {name:?}))"))?;
+        value
+            .as_string()
+            .map(|text| text.to_std_string_escaped())
+            .ok_or_else(|| Error::Js(format!("property {name:?} did not serialize to JSON")))
+    }
+
     /// Moves the DOM focus (dispatching focusout/focusin) and runs the jobs.
     pub fn focus(&mut self, node: NodeId) -> Result<(), Error> {
         let handle = self.state.borrow_mut().handle(node);

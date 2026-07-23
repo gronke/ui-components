@@ -1,0 +1,25 @@
+[package]
+name = "uic_lit_demo"
+description = "One hand-written Lit todo app: the terminal runs it on uic_js/Boa, the browser gets it served via web_modules"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+uic_js.workspace = true
+# The crossterm/ratatui re-exports drive the terminal loop and paint.
+uic_tui.workspace = true
+web_modules = { workspace = true, default-features = true, features = ["dev"] }
+tokio.workspace = true
+include_dir.workspace = true
+
+[build-dependencies]
+# Build-time baking: the app's TypeScript compiles into the npm tree and
+# the browser dist; Tera renders the page with the importmap hole.
+web_modules = { workspace = true, features = ["typescript", "tera"] }
+# Assembles the app tree's package.json (package_json::manifest).
+npm-utils.workspace = true
+serde_json.workspace = true
