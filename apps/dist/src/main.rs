@@ -27,5 +27,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for module in modules {
         println!("  {module}");
     }
+
+    // The sync tooling publishes beside them (ADR 0024).
+    let sync_out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dist/npm-sync");
+    let modules = uic_sync::npm_tree(&sync_out, env!("CARGO_PKG_VERSION"))?;
+    println!("sync tooling tree: {}", sync_out.display());
+    for module in modules {
+        println!("  {module}");
+    }
     Ok(())
 }

@@ -2,13 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>
+document.documentElement.setAttribute('data-bs-theme',
+    localStorage.getItem('uic-theme')
+        ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>lit-todo</title>
+<link rel="stylesheet" href="./web_modules/bootstrap/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="./page.css">
 {{ importmap | safe }}
 <script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
+<script type="module" src="./live.js"></script>
+<script type="module">
+// Typing always lands in the list: a click on page chrome refocuses the app.
+document.addEventListener('pointerdown', (event) => {
+    if (!event.target.closest('a, button, input, textarea')) {
+        queueMicrotask(() => document.querySelector('todo-app')?.focus());
+    }
+});
+</script>
 </head>
 <body>
+<main>
 <todo-app></todo-app>
+</main>
 </body>
 </html>

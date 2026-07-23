@@ -6,8 +6,10 @@
     "description": "The todo demo's Lit sources. The dependencies are the browser vendoring set — vendoring is not transitive, so lit's own channels are named too; the terminal host mocks lit instead.",
     "dependencies": {
         "@lit/reactive-element": "^2",
+        "bootstrap": "^5",
         "lit": "^3",
         "lit-element": "^4",
-        "lit-html": "^3"
+        "lit-html": "^3",
+        "qrcode-generator": "^2"
     }
 }

@@ -1,0 +1,23 @@
+main {
+    max-width: 34rem;
+}
+
+/* Scanners want dark modules on a light ground — the code sits on its own
+   white card whatever the page theme. */
+.pairing .qr svg {
+    display: block;
+    margin: 1rem auto;
+    background: #ffffff;
+}
+
+.pairing textarea {
+    min-height: 4.5rem;
+    margin: 0.5rem 0;
+    font-size: 0.8rem;
+}
+
+.pairing video {
+    width: 100%;
+    margin: 0.5rem 0;
+    border-radius: var(--bs-border-radius);
+}

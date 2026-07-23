@@ -10,10 +10,15 @@ rust-version.workspace = true
 
 [dependencies]
 uic_js.workspace = true
+uic_dom.workspace = true
 # The crossterm/ratatui re-exports drive the terminal loop and paint.
 uic_tui.workspace = true
 web_modules = { workspace = true, default-features = true, features = ["dev"] }
-tokio.workspace = true
+# The live mode's WebSocket state bridge rides the frontend router.
+axum = { workspace = true, features = ["ws"] }
+qrcode.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+serde_json.workspace = true
 include_dir.workspace = true
 
 [build-dependencies]
@@ -23,3 +28,5 @@ web_modules = { workspace = true, features = ["typescript", "tera"] }
 # Assembles the app tree's package.json (package_json::manifest).
 npm-utils.workspace = true
 serde_json.workspace = true
+# The sync tooling bakes its npm tree beside the app's.
+uic_sync.workspace = true

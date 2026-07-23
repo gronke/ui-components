@@ -5,11 +5,14 @@ One hand-written Lit todo app — `<todo-app>` composing `<todo-item>` rows, pla
 ```sh
 cargo run -p uic_lit_demo             # the app in this terminal (uic_js/Boa + ratatui)
 cargo run -p uic_lit_demo -- serve    # the same sources on real lit, http://127.0.0.1:8090
+cargo run -p uic_lit_demo -- live     # both at once, one shared state (ADR 0024)
 ```
 
 Both targets speak the same keys: type to draft a new entry and Enter adds it, Space toggles the selected row, Enter edits the selected row in place (typing changes it live, Enter finishes, emptying the text deletes the row), ArrowUp/ArrowDown select, a click toggles.
 Esc quits the terminal.
-The component's `static styles` drive both renderings — the `[x]`/`[ ]` markers are `::before` generated content from one stylesheet.
+
+The components render light DOM and carry Bootstrap classes — the house style: the browser shows a regular Bootstrap card and list group, and the terminal maps the same classes through its filtered Bootstrap sheet (the card's border, the list rows, the active highlight).
+The components' `static styles` are the terminal-only layer — real lit never adopts them without a shadow root — adding what the map cannot say, like the `[x]`/`[ ]` markers as generated content.
 
 ## One tree, two hosts
 
@@ -21,8 +24,20 @@ The component's `static styles` drive both renderings — the `[x]`/`[ ]` marker
 The app sticks to the idioms both engines serve (see `crates/uic_js/README.md`, Runtime mechanics): composition data flows down as attributes, keyboard input is a plain `keydown` listener on the host element, and template event values are method references with row context in a `data-*` attribute.
 Module names must not shadow the terminal runtime's specifiers — never name app files `main.ts`, `runtime.ts` or `lit*.ts`.
 
+## Two sync harnesses around the same app
+
+The app itself knows nothing about either; the glue rides `@schuhkarton/uic-sync` (ADR 0024), baked beside the app's tree.
+
+**`live` — the terminal is the server.** Every browser mirrors the terminal's state over `/ws`: type in one place and the letters land everywhere, including the terminal running the process.
+The terminal shows the join URL as a scannable QR pane beside the app (dropped on narrow terminals — the status line keeps the URL) and listens on `0.0.0.0`, so phones on the network join by scanning; mind that this exposes the shared list to the LAN.
+The page probes `/live` first, so the same page stays quiet under plain `serve`.
+
+**`/p2p` — no server carries the state.** Two browsers pair over WebRTC with mutually shown QR codes: the host's offer rides the page link's fragment (a phone camera opens it directly), the guest's answer travels back by scan or paste, and the todo state then flows peer-to-peer over the data channel.
+The compact payloads stay under 300 characters; on one network the host candidates connect without STUN, TURN or any signaling server.
+Camera scanning feature-detects `BarcodeDetector` and needs a secure context — the paste textarea is the always-present path.
+
 ## Knobs
 
-- `UIC_LIT_DEMO_ADDR=host:port` moves the server (default `127.0.0.1:8090`).
+- `UIC_LIT_DEMO_ADDR=host:port` moves the server (default `127.0.0.1:8090`; `live` defaults to `0.0.0.0:8090`).
 - `WEB_MODULES_EMBEDDED=1` forces the fully-embedded dist (no filesystem reads).
 - Dev serving recompiles `web/pages/` live; a change under `web/src/` re-bakes through cargo — restart the server.

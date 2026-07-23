@@ -16,12 +16,20 @@ const PACKAGE: &str = "@schuhkarton/lit-todo";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=web");
+    println!("cargo:rerun-if-changed={}", uic_sync::web_root().display());
 
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));
     let web = Path::new(env!("CARGO_MANIFEST_DIR")).join("web");
 
     let npm = out.join("npm");
     npm_tree(&web.join("src"), &npm.join(PACKAGE));
+    // The sync tooling's tree lands beside the app's: the pages import both
+    // under their package names from the shared npm root.
+    uic_sync::npm_tree(
+        &npm.join("@schuhkarton/uic-sync"),
+        env!("CARGO_PKG_VERSION"),
+    )
+    .expect("bake the sync tooling tree");
     println!("cargo:rustc-env=UIC_LIT_DEMO_NPM_ROOT={}", npm.display());
 
     // The browser dist: import-map entries derive from each vendored

@@ -1,0 +1,17 @@
+[package]
+name = "uic_sync"
+description = "State sync tooling for lit components: structured-clone snapshots over one wire seam, plus serverless QR pairing"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+# Compiles the TypeScript sources for the npm tree; consumers hand the
+# source root to their own web_modules build instead.
+web_modules = { workspace = true, features = ["typescript"] }
+# Assembles the npm tree's package.json (package_json::manifest).
+npm-utils.workspace = true
+serde_json.workspace = true

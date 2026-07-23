@@ -105,6 +105,8 @@ fn tui_compatible() {
 | `crates/uic_tui` | Terminal runtime (ratatui + taffy + rat-widget) |
 | `crates/uic_tui_web` | Browser host for the terminal runtime: wasm sessions rendered through xterm.js (ADR 0007) |
 | `crates/uic_js` | Boa host running real npm lit elements on the terminal runtime (ADR 0023) |
+| `crates/uic_worker` | The browser worker host for foreign lit elements, published as `@schuhkarton/uic-worker` (ADR 0023) |
+| `crates/uic_sync` | State sync tooling — structured-clone snapshots over one wire seam, serverless QR pairing — published as `@schuhkarton/uic-sync` (ADR 0024) |
 | `crates/ui_components` | The component catalog (inputs plus the `<app-root>` demo composition) |
 | `apps/web-demo` | Browser demo served via axum/`web_modules::Frontend` |
 | `apps/tui-demo` | Terminal demo |
@@ -120,6 +122,7 @@ cargo run -p uic_tui_demo nav-tabs    # the tab bar standalone (Left/Right or a 
 cargo run -p uic_tui_demo app-root    # the tabbed demo card, incl. the live word-pool typeahead
 cargo run -p uic_lit_demo             # a hand-written Lit todo app in this terminal (uic_js/Boa)
 cargo run -p uic_lit_demo -- serve    # the same app on real lit, http://127.0.0.1:8090
+cargo run -p uic_lit_demo -- live     # terminal + server on one state; scan the QR pane to join
 cargo run -p uic_tui --example screen # print one rendered terminal frame
 cargo run -p uic_dist                 # npm package tree in dist/npm (ADR 0004)
 scripts/build-wasm.sh                 # browser TUI for the web demo's split view (ADR 0007), then restart the demo

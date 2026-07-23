@@ -22,25 +22,25 @@ export class TodoApp extends LitElement {
         editing: { state: true },
     };
 
+    // The terminal's look: the mapped Bootstrap subset draws the card and
+    // the active row; these rules add what the map leaves unset.
     static styles = css`
         :host {
             display: block;
-            padding: 1rem;
         }
-        .title {
+        .card-header {
             font-weight: bold;
             color: #e5c07b;
         }
         todo-item {
             display: block;
         }
-        todo-item.selected {
-            background-color: #26415e;
-        }
+        .prompt,
         .draft {
             color: #e5c07b;
         }
-        .count {
+        .hint,
+        .card-footer {
             color: #808a93;
         }
     `;
@@ -62,12 +62,25 @@ export class TodoApp extends LitElement {
         this.addEventListener('keydown', (event: KeyboardEvent) => this.onKey(event));
     }
 
+    createRenderRoot(): this {
+        return this;
+    }
+
     connectedCallback(): void {
         super.connectedCallback();
         if (this.tabIndex < 0) {
             this.tabIndex = 0;
         }
         this.focus();
+    }
+
+    // The announcement the live bridge listens to. The terminal's mocked lit
+    // calls updated with an empty map, so the guard keeps Boa off the
+    // (unmocked) dispatchEvent path — there the host reads state directly.
+    updated(changed: Map<string, unknown>): void {
+        if (['items', 'draft', 'selected', 'editing'].some((name) => changed.has(name))) {
+            this.dispatchEvent(new Event('state-changed'));
+        }
     }
 
     onKey(event: KeyboardEvent): void {
@@ -152,24 +165,34 @@ export class TodoApp extends LitElement {
     render() {
         const remaining = this.items.filter((item) => !item.done).length;
         return html`
-            <p class="title">todos</p>
-            ${repeat(
-                this.items,
-                (item) => item.id,
-                (item, index) => html`<todo-item
-                    class="${classMap({ selected: index === this.selected })}"
-                    data-index="${index}"
-                    text="${item.text}"
-                    ?done=${item.done}
-                    ?editing=${index === this.editing}
-                    @click=${this.onItemClick}
-                ></todo-item>`,
-            )}
-            <p class="draft">&gt; ${this.draft}</p>
-            <p class="count">
-                ${remaining} remaining · type + Enter adds · Space toggles · Enter edits ·
-                arrows select · click toggles
-            </p>
+            <div class="card shadow-sm">
+                <div class="card-header">todos</div>
+                <ul class="list-group list-group-flush">
+                    ${repeat(
+                        this.items,
+                        (item) => item.id,
+                        (item, index) => html`<todo-item
+                            class="list-group-item list-group-item-action ${classMap({
+                                active: index === this.selected,
+                            })}"
+                            data-index="${index}"
+                            text="${item.text}"
+                            ?done=${item.done}
+                            ?editing=${index === this.editing}
+                            @click=${this.onItemClick}
+                        ></todo-item>`,
+                    )}
+                </ul>
+                <div class="card-body font-monospace">
+                    <span class="prompt">&gt;</span>
+                    <span class="draft">${this.draft}</span>
+                    <span class="hint">${this.draft ? '' : 'type to add…'}</span>
+                </div>
+                <div class="card-footer small">
+                    ${remaining} remaining · type + Enter adds · Space toggles · Enter edits ·
+                    arrows select · click toggles
+                </div>
+            </div>
         `;
     }
 }

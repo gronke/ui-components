@@ -11,6 +11,7 @@ members = [
     "crates/uic_tui_web",
     "crates/uic_worker",
     "crates/uic_js",
+    "crates/uic_sync",
     "crates/ui_components",
     "apps/web-demo",
     "apps/tui-demo",
@@ -38,6 +39,7 @@ uic_tui = { path = "crates/uic_tui", version = "0.1.0" }
 uic_tui_web = { path = "crates/uic_tui_web", version = "0.1.0" }
 uic_worker = { path = "crates/uic_worker", version = "0.1.0" }
 uic_js = { path = "crates/uic_js", version = "0.1.0" }
+uic_sync = { path = "crates/uic_sync", version = "0.1.0" }
 ui_components = { path = "crates/ui_components", version = "0.1.0" }
 
 # shared external dependencies
@@ -66,6 +68,11 @@ js-sys = "0.3"
 # for the source. Features differ per crate, so members enable their own.
 web_modules = { version = "0.5.1", default-features = false }
 npm-utils = "0.6.1"
+# The same 0.8 line as web_modules, so routers compose across the boundary.
+axum = "0.8"
+# Renders the live mode's join URL as terminal half-blocks; the default
+# features would pull in the image stack.
+qrcode = { version = "0.14", default-features = false }
 
 # The browser TUI build (scripts/build-wasm.sh). One codegen unit per crate:
 # wasm-ld extracts archive members lazily, and the element registry's
