@@ -8,7 +8,10 @@ cargo run -p uic_lit_demo -- serve    # the same sources on real lit, http://127
 cargo run -p uic_lit_demo -- live     # both at once, one shared state (ADR 0024)
 ```
 
-Both targets speak the same keys: type to draft a new entry and Enter adds it, Space toggles the selected row, Enter edits the selected row in place (typing changes it live, Enter finishes, emptying the text deletes the row), ArrowUp/ArrowDown select, a click toggles.
+Both targets speak the same keys: type to draft a new entry and Enter adds it, Space toggles the selected row, Enter edits the selected row in place (typing changes it live, Enter finishes, emptying the text deletes the row), ArrowUp/ArrowDown select, Shift+ArrowUp/Down reorders (F5/F6 in the terminal, translated to the same shifted arrows before delivery).
+The checkbox — a real one in the browser, the `[x]` span in the terminal — is the only pointer toggle; a plain click selects, and a double click (or double tap) opens the row for inline editing, Enter's pointer twin (the native terminal synthesizes `dblclick` from two quick clicks on one node).
+The browser also reorders by drag & drop (terminal drag stays a possible follow-up).
+Delete removes the selected row (the browser also offers a close button per row), and an edit emptied of its text deletes too.
 Esc quits the terminal.
 
 The components render light DOM and carry Bootstrap classes — the house style: the browser shows a regular Bootstrap card and list group, and the terminal maps the same classes through its filtered Bootstrap sheet (the card's border, the list rows, the active highlight).
@@ -35,6 +38,7 @@ The page probes `/live` first, so the same page stays quiet under plain `serve`.
 **`/p2p` — no server carries the state.** Two browsers pair over WebRTC with mutually shown QR codes: the host's offer rides the page link's fragment (a phone camera opens it directly), the guest's answer travels back by scan or paste, and the todo state then flows peer-to-peer over the data channel.
 The compact payloads stay under 300 characters; on one network the host candidates connect without STUN, TURN or any signaling server.
 Camera scanning feature-detects `BarcodeDetector` and needs a secure context — the paste textarea is the always-present path.
+The baked dist is a plain static site, so the project's GitHub Pages serves it under `/lit-demo/` — the pairing page at `/lit-demo/p2p/` needs no server at all, and the HTTPS context enables the camera scanner there; the server-backed `live` mode naturally stays a `cargo run` affair.
 
 ## Knobs
 

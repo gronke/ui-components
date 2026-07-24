@@ -2,6 +2,11 @@ main {
     max-width: 34rem;
 }
 
+/* The terminal's checkbox twin — the browser shows the real input. */
+todo-app .check {
+    display: none;
+}
+
 /* Scanners want dark modules on a light ground — the code sits on its own
    white card whatever the page theme. */
 .pairing .qr svg {

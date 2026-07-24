@@ -26,6 +26,9 @@ document.addEventListener('pointerdown', (event) => {
 <body>
 <main>
 <todo-app></todo-app>
+<footer class="text-center small mt-3">
+<a class="link-secondary" href="./p2p/">pair another browser over WebRTC instead →</a>
+</footer>
 </main>
 </body>
 </html>

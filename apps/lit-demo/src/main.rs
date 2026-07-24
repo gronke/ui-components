@@ -25,10 +25,8 @@ use include_dir::{include_dir, Dir};
 use tokio::sync::{broadcast, mpsc};
 use uic_dom::NodeId;
 use uic_js::JsHost;
-use uic_tui::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
-use uic_tui::{crossterm, ratatui};
+use uic_tui::crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
+use uic_tui::{crossterm, ratatui, KeyStroke};
 use web_modules::{serve, Frontend};
 
 static DIST: Dir = include_dir!("$OUT_DIR/dist");
@@ -53,27 +51,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-/// The DOM key name for a terminal key event — printable characters flow
-/// through to the app's keydown handler; CONTROL/ALT chords stay with the
-/// terminal.
-fn dom_key(key: &KeyEvent) -> Option<String> {
-    if key
-        .modifiers
-        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-    {
+/// The app's key policy over the shared vocabulary (`uic_tui::keys`):
+/// printable characters and named keys flow through to the keydown handler,
+/// CONTROL/ALT chords stay with the terminal, and F5/F6 alias the shifted
+/// arrows so the component only knows the DOM contract.
+fn app_key(stroke: KeyStroke) -> Option<KeyStroke> {
+    if stroke.ctrl || stroke.alt {
         return None;
     }
-    Some(match key.code {
-        KeyCode::Char(c) => c.to_string(),
-        KeyCode::Backspace => "Backspace".into(),
-        KeyCode::Enter => "Enter".into(),
-        KeyCode::Up => "ArrowUp".into(),
-        KeyCode::Down => "ArrowDown".into(),
-        KeyCode::Left => "ArrowLeft".into(),
-        KeyCode::Right => "ArrowRight".into(),
-        KeyCode::Home => "Home".into(),
-        KeyCode::End => "End".into(),
-        _ => return None,
+    Some(match stroke.key.as_str() {
+        "F5" => KeyStroke::shifted("ArrowUp"),
+        "F6" => KeyStroke::shifted("ArrowDown"),
+        _ => stroke,
     })
 }
 
@@ -90,7 +79,7 @@ fn mounted_host() -> Result<(JsHost, NodeId), Box<dyn std::error::Error>> {
 
 fn tui() -> Result<(), Box<dyn std::error::Error>> {
     let (mut host, node) = mounted_host()?;
-    let status = "lit-todo via Boa · type + Enter adds · Space toggles · Enter edits · Esc quits";
+    let status = "lit-todo via Boa · type + Enter adds · Space toggles · Enter edits · F5/F6 reorder · Del removes · Esc quits";
     with_terminal(|terminal| run(&mut host, node, terminal, status, None, None))
 }
 
@@ -227,6 +216,10 @@ fn next_input(bridge: Option<&mut LiveBridge>) -> Result<Input, Box<dyn std::err
     }
 }
 
+/// Two quick clicks on one node synthesize a dblclick, the browser's own
+/// click, click, dblclick order.
+const DOUBLE_CLICK: Duration = Duration::from_millis(400);
+
 fn run(
     host: &mut JsHost,
     node: NodeId,
@@ -235,6 +228,9 @@ fn run(
     qr: Option<&QrPane>,
     mut bridge: Option<&mut LiveBridge>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Double clicks detect by cell, not node: a click's re-render swaps
+    // the subtree, so node identities never survive between the two.
+    let mut last_click: Option<(u16, u16, std::time::Instant)> = None;
     draw(host, terminal, status, qr)?;
     loop {
         let changed = match next_input(bridge.as_deref_mut())? {
@@ -243,21 +239,17 @@ fn run(
                 apply_state(host, node, &state)?;
                 true
             }
-            Input::Terminal(Event::Key(key)) => {
-                if key.code == KeyCode::Esc
-                    || (key.code == KeyCode::Char('c')
-                        && key.modifiers.contains(KeyModifiers::CONTROL))
-                {
-                    return Ok(());
-                }
-                match dom_key(&key) {
-                    Some(name) => {
-                        host.dispatch_key(&name)?;
+            Input::Terminal(Event::Key(key)) => match KeyStroke::from_crossterm(&key) {
+                Some(stroke) if stroke.is_quit() => return Ok(()),
+                Some(stroke) => match app_key(stroke) {
+                    Some(stroke) => {
+                        host.dispatch(&stroke)?;
                         true
                     }
                     None => false,
-                }
-            }
+                },
+                None => false,
+            },
             Input::Terminal(Event::Mouse(MouseEvent {
                 kind: MouseEventKind::Down(MouseButton::Left),
                 column,
@@ -271,6 +263,24 @@ fn run(
                 };
                 if let Some(target) = target {
                     host.click(target)?;
+                    let doubled = last_click.is_some_and(|(col, row_at, at)| {
+                        col == column && row_at == row && at.elapsed() < DOUBLE_CLICK
+                    });
+                    if doubled {
+                        // The click's re-render may have swapped the node;
+                        // resolve the cell fresh, like the click itself did.
+                        let fresh = {
+                            let state = host.state.borrow();
+                            let area = app_area(terminal.get_frame().area(), qr);
+                            uic_tui::dom::hit_test(&state.doc, area, column, row)
+                        };
+                        if let Some(fresh) = fresh {
+                            host.dblclick(fresh)?;
+                        }
+                        last_click = None;
+                    } else {
+                        last_click = Some((column, row, std::time::Instant::now()));
+                    }
                 }
                 target.is_some()
             }

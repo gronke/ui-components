@@ -16,7 +16,7 @@ type InitMessage = {
 };
 
 type InputMessage =
-    | { type: 'key'; key: string }
+    | { type: 'key'; key: string; ctrl?: boolean; alt?: boolean; shift?: boolean }
     | { type: 'mouse'; kind: string; col: number; row: number }
     | { type: 'resize'; cols: number; rows: number }
     | { type: 'theme'; theme: string };
@@ -86,7 +86,14 @@ async function input(message: InputMessage): Promise<void> {
         case 'key': {
             const focused = session.focused();
             if (focused >= 0) {
-                (globalThis as any).__uicDeliver(focused, 'keydown', { key: message.key });
+                // The full modifier state travels — the same keydown
+                // contract the native Boa host delivers.
+                (globalThis as any).__uicDeliver(focused, 'keydown', {
+                    key: message.key,
+                    shiftKey: Boolean(message.shift),
+                    ctrlKey: Boolean(message.ctrl),
+                    altKey: Boolean(message.alt),
+                });
                 await settled();
             }
             break;

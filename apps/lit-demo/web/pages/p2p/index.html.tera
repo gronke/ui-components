@@ -43,6 +43,9 @@ document.documentElement.setAttribute('data-bs-theme',
 </div>
 </div>
 </section>
+<footer class="text-center small mt-3">
+<a class="link-secondary" href="./">← share through the server instead</a>
+</footer>
 </main>
 </body>
 </html>

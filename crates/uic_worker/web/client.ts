@@ -49,8 +49,8 @@ export function connectWorkerSession(options: {
             worker.postMessage({ type: 'theme', theme });
             return '';
         },
-        key: (key, _ctrl, _alt, _shift) => {
-            worker.postMessage({ type: 'key', key });
+        key: (key, ctrl, alt, shift) => {
+            worker.postMessage({ type: 'key', key, ctrl, alt, shift });
             return '';
         },
         mouse: (kind, col, row) => {

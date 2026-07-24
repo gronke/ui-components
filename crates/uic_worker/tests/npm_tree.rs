@@ -13,6 +13,10 @@ fn the_npm_tree_is_publish_ready() {
     let client = fs::read_to_string(out.join("client.js")).expect("read client.js");
     assert!(client.contains("export function connectWorkerSession"));
     assert!(!client.contains(": WorkerSession"));
+    // The key path forwards the modifier state instead of discarding it.
+    assert!(client.contains("shift"), "client forwards modifiers");
+    let worker = fs::read_to_string(out.join("tui-worker.js")).expect("read tui-worker.js");
+    assert!(worker.contains("shiftKey"), "worker delivers modifiers");
 
     // The manifest names every module and enters through the client.
     let package = fs::read_to_string(out.join("package.json")).expect("read package.json");

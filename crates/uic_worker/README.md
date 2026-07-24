@@ -11,6 +11,8 @@ Two TypeScript sources live in `web/`:
   the runtime module tree and the component entry, mounts, and streams ANSI frames per message.
 - `client.ts` — `connectWorkerSession`: the postMessage facade a page wires into its terminal
   pane; frames arrive pushed through `onAnsi`.
+  Key events carry their modifier flags across the boundary, so the delivered keydown matches
+  the native Boa host's contract (`uic_tui::keys`).
 
 Consumers integrate one of two ways:
 

@@ -61,11 +61,23 @@ jobs:
         with:
           package: uic_web_demo
 
+      # The lit-demo's dist is the same document-relative shape; it serves
+      # under /lit-demo/ (the /p2p/ pairing needs no server at all). Its
+      # build reaches beyond the wasm-1 cache (Boa and friends), so this
+      # step carries the workflow's cold compile time.
+      - name: Bake the lit-demo
+        id: bake-lit
+        uses: gronke/rust-ci/.github/actions/cargo-out-dir@v0.0.5
+        with:
+          package: uic_lit_demo
+
       - name: Assemble the site
         run: |
           mkdir -p site
           cp -r "${{ steps.bake.outputs.out-dir }}/dist"/. site/
           cp -r apps/web-demo/web-tui site/tui
+          mkdir -p site/lit-demo
+          cp -r "${{ steps.bake-lit.outputs.out-dir }}/dist"/. site/lit-demo/
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@v5

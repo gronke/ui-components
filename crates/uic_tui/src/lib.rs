@@ -16,9 +16,11 @@
 //! ```
 
 pub mod dom;
+pub mod keys;
 pub mod lint;
 
 pub use dom::{App, OverlayOutcome, WidgetAdapter, WidgetRegistration};
+pub use keys::KeyStroke;
 
 // The widget-implementation surface for co-located component twins
 // (ADR 0015): adapters build against the runtime's own stack, so versions

@@ -9,11 +9,13 @@ body {
     margin: 0;
     overflow: hidden;
     display: grid;
-    place-items: center;
+    justify-items: center;
+    align-items: start;
 }
 
 main {
     width: min(34rem, calc(100vw - 2rem));
+    margin-top: 8vh;
 }
 
 todo-app {
@@ -33,4 +35,9 @@ todo-app .list-group {
 
 todo-app .hint {
     color: var(--bs-tertiary-color);
+}
+
+/* The terminal's checkbox twin — the browser shows the real input. */
+todo-app .check {
+    display: none;
 }

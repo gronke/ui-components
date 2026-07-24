@@ -59,6 +59,8 @@ export class TodoApp extends LitElement {
         this.draft = '';
         this.selected = 0;
         this.editing = -1;
+        // Transient drag source — plain field, neither reactive nor synced.
+        (this as any).dragFrom = -1;
         this.addEventListener('keydown', (event: KeyboardEvent) => this.onKey(event));
     }
 
@@ -102,6 +104,18 @@ export class TodoApp extends LitElement {
             } else {
                 this.draft = this.draft.slice(0, -1);
             }
+        } else if (key === 'Delete') {
+            if (this.editing < 0 && this.draft.length === 0 && this.items.length > 0) {
+                this.removeAt(this.selected);
+            }
+        } else if (key === 'ArrowDown' && event.shiftKey) {
+            if (this.editing < 0) {
+                this.moveSelected(1);
+            }
+        } else if (key === 'ArrowUp' && event.shiftKey) {
+            if (this.editing < 0) {
+                this.moveSelected(-1);
+            }
         } else if (key === 'ArrowDown') {
             if (this.editing < 0) {
                 this.selected = Math.min(this.selected + 1, this.items.length - 1);
@@ -124,13 +138,89 @@ export class TodoApp extends LitElement {
         event.preventDefault();
     }
 
+    // The pointer model: only checkbox interaction toggles (the input in
+    // the browser, the .check span in the terminal — closest, not matches:
+    // the terminal's hit test lands on text nodes), a plain click selects,
+    // and a double click opens the row for editing.
     onItemClick(event: Event): void {
         if (this.editing >= 0) {
             this.finishEdit();
         }
         const index = Number((event.currentTarget as Element).getAttribute('data-index'));
         this.selected = index;
-        this.toggle(index);
+        const target = event.target as Element;
+        if (!target || typeof target.closest !== 'function') {
+            return;
+        }
+        if (target.closest('.btn-close')) {
+            this.removeAt(index);
+        } else if (target.closest('.form-check-input, .check')) {
+            // No preventDefault: the native checkbox may pre-toggle, and
+            // the live()-bound render reconciles it to the state either way.
+            this.toggle(index);
+        }
+    }
+
+    onItemDblClick(event: Event): void {
+        const target = event.target as Element;
+        if (target && typeof target.closest === 'function' && target.closest('.form-check-input, .check, .btn-close')) {
+            return;
+        }
+        const index = Number((event.currentTarget as Element).getAttribute('data-index'));
+        this.selected = index;
+        this.editing = index;
+    }
+
+    moveSelected(delta: number): void {
+        const from = this.selected;
+        const to = from + delta;
+        if (to < 0 || to >= this.items.length) {
+            return;
+        }
+        const items = this.items.slice();
+        const moved = items.splice(from, 1)[0];
+        items.splice(to, 0, moved);
+        this.items = items;
+        this.selected = to;
+    }
+
+    onDragStart(event: DragEvent): void {
+        if (this.editing >= 0) {
+            this.finishEdit();
+        }
+        const index = Number((event.currentTarget as Element).getAttribute('data-index'));
+        (this as any).dragFrom = index;
+        this.selected = index;
+        event.dataTransfer?.setData('text/plain', String(index));
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+        }
+    }
+
+    // Rows reorder live while the drag hovers them — remote mirrors watch
+    // the move happen.
+    onDragOver(event: DragEvent): void {
+        event.preventDefault();
+        const from = (this as any).dragFrom as number;
+        const over = Number((event.currentTarget as Element).getAttribute('data-index'));
+        if (from < 0 || over === from) {
+            return;
+        }
+        const items = this.items.slice();
+        const moved = items.splice(from, 1)[0];
+        items.splice(over, 0, moved);
+        this.items = items;
+        this.selected = over;
+        (this as any).dragFrom = over;
+    }
+
+    onDrop(event: DragEvent): void {
+        event.preventDefault();
+        (this as any).dragFrom = -1;
+    }
+
+    onDragEnd(): void {
+        (this as any).dragFrom = -1;
     }
 
     toggle(index: number): void {
@@ -157,8 +247,17 @@ export class TodoApp extends LitElement {
         const index = this.editing;
         this.editing = -1;
         if (this.itemText(index).length === 0) {
-            this.items = this.items.filter((item, at) => at !== index);
-            this.selected = Math.min(this.selected, Math.max(this.items.length - 1, 0));
+            this.removeAt(index);
+        }
+    }
+
+    removeAt(index: number): void {
+        this.items = this.items.filter((item, at) => at !== index);
+        this.selected = Math.min(this.selected, Math.max(this.items.length - 1, 0));
+        if (this.editing === index) {
+            this.editing = -1;
+        } else if (this.editing > index) {
+            this.editing -= 1;
         }
     }
 
@@ -179,7 +278,13 @@ export class TodoApp extends LitElement {
                             text="${item.text}"
                             ?done=${item.done}
                             ?editing=${index === this.editing}
+                            draggable="true"
                             @click=${this.onItemClick}
+                            @dblclick=${this.onItemDblClick}
+                            @dragstart=${this.onDragStart}
+                            @dragover=${this.onDragOver}
+                            @drop=${this.onDrop}
+                            @dragend=${this.onDragEnd}
                         ></todo-item>`,
                     )}
                 </ul>
@@ -189,8 +294,9 @@ export class TodoApp extends LitElement {
                     <span class="hint">${this.draft ? '' : 'type to add…'}</span>
                 </div>
                 <div class="card-footer small">
-                    ${remaining} remaining · type + Enter adds · Space toggles · Enter edits ·
-                    arrows select · click toggles
+                    ${remaining} remaining · type + Enter adds · checkbox/Space toggles ·
+                    double-click/Enter edits · click selects · Shift+arrows reorder ·
+                    Delete removes
                 </div>
             </div>
         `;

@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 use boa_engine::{Context, JsValue, Source};
 use uic_dom::NodeId;
+use uic_tui::KeyStroke;
 
 use crate::error::Error;
 use crate::loader::MapLoader;
@@ -172,12 +173,32 @@ impl JsHost {
 
     /// Delivers a keydown to the focused node; returns defaultPrevented.
     pub fn dispatch_key(&mut self, key: &str) -> Result<bool, Error> {
+        self.dispatch(&KeyStroke::new(key))
+    }
+
+    /// Delivers a keydown carrying the shift modifier state.
+    pub fn dispatch_key_shift(&mut self, key: &str, shift: bool) -> Result<bool, Error> {
+        let mut stroke = KeyStroke::new(key);
+        stroke.shift = shift;
+        self.dispatch(&stroke)
+    }
+
+    /// Delivers a keydown in the shared vocabulary (`uic_tui::keys`) —
+    /// every modifier flag reaches the runtime's event.
+    pub fn dispatch(&mut self, stroke: &KeyStroke) -> Result<bool, Error> {
         let Some(focused) = self.state.borrow().focused else {
             return Ok(false);
         };
         let handle = self.state.borrow_mut().handle(focused);
+        let KeyStroke {
+            key,
+            shift,
+            ctrl,
+            alt,
+            meta,
+        } = stroke;
         let prevented = self.eval(&format!(
-            "__uicDeliver({handle}, 'keydown', {{ key: {key:?} }})"
+            "__uicDeliver({handle}, 'keydown', {{ key: {key:?}, shiftKey: {shift}, ctrlKey: {ctrl}, altKey: {alt}, metaKey: {meta} }})"
         ))?;
         self.run_jobs()?;
         Ok(prevented.as_boolean().unwrap_or(false))
@@ -188,6 +209,14 @@ impl JsHost {
     pub fn click(&mut self, node: NodeId) -> Result<(), Error> {
         let handle = self.state.borrow_mut().handle(node);
         self.eval(&format!("__uicDeliver({handle}, 'click', {{}})"))?;
+        self.run_jobs()
+    }
+
+    /// Delivers a bubbling double click — hosts with a clock synthesize it
+    /// after two quick clicks on one node, the browser's own order.
+    pub fn dblclick(&mut self, node: NodeId) -> Result<(), Error> {
+        let handle = self.state.borrow_mut().handle(node);
+        self.eval(&format!("__uicDeliver({handle}, 'dblclick', {{}})"))?;
         self.run_jobs()
     }
 

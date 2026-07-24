@@ -5,6 +5,7 @@
 import {
     attributeName,
     beginRender,
+    closestFrom,
     collectProps,
     endRender,
     focusNode,
@@ -109,6 +110,10 @@ export class LitElement {
 
     matches(selector: string): boolean {
         return this.__node >= 0 && __uic_matches(this.__node, selector);
+    }
+
+    closest(selector: string): unknown {
+        return this.__node >= 0 ? closestFrom(this.__node, selector) : null;
     }
 
     contains(other: any): boolean {

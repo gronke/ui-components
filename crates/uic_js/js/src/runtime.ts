@@ -281,6 +281,9 @@ export function wrapNode(handle: number): any {
         matches(selector: string) {
             return __uic_matches(handle, selector);
         },
+        closest(selector: string) {
+            return closestFrom(handle, selector);
+        },
         contains(other: any) {
             return Boolean(other && __uic_contains(handle, other.__node));
         },
@@ -324,6 +327,20 @@ export function queryAllNodes(el: any, selector: string): any[] {
     return __uic_query(el.__node, selector).map((handle) => wrapNode(handle));
 }
 
+// The nearest self-or-ancestor matching the selector — the DOM's closest().
+// Event targets can be text nodes here (the retained tree lays them), so
+// click discrimination wants the ancestor walk, not a bare matches().
+export function closestFrom(handle: number, selector: string): any {
+    let current = handle;
+    while (current >= 0) {
+        if (__uic_matches(current, selector)) {
+            return wrapNode(current);
+        }
+        current = __uic_parent(current);
+    }
+    return null;
+}
+
 // ---- events: bubbling dispatch over the retained tree ----
 
 function listenersAt(handle: number, type: string): Function[] {
@@ -350,6 +367,10 @@ function makeEvent(type: string, init: any, targetHandle: number): any {
     return {
         type,
         key: init.key,
+        shiftKey: Boolean(init.shiftKey),
+        ctrlKey: Boolean(init.ctrlKey),
+        altKey: Boolean(init.altKey),
+        metaKey: Boolean(init.metaKey),
         target: wrapNode(targetHandle),
         currentTarget: null,
         relatedTarget: init.relatedTarget ?? null,

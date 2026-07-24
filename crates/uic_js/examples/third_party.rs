@@ -20,10 +20,8 @@
 use std::path::{Path, PathBuf};
 
 use uic_js::JsHost;
-use uic_tui::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
-use uic_tui::{crossterm, ratatui};
+use uic_tui::crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
+use uic_tui::{crossterm, ratatui, KeyStroke};
 use web_modules::vendor::{vendor, PackageSpec};
 
 const SAMPLE: &str = include_str!("sample.json");
@@ -72,17 +70,15 @@ fn parse_args() -> Result<Args, String> {
     Ok(args)
 }
 
-fn dom_key(key: &KeyEvent) -> Option<&'static str> {
-    Some(match key.code {
-        KeyCode::Up => "ArrowUp",
-        KeyCode::Down => "ArrowDown",
-        KeyCode::Left => "ArrowLeft",
-        KeyCode::Right => "ArrowRight",
-        KeyCode::Home => "Home",
-        KeyCode::End => "End",
-        _ => return None,
-    })
-}
+/// The navigation keys a generic element most likely understands.
+const KEYS: [&str; 6] = [
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args().map_err(|err| format!("{err} (see the module docs for usage)"))?;
@@ -174,14 +170,13 @@ fn run(
 
         match crossterm::event::read()? {
             Event::Key(key) => {
-                if key.code == KeyCode::Esc
-                    || (key.code == KeyCode::Char('c')
-                        && key.modifiers.contains(KeyModifiers::CONTROL))
-                {
-                    return Ok(());
-                }
-                if let Some(name) = dom_key(&key) {
-                    host.dispatch_key(name)?;
+                if let Some(stroke) = KeyStroke::from_crossterm(&key) {
+                    if stroke.is_quit() {
+                        return Ok(());
+                    }
+                    if KEYS.contains(&stroke.key.as_str()) {
+                        host.dispatch(&stroke)?;
+                    }
                 }
             }
             Event::Mouse(MouseEvent {

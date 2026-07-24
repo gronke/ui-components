@@ -13,24 +13,20 @@ use std::path::Path;
 use std::time::Instant;
 
 use uic_js::JsHost;
-use uic_tui::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
-use uic_tui::{crossterm, ratatui};
+use uic_tui::crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
+use uic_tui::{crossterm, ratatui, KeyStroke};
 
 const SAMPLE: &str = include_str!("../sample.json");
 
-fn dom_key(key: &KeyEvent) -> Option<&'static str> {
-    Some(match key.code {
-        KeyCode::Up => "ArrowUp",
-        KeyCode::Down => "ArrowDown",
-        KeyCode::Left => "ArrowLeft",
-        KeyCode::Right => "ArrowRight",
-        KeyCode::Home => "Home",
-        KeyCode::End => "End",
-        _ => return None,
-    })
-}
+/// The keys json-viewer's own navigation understands.
+const KEYS: [&str; 6] = [
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data = match std::env::args().nth(1) {
@@ -90,14 +86,13 @@ fn run(
 
         match crossterm::event::read()? {
             Event::Key(key) => {
-                if key.code == KeyCode::Esc
-                    || (key.code == KeyCode::Char('c')
-                        && key.modifiers.contains(KeyModifiers::CONTROL))
-                {
-                    return Ok(());
-                }
-                if let Some(name) = dom_key(&key) {
-                    host.dispatch_key(name)?;
+                if let Some(stroke) = KeyStroke::from_crossterm(&key) {
+                    if stroke.is_quit() {
+                        return Ok(());
+                    }
+                    if KEYS.contains(&stroke.key.as_str()) {
+                        host.dispatch(&stroke)?;
+                    }
                 }
             }
             Event::Mouse(MouseEvent {
