@@ -8,6 +8,10 @@ import { css, html, LitElement } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 
+// Editing swaps the label for a real input — the browser's native caret
+// and outline, the terminal's rat widget twin by element type. The parent
+// hears its bubbling `input` events and mirrors the text into the row.
+
 export class TodoItem extends LitElement {
     static properties = {
         text: {},
@@ -17,8 +21,9 @@ export class TodoItem extends LitElement {
 
     // The terminal's look: the .check span IS the checkbox there — a real
     // element, so its clicks hit-test apart from the row — plus the label
-    // and cursor colors. The browser hides .check via page.css and shows
-    // the real input instead; input and button stay browser-only.
+    // colors. The browser hides .check via page.css and shows the real
+    // checkbox instead; checkbox and button stay browser-only, while the
+    // EDIT input is real in both hosts (its rat widget draws the caret).
     static styles = css`
         .check {
             color: #6fb3d2;
@@ -32,11 +37,7 @@ export class TodoItem extends LitElement {
         .todo-row.editing .label {
             color: #e5c07b;
         }
-        .cursor {
-            color: #e5c07b;
-            font-weight: bold;
-        }
-        input,
+        input.form-check-input,
         button {
             display: none;
         }
@@ -71,13 +72,20 @@ export class TodoItem extends LitElement {
                 .checked=${live(this.done)}
             />
             <span class="check flex-shrink-0">${this.done ? '[x]' : '[ ]'}</span>
-            <span
-                class="label flex-grow-1 ${classMap({
-                    'text-decoration-line-through': this.done,
-                    'text-body-tertiary': this.done,
-                })}"
-                >${this.text}${this.editing ? html`<span class="cursor">▏</span>` : ''}</span
-            >
+            ${this.editing
+                ? html`<input
+                      class="form-control form-control-sm label flex-grow-1"
+                      type="text"
+                      data-path="edit"
+                      .value=${live(this.text)}
+                  />`
+                : html`<span
+                      class="label flex-grow-1 ${classMap({
+                          'text-decoration-line-through': this.done,
+                          'text-body-tertiary': this.done,
+                      })}"
+                      >${this.text}</span
+                  >`}
             <button
                 class="btn-close flex-shrink-0"
                 type="button"
@@ -85,6 +93,19 @@ export class TodoItem extends LitElement {
                 aria-label="Delete"
             ></button>
         </div>`;
+    }
+
+    // The edit input takes the keyboard when it appears. In the browser it
+    // renders once per edit; under the mocked lit every parent commit
+    // rebuilds the row, so the `:focus` guard keeps this a no-op while the
+    // focus survival (by data-path) already resolved onto the fresh node.
+    updated(): void {
+        if (this.editing) {
+            const input = this.renderRoot.querySelector('input.label') as HTMLElement | null;
+            if (input && !input.matches(':focus')) {
+                input.focus();
+            }
+        }
     }
 }
 customElements.define('todo-item', TodoItem);

@@ -51,11 +51,11 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
                     format!("chrome template {}: {err}", wraps_file.value()),
                 )
             })?;
-            if chrome_has_data_tui(&chrome.roots) {
+            if chrome_has_widget(&chrome.roots) {
                 return Err(syn::Error::new(
                     wraps_file.span(),
-                    "chrome template must not contain data-tui widgets; \
-                     they belong to the wrapped component",
+                    "chrome template must not contain widgets (data-tui or a plain \
+                     input/textarea/select); they belong to the wrapped component",
                 ));
             }
             uic_template::splice(&chrome, &inner).map_err(|err| {
@@ -313,19 +313,54 @@ fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String>
     Ok(())
 }
 
+/// Whether the element mounts a terminal widget: an explicit `data-tui`
+/// marker, or a plain form element the runtime detects by element type
+/// (ADR 0027, the shared `uic_template::native` table). A bound `type`
+/// counts conservatively — the committed value may imply a widget — and a
+/// static negative tabindex opts a presentation twin out, mirroring the
+/// mount.
+fn implies_widget(el: &uic_template::Element) -> bool {
+    use uic_template::Attribute;
+    if el
+        .attrs
+        .iter()
+        .any(|attr| matches!(attr, Attribute::Static { name, .. } if name == "data-tui"))
+    {
+        return true;
+    }
+    if !matches!(el.tag.as_str(), "input" | "textarea" | "select") {
+        return false;
+    }
+    let static_value = |wanted: &str| {
+        el.attrs.iter().find_map(|attr| match attr {
+            Attribute::Static { name, value, .. } if name == wanted => Some(value.as_str()),
+            _ => None,
+        })
+    };
+    if static_value("tabindex").is_some_and(|value| value.trim().starts_with('-')) {
+        return false;
+    }
+    let bound_type = el
+        .attrs
+        .iter()
+        .any(|attr| attr.name() == "type" && !matches!(attr, Attribute::Static { .. }));
+    if bound_type {
+        return true;
+    }
+    let input_type = static_value("type").map(|value| value.to_ascii_lowercase());
+    uic_template::native::native_widget_kind(&el.tag, input_type.as_deref()).is_some()
+}
+
 /// A `for` body renders data rows, not widgets: it may not mount a custom
-/// element or a `data-tui` widget, whose instance counts the slot model needs
-/// fixed (ADR 0006/0018). Lists of widgets stay options-as-data.
+/// element or a widget, whose instance counts the slot model needs fixed
+/// (ADR 0006/0018). Lists of widgets stay options-as-data.
 fn validate_for_bodies(nodes: &[uic_template::Node]) -> Result<(), String> {
-    use uic_template::{Attribute, Node};
+    use uic_template::Node;
     fn no_widgets(nodes: &[Node]) -> Result<(), String> {
         for node in nodes {
             match node {
                 Node::Element(el) => {
-                    let is_widget = el.attrs.iter().any(
-                        |attr| matches!(attr, Attribute::Static { name, .. } if name == "data-tui"),
-                    );
-                    if el.is_custom() || is_widget {
+                    if el.is_custom() || implies_widget(el) {
                         return Err(format!(
                             "<{}> is a widget and cannot appear inside a <template for=…>; \
                              a loop body renders data rows, not widgets (ADR 0006/0018)",
@@ -352,18 +387,14 @@ fn validate_for_bodies(nodes: &[uic_template::Node]) -> Result<(), String> {
     Ok(())
 }
 
-/// Whether any element in the tree carries a `data-tui` marker.
-fn chrome_has_data_tui(nodes: &[uic_template::Node]) -> bool {
-    use uic_template::{Attribute, Node};
+/// Whether any element in the tree mounts a widget — explicit `data-tui`
+/// or element-type detection alike.
+fn chrome_has_widget(nodes: &[uic_template::Node]) -> bool {
+    use uic_template::Node;
     nodes.iter().any(|node| match node {
-        Node::Element(el) => {
-            el.attrs
-                .iter()
-                .any(|attr| matches!(attr, Attribute::Static { name, .. } if name == "data-tui"))
-                || chrome_has_data_tui(&el.children)
-        }
-        Node::If { then, .. } => chrome_has_data_tui(then),
-        Node::For { body, .. } => chrome_has_data_tui(body),
+        Node::Element(el) => implies_widget(el) || chrome_has_widget(&el.children),
+        Node::If { then, .. } => chrome_has_widget(then),
+        Node::For { body, .. } => chrome_has_widget(body),
         Node::Text(_) | Node::TextHole(_) => false,
     })
 }

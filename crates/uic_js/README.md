@@ -31,6 +31,18 @@ The tree mirrors who produces each feature upstream, and `lit` is pure re-export
 Both import spellings resolve (`lit/directives/when.js` and `lit-html/directives/when.js`); every module also registers under its extension-less stem.
 A missing module reports itself: the error names the specifier beside everything the runtime provides — extending the surface is adding a file here.
 
+Behind the channels, `runtime.ts` is a pure re-export barrel over one module per polyfilled platform concept, each beside its own test suite:
+
+| `runtime/` module | Polyfills | Tests |
+| --- | --- | --- |
+| `state` | the singleton leaf: registry, instances, listener table | (data only) |
+| `serialize` | template tags and the render-to-string commit | `tests/serialize.rs` |
+| `properties` | property options, converters, accessors | `tests/converters.rs` |
+| `element` | the node facade (`value`, `closest`, `dataset`, …) | `tests/facade.rs` |
+| `events` | bubbling dispatch, the stop family, preventDefault | `tests/events.rs` |
+| `focus` | focusout/focusin in WHATWG order | `tests/focus.rs` |
+| `custom-elements` | define/upgrade over the retained tree | `tests/composition.rs` |
+
 ## Directives
 
 Supported with full semantics: `classMap`, `map`, `when`, `repeat` (unkeyed — the subtree-swap commit rebuilds either way; focus survives by `data-path`), `ifDefined` (the attribute renders empty rather than absent under the serialize commit), `choose`, `join`, `range`, `keyed` (degrades to its value), `styleMap`.
@@ -41,6 +53,10 @@ Not provided (async model, raw HTML injection): `until`, `asyncAppend`, `asyncRe
 
 `LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
 A committed subtree upgrades the nested custom elements it names: components compose, and a parent's re-commit swaps its children in fresh, re-synced from their attributes (the serialize commit drops `.prop=` bindings, so composition data flows as attributes).
+
+Plain `input`/`textarea`/`select` elements are first-class: the shared commit mounts each one's terminal widget by element type (ADR 0027; `data-tui` overrides), `.value=` on the browser's value-carrying elements serializes as the `value` attribute and syncs the widget echo-skipped — a component echoing back what the user just typed never moves the caret — and the focused widget survives the subtree swap keyed by the same `data-path` that keys focus survival (plus a one-slot stash for a nested input whose parent commit re-renders it a beat later).
+An uncancelled keydown then runs the focused widget as the browser's editing default action; a text change synthesizes a bubbling `input` event whose `target.value` reads the live text (the node facade's `value` accessor), so `preventDefault()` on keydown suppresses the editing exactly like in a browser.
+Text inputs are the first-class kinds; `.options` (select, date) is not serialized yet.
 
 Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`dblclick`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint; focus survives each subtree swap by re-resolving its `data-path`.
 Synthesized events carry the modifier flags the host hands in — `JsHost::dispatch` takes the shared `uic_tui::KeyStroke` (the DOM key name plus all four flags; `dispatch_key`/`dispatch_key_shift` stay as shorthands) — and their `target` exposes `matches(selector)` and `closest(selector)`: the hit test lands on text nodes, so click discrimination walks up with closest.

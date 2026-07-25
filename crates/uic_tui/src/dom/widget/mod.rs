@@ -1,6 +1,8 @@
-//! Widget state living in the DOM: every `data-tui` element node carries its
-//! rat widget in the document payload — node identity replaces the slot-by-
-//! template-order bookkeeping of the retired expansion pipeline.
+//! Widget state living in the DOM: every element that implies a terminal
+//! widget — a plain `<input>`/`<textarea>`/`<select>` by element type, or
+//! an explicit `data-tui` override — carries its rat widget in the document
+//! payload; node identity replaces the slot-by-template-order bookkeeping
+//! of the retired expansion pipeline.
 //!
 //! One [`WidgetAdapter`] implementation per widget owns the rat state AND
 //! the widget's data (a select keeps its option rows and bound value), so
@@ -22,11 +24,13 @@ use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::Frame;
 use uic_core::{SelectOption, Value};
+use uic_dom::NodeId;
 
+use super::DomDocument;
 use crate::Error;
 
 /// The per-node payload of the runtime's document; empty on everything but
-/// `data-tui` elements.
+/// widget-bearing elements.
 #[derive(Default)]
 pub struct WidgetPayload {
     pub(crate) widget: Option<WidgetBox>,
@@ -35,6 +39,9 @@ pub struct WidgetPayload {
 /// A mounted terminal widget beside its sync bookkeeping.
 pub(crate) struct WidgetBox {
     pub adapter: Box<dyn WidgetAdapter>,
+    /// The kind the widget was built as — a changed detection (a bound
+    /// `type` landing after the first mount) recreates the widget.
+    pub(crate) kind: &'static str,
     /// The variant flags the widget was built with (the date's mask follows
     /// hide-time/hide-seconds); a flipped flag recreates the widget.
     pub(crate) variant: (bool, bool),
@@ -59,23 +66,28 @@ uic_core::inventory::collect!(WidgetRegistration);
 
 impl WidgetBox {
     pub(crate) fn new(kind: &str, hide_time: bool, hide_seconds: bool) -> Result<Self, Error> {
-        let adapter: Box<dyn WidgetAdapter> = match kind {
-            "date-input" => Box::new(date::DateAdapter::new(hide_time, hide_seconds)?),
+        let (kind, adapter): (&'static str, Box<dyn WidgetAdapter>) = match kind {
+            "date-input" => (
+                "date-input",
+                Box::new(date::DateAdapter::new(hide_time, hide_seconds)?),
+            ),
             // Number is a plain text widget in the terminal: parsing and
             // comma-decimal formatting are the component's job, like the
             // browser's `type="text"` numeric input.
-            "text-input" | "number-input" => Box::new(text::TextAdapter::new()),
-            "text-area" => Box::new(textarea::TextAreaAdapter::new()),
-            "select" => Box::new(select::SelectAdapter::new()),
-            _ => match uic_core::inventory::iter::<WidgetRegistration>()
-                .find(|registration| registration.kind == kind)
+            "text-input" => ("text-input", Box::new(text::TextAdapter::new())),
+            "number-input" => ("number-input", Box::new(text::TextAdapter::new())),
+            "text-area" => ("text-area", Box::new(textarea::TextAreaAdapter::new())),
+            "select" => ("select", Box::new(select::SelectAdapter::new())),
+            other => match uic_core::inventory::iter::<WidgetRegistration>()
+                .find(|registration| registration.kind == other)
             {
-                Some(registration) => (registration.build)(),
-                None => return Err(Error::UnknownWidget(kind.to_string())),
+                Some(registration) => (registration.kind, (registration.build)()),
+                None => return Err(Error::UnknownWidget(other.to_string())),
             },
         };
         Ok(WidgetBox {
             adapter,
+            kind,
             variant: (hide_time, hide_seconds),
             last_synced: None,
         })
@@ -88,6 +100,95 @@ impl WidgetBox {
         }
         self.last_synced = Some(value.clone());
         self.adapter.sync(value);
+    }
+
+    /// The scripted hosts' commit-time value sync, echo-skipped: a value
+    /// equal to the widget's live text only records the sync — the
+    /// component echoing back what the user just typed must not move the
+    /// caret — while a genuinely different value syncs like a property
+    /// write.
+    pub(crate) fn sync_committed(&mut self, value: &Value) {
+        if self.last_synced.as_ref() == Some(value) {
+            return;
+        }
+        if let Value::Str(text) = value {
+            if self.adapter.committed_text() == *text {
+                self.last_synced = Some(value.clone());
+                return;
+            }
+        }
+        self.last_synced = Some(value.clone());
+        self.adapter.sync(value);
+        // The browser parks the caret at the end when a script assigns
+        // `value`; rat's set_text parks it at the start — align.
+        self.adapter.caret_to_end();
+    }
+}
+
+/// The widget kind an element mounts, with its variant flags. An explicit
+/// `data-tui` wins — the extension point for registered kinds and the
+/// discriminator of the framework's own input templates — and mounts
+/// anywhere, even on a `<ul>`. Plain form elements resolve by element type
+/// (ADR 0027, the shared `uic_template::native` table), except presentation
+/// twins opted out with a negative tabindex.
+pub(crate) fn detect_kind(
+    el: &uic_dom::ElementData<WidgetPayload>,
+) -> Option<(String, (bool, bool))> {
+    if let Some(kind) = el.attr("data-tui") {
+        let variant = (
+            el.attr("hide-time").is_some(),
+            el.attr("hide-seconds").is_some(),
+        );
+        return Some((kind.to_string(), variant));
+    }
+    if el
+        .attr("tabindex")
+        .is_some_and(|value| value.trim().starts_with('-'))
+    {
+        return None;
+    }
+    let input_type = el.attr("type").map(|value| value.to_ascii_lowercase());
+    let kind = uic_template::native::native_widget_kind(el.tag().as_ref(), input_type.as_deref())?;
+    // Detected date variants are type-implied: the browser's date input is
+    // date-only, datetime-local carries minutes. Seconds want the explicit
+    // data-tui override.
+    let variant = match (kind, input_type.as_deref()) {
+        ("date-input", Some("date")) => (true, true),
+        ("date-input", _) => (false, true),
+        _ => (false, false),
+    };
+    Some((kind.to_string(), variant))
+}
+
+/// Creates the terminal widget for every element below `root` that implies
+/// one — idempotent by the payload's kind and variant, so a changed
+/// detection (a bound `type` landing after the bind-time mount, a flipped
+/// date mask) recreates the widget, resetting typed state on purpose.
+/// Shared by the Rust mounts and the scripted hosts' commit.
+pub(crate) fn mount_widgets(doc: &mut DomDocument, root: NodeId) {
+    let nodes: Vec<(NodeId, String, bool, bool)> = doc
+        .descendants(root)
+        .skip(1)
+        .filter_map(|node| {
+            let el = doc.element(node)?;
+            let (kind, variant) = detect_kind(el)?;
+            if el
+                .data
+                .widget
+                .as_ref()
+                .is_some_and(|widget| widget.kind == kind && widget.variant == variant)
+            {
+                return None;
+            }
+            Some((node, kind, variant.0, variant.1))
+        })
+        .collect();
+    for (node, kind, hide_time, hide_seconds) in nodes {
+        if let Ok(widget) = WidgetBox::new(&kind, hide_time, hide_seconds) {
+            if let Some(el) = doc.element_mut(node) {
+                el.data.widget = Some(widget);
+            }
+        }
     }
 }
 
@@ -118,6 +219,11 @@ pub trait WidgetAdapter {
 
     /// Pushes a property value into the widget.
     fn sync(&mut self, value: &Value);
+
+    /// Moves the caret behind the last character — what the browser does
+    /// when a script assigns `value`. Only the scripted hosts call it;
+    /// widgets without a movable caret ignore it.
+    fn caret_to_end(&mut self) {}
 
     /// Receives a `.options` property write (ADR 0006); only the select
     /// stores rows.
@@ -199,4 +305,87 @@ pub trait WidgetAdapter {
     /// Paints the open overlay after the normal pass; ratatui buffers are
     /// last-write-wins per cell, so it overlays the flow.
     fn paint_overlay(&mut self, _frame: &mut Frame, _boundary: Rect) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::detect_kind;
+    use crate::dom::DomDocument;
+
+    fn detected(html: &str) -> Option<(String, (bool, bool))> {
+        let doc: DomDocument = uic_dom::Document::parse_fragment(html, "body");
+        let root = doc.root();
+        let node = doc.children(root).next().expect("one element");
+        detect_kind(doc.element(node).expect("an element"))
+    }
+
+    #[test]
+    fn plain_form_elements_resolve_by_element_type() {
+        assert_eq!(
+            detected("<input>"),
+            Some(("text-input".into(), (false, false)))
+        );
+        assert_eq!(
+            detected(r#"<input type="text">"#),
+            Some(("text-input".into(), (false, false)))
+        );
+        assert_eq!(
+            detected(r#"<input type="EMAIL">"#),
+            Some(("text-input".into(), (false, false)))
+        );
+        assert_eq!(
+            detected(r#"<input type="number">"#),
+            Some(("number-input".into(), (false, false)))
+        );
+        assert_eq!(
+            detected("<textarea></textarea>"),
+            Some(("text-area".into(), (false, false)))
+        );
+        assert_eq!(
+            detected("<select></select>"),
+            Some(("select".into(), (false, false)))
+        );
+    }
+
+    #[test]
+    fn date_variants_follow_the_type() {
+        assert_eq!(
+            detected(r#"<input type="date">"#),
+            Some(("date-input".into(), (true, true)))
+        );
+        assert_eq!(
+            detected(r#"<input type="datetime-local">"#),
+            Some(("date-input".into(), (false, true)))
+        );
+        // The type implies the mask; the attrs only steer explicit data-tui.
+        assert_eq!(
+            detected(r#"<input type="date" hide-seconds>"#),
+            Some(("date-input".into(), (true, true)))
+        );
+    }
+
+    #[test]
+    fn controls_and_presentation_twins_stay_plain() {
+        assert_eq!(detected(r#"<input type="checkbox">"#), None);
+        assert_eq!(detected(r#"<input type="submit">"#), None);
+        assert_eq!(detected(r#"<input tabindex="-1">"#), None);
+        assert_eq!(detected(r#"<select tabindex="-1"></select>"#), None);
+        assert_eq!(detected("<div></div>"), None);
+    }
+
+    #[test]
+    fn data_tui_overrides_everything() {
+        assert_eq!(
+            detected(r#"<span data-tui="text-input"></span>"#),
+            Some(("text-input".into(), (false, false)))
+        );
+        assert_eq!(
+            detected(r#"<input data-tui="text-input" tabindex="-1">"#),
+            Some(("text-input".into(), (false, false)))
+        );
+        assert_eq!(
+            detected(r#"<input data-tui="date-input" hide-time>"#),
+            Some(("date-input".into(), (true, false)))
+        );
+    }
 }

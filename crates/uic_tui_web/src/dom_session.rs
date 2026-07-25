@@ -119,6 +119,41 @@ impl DomSession {
         uic_tui::dom::adopt_component_sheet(tag, css_text) as u32
     }
 
+    /// `__uic_widget_value`: a mounted widget's live text, `None` (null)
+    /// on plain nodes — the facade falls back to the value attribute.
+    pub fn widget_value(&self, handle: u32) -> Option<String> {
+        self.state.widget_value(handle as usize)
+    }
+
+    /// `__uic_set_widget_value` — echo-skipped like the commit sync.
+    pub fn set_widget_value(&mut self, handle: u32, text: &str) {
+        self.state.set_widget_value(handle as usize, text);
+    }
+
+    /// The keydown's editing default action: routes the key into the
+    /// focused widget; true when the text changed and the worker should
+    /// deliver the bubbling `input`.
+    pub fn widget_key(&mut self, key: &str, shift: bool, ctrl: bool, alt: bool) -> bool {
+        let stroke = uic_tui::KeyStroke {
+            key: key.to_string(),
+            shift,
+            ctrl,
+            alt,
+            meta: false,
+        };
+        self.state.widget_default_action(&stroke).is_some()
+    }
+
+    /// Whether the node carries a mounted widget — the pointer-focus guard.
+    pub fn widget_at(&self, handle: i32) -> bool {
+        handle >= 0 && self.state.has_widget(handle as usize)
+    }
+
+    /// The caret under the pointer — the browser's click-into-an-input.
+    pub fn place_caret(&mut self, handle: u32, col: u16, row: u16) {
+        self.state.place_caret(handle as usize, col, row);
+    }
+
     // ---- host driving ------------------------------------------------
 
     /// Creates and appends the host element — the node half of a mount;

@@ -95,7 +95,7 @@ fn paint(
         LaidKind::Node(node) => *node,
     };
     if let Some(NodeData::Element(el)) = doc.node(node) {
-        if el.attr("data-tui").is_some() {
+        if el.data.widget.is_some() {
             paint_widget(frame, laid.rect, doc, node, focused);
             return;
         }

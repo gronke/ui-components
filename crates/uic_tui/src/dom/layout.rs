@@ -1,5 +1,5 @@
 //! Layout from the retained DOM: taffy computes real CSS flexbox over
-//! terminal cells, reading classes and `data-tui` markers straight off the
+//! terminal cells, reading classes and mounted widgets straight off the
 //! document nodes — no per-frame expansion tree in between.
 
 use ratatui::layout::Rect;
@@ -200,7 +200,7 @@ fn build(
                 // json-viewer's filtered rows, the ua sheet's [hidden].
                 return None;
             }
-            if el.attr("data-tui").is_some() {
+            if el.data.widget.is_some() {
                 let height = widget_height(doc, node);
                 let width = widget_width(doc, node);
                 let taffy = tree
@@ -285,7 +285,7 @@ fn build_flow(
                 // Widgets keep their block-level flow (their own row) even
                 // under an inline display.
                 let inline = matches!(display, CssDisplay::Inline | CssDisplay::InlineFlex)
-                    && child_el.attr("data-tui").is_none();
+                    && child_el.data.widget.is_none();
                 items.push(FlowItem::Element {
                     node: child,
                     inline,

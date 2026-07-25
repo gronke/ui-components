@@ -1,10 +1,13 @@
 // The state owner: rows, draft and selection live here, children render
-// from attributes. Keyboard input is a plain keydown listener on the host
-// element — the byte-identical path in the browser and the terminal — and
-// template event values are method references (the terminal host binds
-// them; see crates/uic_js/README.md, Runtime mechanics).
+// from attributes. Text entry is a plain `<input type="text">` — the
+// browser gives it the native caret, selection and focus outline, the
+// terminal mounts its rat widget twin by element type — and the bubbling
+// `input` event carries typing into the state. The host keydown listener
+// keeps the list chrome: Enter, arrows, and Space/Delete while no input
+// holds text.
 import { css, html, LitElement } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
+import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import './todo-item.js';
 
@@ -39,11 +42,6 @@ export class TodoApp extends LitElement {
         .draft {
             color: #e5c07b;
         }
-        .cursor {
-            color: #e5c07b;
-            font-weight: bold;
-        }
-        .hint,
         .card-footer {
             color: #808a93;
         }
@@ -66,18 +64,21 @@ export class TodoApp extends LitElement {
         // Transient drag source — plain field, neither reactive nor synced.
         (this as any).dragFrom = -1;
         this.addEventListener('keydown', (event: KeyboardEvent) => this.onKey(event));
+        this.addEventListener('input', (event: Event) => this.onInput(event));
+        this.addEventListener('click', (event: Event) => this.onBackgroundClick(event));
     }
 
     createRenderRoot(): this {
         return this;
     }
 
-    connectedCallback(): void {
-        super.connectedCallback();
-        if (this.tabIndex < 0) {
-            this.tabIndex = 0;
-        }
-        this.focus();
+    firstUpdated(): void {
+        this.focusDraft();
+    }
+
+    focusDraft(): void {
+        const draft = this.renderRoot.querySelector('input.draft') as HTMLElement | null;
+        draft?.focus();
     }
 
     // The announcement the live bridge listens to. The terminal's mocked lit
@@ -89,6 +90,10 @@ export class TodoApp extends LitElement {
         }
     }
 
+    // The list chrome. Editing keys never land here — the focused input
+    // consumes them natively — and Space/Delete stay editing keys unless
+    // no text is in play (the cancelable-keydown contract: preventDefault
+    // suppresses the input's default action in both hosts).
     onKey(event: KeyboardEvent): void {
         const key = event.key;
         if (key === 'Enter') {
@@ -102,16 +107,16 @@ export class TodoApp extends LitElement {
             } else if (this.items.length > 0) {
                 this.editing = this.selected;
             }
-        } else if (key === 'Backspace') {
-            if (this.editing >= 0) {
-                this.editText(this.itemText(this.editing).slice(0, -1));
-            } else {
-                this.draft = this.draft.slice(0, -1);
-            }
         } else if (key === 'Delete') {
-            if (this.editing < 0 && this.draft.length === 0 && this.items.length > 0) {
-                this.removeAt(this.selected);
+            if (this.editing >= 0 || this.draft.length > 0 || this.items.length === 0) {
+                return;
             }
+            this.removeAt(this.selected);
+        } else if (key === ' ') {
+            if (this.editing >= 0 || this.draft.length > 0) {
+                return;
+            }
+            this.toggle(this.selected);
         } else if (key === 'ArrowDown' && event.shiftKey) {
             if (this.editing < 0) {
                 this.moveSelected(1);
@@ -128,18 +133,43 @@ export class TodoApp extends LitElement {
             if (this.editing < 0) {
                 this.selected = Math.max(this.selected - 1, 0);
             }
-        } else if (key.length === 1) {
-            if (this.editing >= 0) {
-                this.editText(this.itemText(this.editing) + key);
-            } else if (key === ' ' && this.draft.length === 0) {
-                this.toggle(this.selected);
-            } else {
-                this.draft = this.draft + key;
-            }
         } else {
             return;
         }
         event.preventDefault();
+    }
+
+    // Typing lands in a real input; its bubbling `input` event carries the
+    // live text into the state — the draft box or the row being edited.
+    onInput(event: Event): void {
+        const target = event.target as (Element & { value?: unknown }) | null;
+        if (!target || typeof target.closest !== 'function') {
+            return;
+        }
+        const value = String(target.value ?? '');
+        if (target.closest('todo-item')) {
+            if (this.editing >= 0 && target.matches('.label')) {
+                this.editText(value);
+            }
+        } else if (target.matches('.draft')) {
+            this.draft = value;
+        }
+    }
+
+    // A click away from the row being edited finishes the edit; a click
+    // inside it only places the caret.
+    onBackgroundClick(event: Event): void {
+        if (this.editing < 0) {
+            return;
+        }
+        const target = event.target as Element | null;
+        if (target && typeof target.closest === 'function') {
+            const row = target.closest('todo-item');
+            if (row && Number(row.getAttribute('data-index')) === this.editing) {
+                return;
+            }
+        }
+        this.finishEdit();
     }
 
     // The pointer model: only checkbox interaction toggles (the input in
@@ -147,9 +177,6 @@ export class TodoApp extends LitElement {
     // the terminal's hit test lands on text nodes), a plain click selects,
     // and a double click opens the row for editing.
     onItemClick(event: Event): void {
-        if (this.editing >= 0) {
-            this.finishEdit();
-        }
         const index = Number((event.currentTarget as Element).getAttribute('data-index'));
         this.selected = index;
         const target = event.target as Element;
@@ -248,11 +275,17 @@ export class TodoApp extends LitElement {
     }
 
     finishEdit(): void {
+        if (this.editing < 0) {
+            return;
+        }
         const index = this.editing;
         this.editing = -1;
         if (this.itemText(index).length === 0) {
             this.removeAt(index);
         }
+        // The keyboard returns to the entry row — in both hosts the edit
+        // input just unrendered, taking the focus down with it.
+        this.focusDraft();
     }
 
     removeAt(index: number): void {
@@ -292,11 +325,15 @@ export class TodoApp extends LitElement {
                         ></todo-item>`,
                     )}
                 </ul>
-                <div class="card-body font-monospace">
+                <div class="card-body d-flex align-items-center gap-2 font-monospace">
                     <span class="prompt">&gt;</span>
-                    <span class="draft">${this.draft}</span>${this.editing < 0
-                        ? html`<span class="cursor">▏</span>`
-                        : ''}<span class="hint">${this.draft ? '' : 'type to add…'}</span>
+                    <input
+                        class="form-control form-control-sm draft"
+                        type="text"
+                        data-path="draft"
+                        placeholder="type to add…"
+                        .value=${live(this.draft)}
+                    />
                 </div>
                 <div class="card-footer small">
                     ${remaining} remaining · type + Enter adds · checkbox/Space toggles ·

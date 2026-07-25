@@ -14,6 +14,7 @@ import {
     installAccessor,
     installAccessors,
     nothing,
+    queryAllNodes,
     releaseListeners,
     renderToString,
     upgradeDescendants,
@@ -24,6 +25,7 @@ export class LitElement {
 
     __node = -1;
     __pending = false;
+    __hasUpdated = false;
     __values = new Map<string, unknown>();
     __listeners: { type: string; listener: Function; options?: unknown }[] = [];
     __renderListeners: number[] = [];
@@ -122,6 +124,14 @@ export class LitElement {
         );
     }
 
+    querySelector(selector: string): unknown {
+        return queryAllNodes(this, selector)[0] ?? null;
+    }
+
+    querySelectorAll(selector: string): unknown[] {
+        return queryAllNodes(this, selector);
+    }
+
     focus(): void {
         if (this.__node >= 0) {
             focusNode(this.__node);
@@ -169,6 +179,12 @@ export class LitElement {
         __uic_commit(this.__node, markup);
         upgradeDescendants(this.__node);
         releaseListeners(previous);
+        if (!this.__hasUpdated) {
+            this.__hasUpdated = true;
+            if (typeof (this as any).firstUpdated === 'function') {
+                (this as any).firstUpdated(new Map());
+            }
+        }
         if (typeof (this as any).updated === 'function') {
             (this as any).updated(new Map());
         }

@@ -8,8 +8,10 @@ cargo run -p uic_lit_demo -- serve    # the same sources on real lit, http://127
 cargo run -p uic_lit_demo -- live     # both at once, one shared state (ADR 0024)
 ```
 
-Both targets speak the same keys: type to draft a new entry and Enter adds it, Space toggles the selected row, Enter edits the selected row in place (typing changes it live, Enter finishes, emptying the text deletes the row), ArrowUp/ArrowDown select, Shift+ArrowUp/Down reorders (F5/F6 in the terminal, translated to the same shifted arrows before delivery).
-The checkbox — a real one in the browser, the `[x]` span in the terminal — is the only pointer toggle; a plain click selects, and a double click (or double tap) opens the row for inline editing, Enter's pointer twin (the native terminal synthesizes `dblclick` from two quick clicks on one node).
+Text entry is a plain `<input type="text">` in both hosts: the browser gives it the native caret, selection and focus outline, and the terminal mounts its rat widget twin by element type (ADR 0027) with the hardware cursor — mid-text editing, Home/End and selection chords work in both.
+The draft input holds the keyboard from the start (autofocus), so load-and-type just works; Enter adds the draft as a row, Enter on an empty draft opens the selected row for editing in place (a real input again, typing changes it live letter by letter, Enter finishes, emptying the text deletes the row).
+ArrowUp/ArrowDown select and Shift+ArrowUp/Down reorder even while the input holds focus (single-line inputs pass them through; F5/F6 in the terminal, translated to the same shifted arrows); Space toggles and Delete removes exactly while no text is in play — an empty draft, no row edit — otherwise they stay editing keys, the cancelable-keydown contract both hosts honor.
+The checkbox — a real one in the browser, the `[x]` span in the terminal — is the only pointer toggle; a plain click selects (clicking an input places the caret under the pointer), and a double click (or double tap) opens the row for inline editing, Enter's pointer twin (the native terminal synthesizes `dblclick` from two quick clicks on one node).
 The browser also reorders by drag & drop (terminal drag stays a possible follow-up).
 Delete removes the selected row (the browser also offers a close button per row), and an edit emptied of its text deletes too.
 A caret marks the insertion point in both hosts; the browser blinks it exactly while keys land in the list.
@@ -25,8 +27,8 @@ The components' `static styles` are the terminal-only layer — real lit never a
 - the terminal host loads it like any installed package (`uic_js::JsHost::load_package`) and runs it against the mocked lit;
 - the browser build takes the same tree as a source root beside the Tera-rendered page, with the real lit family vendored from `web/package.json` — vendoring is not transitive, so the manifest names lit's own channels too.
 
-The app sticks to the idioms both engines serve (see `crates/uic_js/README.md`, Runtime mechanics): composition data flows down as attributes, keyboard input is a plain `keydown` listener on the host element, and template event values are method references with row context in a `data-*` attribute.
-Module names must not shadow the terminal runtime's specifiers — never name app files `main.ts`, `runtime.ts` or `lit*.ts`.
+The app sticks to the idioms both engines serve (see `crates/uic_js/README.md`, Runtime mechanics): composition data flows down as attributes, text entry is a plain `<input>` whose bubbling `input` events carry the live text (`target.value`), a host-level `keydown` listener keeps the list chrome, and template event values are method references with row context in a `data-*` attribute.
+Module names must not shadow the terminal runtime's specifiers — never name app files `main.ts`, `runtime.ts`, `runtime/*` or `lit*.ts`.
 
 ## Two sync harnesses around the same app
 

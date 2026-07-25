@@ -16,10 +16,14 @@ document.documentElement.setAttribute('data-bs-theme',
 <script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
 <script type="module" src="./p2p/p2p.js"></script>
 <script type="module">
-// Typing always lands in the list: a click on page chrome refocuses the app.
+// Typing always lands in the list: a click on page chrome refocuses the
+// active input — the row being edited, or the entry row.
 document.addEventListener('pointerdown', (event) => {
     if (!event.target.closest('a, button, input, textarea, summary, video')) {
-        queueMicrotask(() => document.querySelector('todo-app')?.focus());
+        queueMicrotask(() => {
+            const app = document.querySelector('todo-app');
+            (app?.querySelector('todo-item input.label') ?? app?.querySelector('input.draft'))?.focus();
+        });
     }
 });
 </script>

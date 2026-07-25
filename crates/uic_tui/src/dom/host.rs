@@ -6,7 +6,7 @@
 //! Data flows down the tree: attribute parts commit onto child custom-tag
 //! nodes and the child mount syncs its observed attributes from its own
 //! node, `.prop` writes apply directly to child stores — and `.value`/
-//! `.options` writes onto `data-tui` elements sync the terminal widget
+//! `.options` writes onto widget-bearing elements sync the terminal widget
 //! living in the node payload. Events flow up: a child's notify events
 //! route into the parent's `@event` template bindings AND dispatch as
 //! bubbling DOM events, and a widget commit routes into the `@change`
@@ -25,7 +25,7 @@ use uic_dom::parts::{CompiledTemplate, EventBinding, PartValue, TemplateInstance
 use uic_dom::{Event as DomEvent, NodeId};
 
 use super::resolve;
-use super::widget::WidgetBox;
+use super::widget;
 use super::DomDocument;
 use crate::Error;
 
@@ -208,7 +208,7 @@ impl Mount {
             synced_attrs: HashMap::new(),
             cascade: 0,
         };
-        mount.mount_widgets(doc);
+        widget::mount_widgets(doc, mount.host);
         mount.adopt_new_children(doc);
         Ok(mount)
     }
@@ -329,7 +329,7 @@ impl Mount {
         }
         let effects = template.commit(&mut self.instance, doc, &values);
         self.bindings.extend(effects.added_events);
-        self.mount_widgets(doc);
+        widget::mount_widgets(doc, self.host);
         self.adopt_new_children(doc);
 
         let mut routed = Vec::new();
@@ -350,47 +350,11 @@ impl Mount {
                 routed.extend(self.route_child_events(doc, write.node, events));
                 continue;
             }
-            // Writes onto plain `data-tui` elements feed the widget living
+            // Writes onto plain widget-bearing elements feed the widget living
             // in the node payload.
             resolve::apply_widget_write(doc, write.node, &write.name, value);
         }
         routed
-    }
-
-    /// Creates the terminal widget for every `data-tui` element that gained
-    /// a node (fresh instantiation or a conditional branch) — idempotent by
-    /// the payload's presence check. The date's mask follows the variant
-    /// flags on the node; a flipped flag recreates the widget (typed state
-    /// resets — variant flips are configuration).
-    fn mount_widgets(&mut self, doc: &mut DomDocument) {
-        let nodes: Vec<(NodeId, String, bool, bool)> = doc
-            .descendants(self.host)
-            .skip(1)
-            .filter_map(|node| {
-                let el = doc.element(node)?;
-                let kind = el.attr("data-tui")?.to_string();
-                let variant = (
-                    el.attr("hide-time").is_some(),
-                    el.attr("hide-seconds").is_some(),
-                );
-                if el
-                    .data
-                    .widget
-                    .as_ref()
-                    .is_some_and(|widget| widget.variant == variant)
-                {
-                    return None;
-                }
-                Some((node, kind, variant.0, variant.1))
-            })
-            .collect();
-        for (node, kind, hide_time, hide_seconds) in nodes {
-            if let Ok(widget) = WidgetBox::new(&kind, hide_time, hide_seconds) {
-                if let Some(el) = doc.element_mut(node) {
-                    el.data.widget = Some(widget);
-                }
-            }
-        }
     }
 
     pub(crate) fn set_attr(

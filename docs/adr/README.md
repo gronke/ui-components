@@ -30,3 +30,5 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0023](0023-the-browser-hosts-its-own-runtime.md) | The browser hosts its own runtime |
 | [0024](0024-state-sync-tooling.md) | State synchronizes through one wire seam |
 | [0025](0025-pairing-rendezvous-relay.md) | A rendezvous relay may carry the pairing reply |
+| [0026](0026-the-scripted-host-drives-native-widgets.md) | The scripted host drives native widgets |
+| [0027](0027-element-types-select-their-terminal-widgets.md) | Element types select their terminal widgets |

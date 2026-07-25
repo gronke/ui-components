@@ -13,5 +13,7 @@ declare function __uic_contains(outer: number, inner: number): boolean;
 declare function __uic_parent(handle: number): number;
 declare function __uic_focused(): number;
 declare function __uic_set_focused(handle: number): void;
+declare function __uic_widget_value(handle: number): string | null;
+declare function __uic_set_widget_value(handle: number, text: string): void;
 declare function __uic_adopt_styles(tag: string, cssText: string): number;
 declare function __uic_log(message: string): void;

@@ -57,3 +57,33 @@ fn ctor_loop_capture_still_panics_boa() {
          installAccessors workaround in js/src/runtime.ts and this canary"
     );
 }
+
+// The runtime's polyfill modules import each other in a cycle (element →
+// focus → events → element) with every cross-call deferred into function
+// bodies — ESM-legal, and Boa must serve it. This canary proves the module
+// loader handles the shape; if it starts failing, merge the cycling
+// modules back together.
+#[test]
+fn deferred_module_cycles_resolve() {
+    use uic_js::JsHost;
+    let mut host = JsHost::new().unwrap();
+    host.register_module(
+        "cycle/a.js",
+        "import { b } from './b.js'; export function a(n) { return n <= 0 ? 'a' : b(n - 1); }",
+    );
+    host.register_module(
+        "cycle/b.js",
+        "import { c } from './c.js'; export function b(n) { return n <= 0 ? 'b' : c(n - 1); }",
+    );
+    host.register_module(
+        "cycle/c.js",
+        "import { a } from './a.js'; export function c(n) { return n <= 0 ? 'c' : a(n - 1); }",
+    );
+    host.load_module(
+        "test:cycle",
+        "import { a } from 'cycle/a.js'; globalThis.__cycled = a(5);",
+    )
+    .unwrap();
+    let out = host.eval("__cycled").unwrap();
+    assert_eq!(out.as_string().unwrap().to_std_string_escaped(), "c");
+}

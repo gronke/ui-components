@@ -72,14 +72,15 @@ fn mounted_host() -> Result<(JsHost, NodeId), Box<dyn std::error::Error>> {
     // The terminal is a dark surface: the mounted root opts into Bootstrap's
     // dark theme, and the mapped sheet's variables flip with it (the browser
     // page sets the same attribute from the OS preference instead).
+    // No host-level focus: the app autofocuses its draft input, and a
+    // focus here would steal the keyboard right back from it.
     let node = host.mount("todo-app", &[("data-bs-theme", "dark")])?;
-    host.focus(node)?;
     Ok((host, node))
 }
 
 fn tui() -> Result<(), Box<dyn std::error::Error>> {
     let (mut host, node) = mounted_host()?;
-    let status = "lit-todo via Boa · type + Enter adds · Space toggles · Enter edits · F5/F6 reorder · Del removes · Esc quits";
+    let status = "lit-todo via Boa · typing lands in the input · Enter adds/edits · Space toggles · F5/F6 reorder · Del removes · Esc quits";
     with_terminal(|terminal| run(&mut host, node, terminal, status, None, None))
 }
 
@@ -262,7 +263,7 @@ fn run(
                     uic_tui::dom::hit_test(&state.doc, area, column, row)
                 };
                 if let Some(target) = target {
-                    host.click(target)?;
+                    host.click_at(target, column, row)?;
                     let doubled = last_click.is_some_and(|(col, row_at, at)| {
                         col == column && row_at == row && at.elapsed() < DOUBLE_CLICK
                     });

@@ -23,6 +23,7 @@
 //! Character entities (`&amp;` …) pass through undecoded.
 
 pub mod names;
+pub mod native;
 mod parser;
 
 use std::collections::BTreeSet;

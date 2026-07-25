@@ -56,6 +56,10 @@ async function init(message: InitMessage): Promise<void> {
     g.__uic_focused = () => s.focused();
     g.__uic_set_focused = (h: number) => s.set_focused(h);
     g.__uic_adopt_styles = (t: string, css: string) => s.adopt_styles(t, css);
+    // Optional-chained: a stale wasm glue without the widget surface
+    // degrades to plain nodes instead of throwing.
+    g.__uic_widget_value = (h: number) => s.widget_value?.(h) ?? null;
+    g.__uic_set_widget_value = (h: number, t: string) => s.set_widget_value?.(h, String(t));
     g.__uic_log = (m: string) => console.log('[tui-worker]', m);
 
     // The runtime publishes customElements and the __uic* entry points.
@@ -88,12 +92,27 @@ async function input(message: InputMessage): Promise<void> {
             if (focused >= 0) {
                 // The full modifier state travels — the same keydown
                 // contract the native Boa host delivers.
-                (globalThis as any).__uicDeliver(focused, 'keydown', {
+                const prevented = (globalThis as any).__uicDeliver(focused, 'keydown', {
                     key: message.key,
                     shiftKey: Boolean(message.shift),
                     ctrlKey: Boolean(message.ctrl),
                     altKey: Boolean(message.alt),
                 });
+                // An uncancelled keydown runs the focused widget as the
+                // editing default action; a text change delivers `input`.
+                // Capability-checked: a stale wasm glue skips the widgets.
+                if (
+                    !prevented &&
+                    typeof session.widget_key === 'function' &&
+                    session.widget_key(
+                        message.key,
+                        Boolean(message.shift),
+                        Boolean(message.ctrl),
+                        Boolean(message.alt),
+                    )
+                ) {
+                    (globalThis as any).__uicDeliver(focused, 'input', {});
+                }
                 await settled();
             }
             break;
@@ -102,6 +121,12 @@ async function input(message: InputMessage): Promise<void> {
             if (message.kind === 'down') {
                 const target = session.hit_test(message.col, message.row);
                 if (target >= 0) {
+                    // A widget node takes focus and the caret lands under
+                    // the pointer — the browser's click-into-an-input.
+                    if (typeof session.widget_at === 'function' && session.widget_at(target)) {
+                        (globalThis as any).__uicFocus(target);
+                        session.place_caret(target, message.col, message.row);
+                    }
                     (globalThis as any).__uicDeliver(target, 'click', {});
                     await settled();
                 }

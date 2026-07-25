@@ -108,7 +108,7 @@ pub(super) fn part_value_to_value(value: &PartValue) -> Value {
 }
 
 /// Applies a template property write onto the terminal widget living in a
-/// plain `data-tui` element's node payload: `.value` syncs the widget text,
+/// widget-bearing element's node payload: `.value` syncs the widget text,
 /// `.options` replaces its option rows.
 pub(super) fn apply_widget_write(doc: &mut DomDocument, node: NodeId, name: &str, value: Value) {
     if let Some(widget) = doc.element_mut(node).and_then(|el| el.data.widget.as_mut()) {

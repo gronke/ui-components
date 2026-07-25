@@ -81,6 +81,30 @@ pub(crate) fn register_natives(context: &mut Context) -> Result<(), Error> {
         }),
     )?;
 
+    // The input facade: a mounted terminal widget's live text behind
+    // `el.value` — null on plain nodes, so the facade can fall back to the
+    // value attribute.
+    context.register_global_callable(
+        js_string!("__uic_widget_value"),
+        1,
+        NativeFunction::from_fn_ptr(|_this, args, _context| {
+            let handle = arg_node(args)?;
+            let value = with_state(|state| state.widget_value(handle))?;
+            Ok(value.map_or(JsValue::null(), |v| js_string!(v).into()))
+        }),
+    )?;
+
+    context.register_global_callable(
+        js_string!("__uic_set_widget_value"),
+        2,
+        NativeFunction::from_fn_ptr(|_this, args, context| {
+            let handle = arg_node(args)?;
+            let text = arg_string(args, 1, context)?;
+            with_state(|state| state.set_widget_value(handle, &text))?;
+            Ok(JsValue::undefined())
+        }),
+    )?;
+
     context.register_global_callable(
         js_string!("__uic_remove_attr"),
         2,

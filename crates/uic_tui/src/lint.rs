@@ -145,6 +145,11 @@ fn label(el: &Element) -> String {
 enum Kind<'t> {
     Static(&'t str),
     Bound,
+    /// A plain form element the mount detects by element type (ADR 0027).
+    Detected,
+    /// A plain `<input>` whose `type` is a hole — the committed value
+    /// decides at runtime, the lint cannot see through it.
+    BoundType,
 }
 
 fn data_tui(el: &Element) -> Option<Kind<'_>> {
@@ -155,6 +160,42 @@ fn data_tui(el: &Element) -> Option<Kind<'_>> {
             Attribute::Static { value, .. } => Kind::Static(value),
             _ => Kind::Bound,
         })
+}
+
+fn static_attr<'t>(el: &'t Element, wanted: &str) -> Option<&'t str> {
+    el.attrs
+        .iter()
+        .find(|attr| attr.name() == wanted)
+        .and_then(|attr| match attr {
+            Attribute::Static { value, .. } => Some(value.as_str()),
+            _ => None,
+        })
+}
+
+/// How the element resolves to a terminal widget, statically: an explicit
+/// `data-tui`, the element-type detection of ADR 0027 (through the same
+/// shared table the mount uses, so the two can never drift), or a bound
+/// `type` hole the lint cannot see through.
+fn widget_kind<'t>(el: &'t Element) -> Option<Kind<'t>> {
+    if let Some(kind) = data_tui(el) {
+        return Some(kind);
+    }
+    if !matches!(el.tag.as_str(), "input" | "textarea" | "select") {
+        return None;
+    }
+    // The presentation-twin opt-out, mirroring the mount's detection.
+    if static_attr(el, "tabindex").is_some_and(|value| value.trim().starts_with('-')) {
+        return None;
+    }
+    let type_attr = el.attrs.iter().find(|attr| attr.name() == "type");
+    match type_attr {
+        None => uic_template::native::native_widget_kind(&el.tag, None).map(|_| Kind::Detected),
+        Some(Attribute::Static { value, .. }) => {
+            uic_template::native::native_widget_kind(&el.tag, Some(&value.to_ascii_lowercase()))
+                .map(|_| Kind::Detected)
+        }
+        Some(_) => Some(Kind::BoundType),
+    }
 }
 
 fn check_element(
@@ -173,7 +214,7 @@ fn check_element(
         });
     };
 
-    let kind = data_tui(el);
+    let kind = widget_kind(el);
     match &kind {
         // Resolve through the runtime's own constructor, so the lint and
         // the mount can never drift; the variant flags do not affect
@@ -194,23 +235,38 @@ fn check_element(
             "a bound data-tui kind is not statically checkable".into(),
             Severity::Warning,
         ),
-        None => {}
+        Some(Kind::BoundType) => push(
+            format!(
+                "a bound type on a plain <{}> is not statically checkable — the \
+                 terminal mounts widgets by element type (ADR 0027)",
+                el.tag
+            ),
+            Severity::Warning,
+        ),
+        Some(Kind::Detected) | None => {}
     }
 
+    // A bound type stays a plain element for the event rules: the committed
+    // value could be an excluded control type like checkbox.
+    let restricted = matches!(kind, Some(Kind::Static(_) | Kind::Bound | Kind::Detected));
     for attr in &el.attrs {
         let Attribute::Event { name, .. } = attr else {
             continue;
         };
-        if kind.is_some() {
+        if restricted {
             if name != "change" && name != "input" {
                 push(
                     format!(
-                        "@{name} never dispatches on a data-tui widget; the terminal \
-                         dispatches only @change (the commit) and @input (live text)"
+                        "@{name} never dispatches on a terminal input widget; the \
+                         terminal dispatches only @change (the commit) and @input \
+                         (live text)"
                     ),
                     Severity::Error,
                 );
             }
+        } else if matches!(kind, Some(Kind::BoundType)) && (name == "change" || name == "input") {
+            // Plausibly served: the committed type may mount a widget that
+            // dispatches these — the bound-type warning already flagged it.
         } else if el.is_custom() {
             // An unresolved child tag is the registry check's finding.
             let Some(child) = lookup(&el.tag) else {
@@ -353,6 +409,45 @@ mod tests {
         let findings = check(r#"<div data-tui=${kind}></div>"#);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn a_plain_input_is_a_detected_widget() {
+        // Detection applies the widget event contract to plain form
+        // elements (ADR 0027): @click never dispatches there.
+        let clean = check(r#"<input type="text" @change=${on_change} @input=${on_input} />"#);
+        assert!(clean.is_empty(), "{clean:?}");
+
+        let findings = check(r#"<input @click=${on_click} />"#);
+        let click_errors = errors(&findings);
+        assert_eq!(click_errors.len(), 1);
+        assert!(click_errors[0].message.contains("@click"));
+
+        let textarea = check(r#"<textarea @keydown=${on_key}></textarea>"#);
+        assert_eq!(errors(&textarea).len(), 1);
+    }
+
+    #[test]
+    fn excluded_controls_and_twins_stay_plain_elements() {
+        // A checkbox is a pointer control, not a text widget — @click is
+        // its native path.
+        let checkbox = check(r#"<input type="checkbox" @click=${on_click} />"#);
+        assert!(checkbox.is_empty(), "{checkbox:?}");
+
+        // A negative tabindex opts a presentation twin out of detection;
+        // its non-click handler warns like any plain element.
+        let twin = check(r#"<input tabindex="-1" @keydown=${on_key} />"#);
+        assert_eq!(twin.len(), 1);
+        assert_eq!(twin[0].severity, Severity::Warning);
+        assert!(twin[0].message.contains("web-only"));
+    }
+
+    #[test]
+    fn a_bound_input_type_warns_and_skips_the_event_rule() {
+        let findings = check(r#"<input type=${type} @change=${on_change} />"#);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("bound type"));
     }
 
     #[test]

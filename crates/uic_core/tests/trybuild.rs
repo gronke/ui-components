@@ -25,4 +25,6 @@ fn ui() {
     t.compile_fail("tests/ui/fail_wraps_no_slot.rs");
     t.compile_fail("tests/ui/fail_wraps_two_slots.rs");
     t.compile_fail("tests/ui/fail_chrome_contains_data_tui.rs");
+    t.compile_fail("tests/ui/fail_chrome_contains_native_input.rs");
+    t.compile_fail("tests/ui/fail_native_input_in_for.rs");
 }

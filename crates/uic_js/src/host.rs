@@ -184,7 +184,10 @@ impl JsHost {
     }
 
     /// Delivers a keydown in the shared vocabulary (`uic_tui::keys`) —
-    /// every modifier flag reaches the runtime's event.
+    /// every modifier flag reaches the runtime's event. An uncancelled
+    /// keydown then runs the focused widget as the browser's editing
+    /// default action; a text change synthesizes the bubbling `input`,
+    /// whose listeners read the live text through `event.target.value`.
     pub fn dispatch(&mut self, stroke: &KeyStroke) -> Result<bool, Error> {
         let Some(focused) = self.state.borrow().focused else {
             return Ok(false);
@@ -200,14 +203,42 @@ impl JsHost {
         let prevented = self.eval(&format!(
             "__uicDeliver({handle}, 'keydown', {{ key: {key:?}, shiftKey: {shift}, ctrlKey: {ctrl}, altKey: {alt}, metaKey: {meta} }})"
         ))?;
+        let prevented = prevented.as_boolean().unwrap_or(false);
+        if !prevented {
+            let changed = self
+                .state
+                .borrow_mut()
+                .widget_default_action(stroke)
+                .is_some();
+            if changed {
+                self.eval(&format!("__uicDeliver({handle}, 'input', {{}})"))?;
+            }
+        }
         self.run_jobs()?;
-        Ok(prevented.as_boolean().unwrap_or(false))
+        Ok(prevented)
     }
 
     /// Delivers a bubbling click at the node — the pointer entry after a
     /// `uic_tui::dom::hit_test`.
     pub fn click(&mut self, node: NodeId) -> Result<(), Error> {
         let handle = self.state.borrow_mut().handle(node);
+        self.eval(&format!("__uicDeliver({handle}, 'click', {{}})"))?;
+        self.run_jobs()
+    }
+
+    /// The pointer entry with the cell it landed on: a widget node takes
+    /// focus first and the caret drops under the pointer — the browser's
+    /// click-into-an-input semantics — then the bubbling click delivers.
+    pub fn click_at(&mut self, node: NodeId, column: u16, row: u16) -> Result<(), Error> {
+        let (handle, widgeted) = {
+            let mut state = self.state.borrow_mut();
+            let handle = state.handle(node);
+            (handle, state.has_widget(handle))
+        };
+        if widgeted {
+            self.eval(&format!("__uicFocus({handle})"))?;
+            self.state.borrow_mut().place_caret(handle, column, row);
+        }
         self.eval(&format!("__uicDeliver({handle}, 'click', {{}})"))?;
         self.run_jobs()
     }

@@ -345,9 +345,7 @@ impl<B: Backend> App<B> {
                 let Some(el) = self.doc.element(node) else {
                     return false;
                 };
-                el.attr("data-tui").is_some()
-                    && el.data.widget.is_some()
-                    && el.attr("disabled").is_none()
+                el.data.widget.is_some() && el.attr("disabled").is_none()
             })
             .collect()
     }

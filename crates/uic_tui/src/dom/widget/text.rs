@@ -46,6 +46,11 @@ impl WidgetAdapter for TextAdapter {
         }
     }
 
+    fn caret_to_end(&mut self) {
+        let len = self.state.len();
+        self.state.set_cursor(len, false);
+    }
+
     fn handle(&mut self, focused: bool, event: &Event) -> bool {
         let _ = rat_widget::text_input::handle_events(&mut self.state, focused, event);
         false
