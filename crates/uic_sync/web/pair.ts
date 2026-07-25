@@ -31,6 +31,17 @@ export interface PairGuest {
     close(): void;
 }
 
+export interface PairSwap {
+    /** The symmetric payload — both sides exchange theirs blindly. */
+    payload: string;
+    /** Feeds the peer's swap payload; resolves when the channel opens. */
+    connect(peer: string): Promise<Wire>;
+    /** True once a connect attempt consumed the offer — a spent swap can
+     * never pair again (succeed or fail), only a fresh one can. */
+    spent(): boolean;
+    close(): void;
+}
+
 /** The compact payload: ice credentials, DTLS fingerprint, setup role and
  * the candidate [address, port] tuples — everything a minimal
  * data-channel-only SDP rebuilds from. */
@@ -42,7 +53,37 @@ interface Compact {
     c: [string, number][];
 }
 
+/** WebKit hides RTCPeerConnection from in-app browsers and non-HTTPS
+ * pages — a ReferenceError names the variable, this names the way out. */
+function requireRtc(): void {
+    if (typeof RTCPeerConnection === 'undefined') {
+        throw new Error(
+            'uic-sync pair: WebRTC is unavailable in this browser context — in-app browsers and non-HTTPS pages often hide it; open the page in a regular browser over HTTPS',
+        );
+    }
+}
+
+/** The role a compact payload plays — offers negotiate (`actpass`), answers
+ * commit to a side. `null` for text that is no payload at all; the guards
+ * below and scanners deciding whether to keep looking both branch on it. */
+export function payloadRole(text: string): 'offer' | 'answer' | null {
+    let compact: Compact;
+    try {
+        compact = decodePayload(text);
+    } catch {
+        return null;
+    }
+    if (compact.s === 'actpass') {
+        return 'offer';
+    }
+    if (compact.s === 'active' || compact.s === 'passive') {
+        return 'answer';
+    }
+    return null;
+}
+
 export async function createHost(options?: PairOptions): Promise<PairHost> {
+    requireRtc();
     const pc = new RTCPeerConnection({ iceServers: options?.iceServers ?? [] });
     const channel = pc.createDataChannel('uic-sync');
     await pc.setLocalDescription(await pc.createOffer());
@@ -51,9 +92,14 @@ export async function createHost(options?: PairOptions): Promise<PairHost> {
     return {
         offer,
         async complete(answer: string): Promise<Wire> {
+            if (payloadRole(answer) !== 'answer') {
+                throw new Error(
+                    'uic-sync pair: expected an answer payload — the other device answers after opening the offer link',
+                );
+            }
             const compact = decodePayload(answer);
             await pc.setRemoteDescription({ type: 'answer', sdp: buildSdp(compact) });
-            await channelOpen(channel);
+            await openOrFail(pc, channel);
             return new DataChannelWire(channel);
         },
         close(): void {
@@ -63,10 +109,22 @@ export async function createHost(options?: PairOptions): Promise<PairHost> {
 }
 
 export async function join(offer: string, options?: PairOptions): Promise<PairGuest> {
+    requireRtc();
+    if (payloadRole(offer) !== 'offer') {
+        throw new Error('uic-sync pair: expected an offer payload');
+    }
     const pc = new RTCPeerConnection({ iceServers: options?.iceServers ?? [] });
-    const wire = new Promise<Wire>((resolve) => {
+    const wire = new Promise<Wire>((resolve, reject) => {
         pc.addEventListener('datachannel', (event) => {
-            channelOpen(event.channel).then(() => resolve(new DataChannelWire(event.channel)));
+            openOrFail(pc, event.channel).then(
+                () => resolve(new DataChannelWire(event.channel)),
+                reject,
+            );
+        });
+        pc.addEventListener('connectionstatechange', () => {
+            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                reject(new Error(UNREACHABLE));
+            }
         });
     });
     const compact = decodePayload(offer);
@@ -77,6 +135,56 @@ export async function join(offer: string, options?: PairOptions): Promise<PairGu
     return {
         answer,
         wire,
+        close(): void {
+            pc.close();
+        },
+    };
+}
+
+/** Symmetric, order-free pairing: BOTH sides create offers over a
+ * negotiated data channel (stream 0 on either end, no in-band
+ * announcement), exchange payloads blindly, and each synthesizes the
+ * peer's ANSWER locally — the DTLS roles derive deterministically from the
+ * fingerprints (the lower one plays the client), and ICE resolves its own
+ * role conflict. Neither side needs to know who "started". */
+export async function swap(options?: PairOptions): Promise<PairSwap> {
+    requireRtc();
+    const pc = new RTCPeerConnection({ iceServers: options?.iceServers ?? [] });
+    const channel = pc.createDataChannel('uic-sync', { negotiated: true, id: 0 });
+    await pc.setLocalDescription(await pc.createOffer());
+    await gatheringComplete(pc);
+    const mine = parseSdp(pc.localDescription!.sdp);
+    const payload = encodePayload(mine);
+    let consumed = false;
+    return {
+        payload,
+        async connect(peer: string): Promise<Wire> {
+            const compact = decodePayload(peer);
+            if (compact.s !== 'actpass') {
+                throw new Error("uic-sync pair: swap expects the peer's own swap payload");
+            }
+            if (compact.f === mine.f) {
+                throw new Error(
+                    'uic-sync pair: that is this side’s own payload — send it to the peer and open theirs',
+                );
+            }
+            // A second payload after the exchange would tear at the live
+            // connection — one swap pairs exactly once.
+            if (pc.signalingState !== 'have-local-offer') {
+                throw new Error('uic-sync pair: this swap already paired');
+            }
+            const peerRole = compact.f < mine.f ? 'active' : 'passive';
+            consumed = true;
+            await pc.setRemoteDescription({
+                type: 'answer',
+                sdp: buildSdp({ ...compact, s: peerRole }),
+            });
+            await openOrFail(pc, channel);
+            return new DataChannelWire(channel);
+        },
+        spent(): boolean {
+            return consumed;
+        },
         close(): void {
             pc.close();
         },
@@ -98,12 +206,35 @@ function gatheringComplete(pc: RTCPeerConnection): Promise<void> {
     });
 }
 
-function channelOpen(channel: RTCDataChannel): Promise<void> {
-    if (channel.readyState === 'open') {
-        return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-        channel.addEventListener('open', () => resolve(), { once: true });
+const UNREACHABLE =
+    'uic-sync pair: the peers could not reach each other — on one network, check that devices may talk to each other; across networks this demo ships no TURN relay';
+
+/** Resolves when the channel opens; rejects when the connection gives up —
+ * a forever-hanging "Connecting…" tells nobody anything. The listener
+ * outlives the promise on purpose: a transport that dies LATER (the peer's
+ * tab closed, the network went away) closes the channel, because the
+ * browser leaves an abruptly abandoned channel dangling "open" and the
+ * wire's onClose would otherwise never hear the end. */
+function openOrFail(pc: RTCPeerConnection, channel: RTCDataChannel): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (channel.readyState === 'open') {
+            resolve();
+        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            reject(new Error(UNREACHABLE));
+            return;
+        } else {
+            channel.addEventListener('open', () => resolve(), { once: true });
+        }
+        pc.addEventListener('connectionstatechange', () => {
+            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+                reject(new Error(UNREACHABLE));
+                // close() on a dead transport never finishes its closing
+                // procedure, so the close event would never fire on its
+                // own — dispatch it so the wire hears the end either way.
+                channel.close();
+                channel.dispatchEvent(new Event('close'));
+            }
+        });
     });
 }
 
@@ -118,7 +249,7 @@ function required(sdp: string, pattern: RegExp, what: string): string {
 function parseSdp(sdp: string): Compact {
     const candidates: [string, number][] = [];
     const seen = new Set<string>();
-    const pattern = /^a=candidate:\S+ 1 (?:udp|UDP) \S+ (\S+) (\d+) typ (?:host|srflx)/gm;
+    const pattern = /^a=candidate:\S+ 1 (?:udp|UDP) \S+ (\S+) (\d+) typ (?:host|srflx|relay)/gm;
     for (let match = pattern.exec(sdp); match; match = pattern.exec(sdp)) {
         const key = `${match[1]}:${match[2]}`;
         if (!seen.has(key)) {

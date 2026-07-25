@@ -12,6 +12,7 @@ Both targets speak the same keys: type to draft a new entry and Enter adds it, S
 The checkbox — a real one in the browser, the `[x]` span in the terminal — is the only pointer toggle; a plain click selects, and a double click (or double tap) opens the row for inline editing, Enter's pointer twin (the native terminal synthesizes `dblclick` from two quick clicks on one node).
 The browser also reorders by drag & drop (terminal drag stays a possible follow-up).
 Delete removes the selected row (the browser also offers a close button per row), and an edit emptied of its text deletes too.
+A caret marks the insertion point in both hosts; the browser blinks it exactly while keys land in the list.
 Esc quits the terminal.
 
 The components render light DOM and carry Bootstrap classes — the house style: the browser shows a regular Bootstrap card and list group, and the terminal maps the same classes through its filtered Bootstrap sheet (the card's border, the list rows, the active highlight).
@@ -35,9 +36,14 @@ The app itself knows nothing about either; the glue rides `@schuhkarton/uic-sync
 The terminal shows the join URL as a scannable QR pane beside the app (dropped on narrow terminals — the status line keeps the URL) and listens on `0.0.0.0`, so phones on the network join by scanning; mind that this exposes the shared list to the LAN.
 The page probes `/live` first, so the same page stays quiet under plain `serve`.
 
-**`/p2p` — no server carries the state.** Two browsers pair over WebRTC with mutually shown QR codes: the host's offer rides the page link's fragment (a phone camera opens it directly), the guest's answer travels back by scan or paste, and the todo state then flows peer-to-peer over the data channel.
-The compact payloads stay under 300 characters; on one network the host candidates connect without STUN, TURN or any signaling server.
-Camera scanning feature-detects `BarcodeDetector` and needs a secure context — the paste textarea is the always-present path.
+**`/p2p` — no server carries the state.** The pairing lives in a `<pair-wizard>` lit element that shows one step at a time — create an invite, send it, done — says what happens next at every turn, keeps a start-over button in reach from the first step, and wears a badge that turns green while the wire stands and red when it drops.
+An invite is one link (`#s=<payload>&via=<topic>`, QR-sized): whoever opens it answers automatically through a one-time topic on a public rendezvous relay (ntfy.sh, ADR 0025), so a single scan or opened link connects both sides — the reply payload is the only thing the relay ever carries, the todo state stays peer-to-peer.
+Pairing is symmetric underneath (ADR 0024): both sides create WebRTC offers and each synthesizes the peer's answer locally with fingerprint-derived DTLS roles, so nobody has to be "first"; a link opened in a browser that already has a waiting tab hands the connection over via BroadcastChannel, and the waiting tab answers through the link's topic.
+The manual exchange stays first-class behind "exchange by hand" — the raw token copies with a click, the paste box parses tokens and full links alike, and camera scanning appears where `BarcodeDetector` exists (secure contexts) — and the wizard falls back to it with an explicit hint whenever the relay is unreachable.
+The page passes a public STUN server to the pairing (the library default is none); the repo ships no TURN relay, and unreachable peers fail with a message instead of hanging.
+Two localStorage knobs tune a browser: `uic-broker` (`off` for the fully manual flow, or the URL of a self-hosted ntfy) and `uic-ice` (a JSON `RTCIceServer` array appended to the STUN default — a TURN server with credentials reaches across hostile NATs; coturn mints long-lived credentials from its static secret with username = a future unix timestamp and credential = base64 of HMAC-SHA1(secret, username)).
+Links are consumed exactly once (a reload lands on the clean invite page) and the important pairing events log to the browser console.
+Each swap pairs exactly two browsers; links carrying the whole peer set, so a connected tab can keep inviting others, is the natural next step.
 The baked dist is a plain static site, so the project's GitHub Pages serves it under `/lit-demo/` — the pairing page at `/lit-demo/p2p/` needs no server at all, and the HTTPS context enables the camera scanner there; the server-backed `live` mode naturally stays a `cargo run` affair.
 
 ## Knobs

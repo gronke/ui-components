@@ -6,6 +6,9 @@ export interface Wire {
     send(text: string): void;
     onMessage(callback: (text: string) => void): void;
     onOpen(callback: () => void): void;
+    /** Fires once when the wire goes away — the far side closed, the
+     * transport tore down, or close() was called here. */
+    onClose(callback: () => void): void;
     close(): void;
 }
 
@@ -32,6 +35,10 @@ export class WebSocketWire implements Wire {
         } else {
             this.socket.addEventListener('open', () => callback(), { once: true });
         }
+    }
+
+    onClose(callback: () => void): void {
+        this.socket.addEventListener('close', () => callback(), { once: true });
     }
 
     close(): void {
@@ -64,6 +71,10 @@ export class DataChannelWire implements Wire {
         }
     }
 
+    onClose(callback: () => void): void {
+        this.channel.addEventListener('close', () => callback(), { once: true });
+    }
+
     close(): void {
         this.channel.close();
     }
@@ -71,6 +82,7 @@ export class DataChannelWire implements Wire {
 
 export class BroadcastWire implements Wire {
     channel: BroadcastChannel;
+    closed: (() => void) | null = null;
 
     constructor(name: string) {
         this.channel = new BroadcastChannel(name);
@@ -88,7 +100,13 @@ export class BroadcastWire implements Wire {
         queueMicrotask(callback);
     }
 
+    // BroadcastChannel has no close event — only the local close() reports.
+    onClose(callback: () => void): void {
+        this.closed = callback;
+    }
+
     close(): void {
         this.channel.close();
+        this.closed?.();
     }
 }

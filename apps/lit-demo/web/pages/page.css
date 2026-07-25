@@ -23,9 +23,39 @@ todo-app {
     outline: none;
 }
 
-/* The keyboard lives on the app element; the ring says so. */
-todo-app:focus .card {
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+/* The keyboard lives on the app element; the ring says so — !important
+   because the card's shadow-sm utility carries it too. */
+todo-app:focus-within .card {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* The ▏ glyph inside is the terminal's caret; here the box is the caret —
+   the glyph is clipped under its own ink color and never shows. The caret
+   appears exactly while keys land in the list. */
+todo-app .cursor {
+    display: none;
+    width: 2px;
+    height: 1.2em;
+    margin-bottom: -0.2em;
+    overflow: hidden;
+    background-color: currentColor;
+    animation: caret-blink 1.06s step-end infinite;
+}
+
+todo-app:focus-within .cursor {
+    display: inline-block;
+}
+
+@keyframes caret-blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    todo-app .cursor {
+        animation: none;
+    }
 }
 
 todo-app .list-group {

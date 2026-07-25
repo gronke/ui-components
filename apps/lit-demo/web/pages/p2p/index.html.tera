@@ -15,34 +15,19 @@ document.documentElement.setAttribute('data-bs-theme',
 {{ importmap | safe }}
 <script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
 <script type="module" src="./p2p/p2p.js"></script>
+<script type="module">
+// Typing always lands in the list: a click on page chrome refocuses the app.
+document.addEventListener('pointerdown', (event) => {
+    if (!event.target.closest('a, button, input, textarea, summary, video')) {
+        queueMicrotask(() => document.querySelector('todo-app')?.focus());
+    }
+});
+</script>
 </head>
 <body class="py-4">
 <main class="container">
 <todo-app class="d-block mb-4"></todo-app>
-<section class="card pairing">
-<div class="card-header">pair another browser</div>
-<div class="card-body">
-<p class="status text-body-secondary" id="status">Share this list over WebRTC — no server carries the state.</p>
-<div id="host-controls">
-<button id="share" class="btn btn-primary">share this list</button>
-<div id="offer-block" hidden>
-<div class="qr" id="offer-qr"></div>
-<p>Scan with the other device's camera — its browser opens this page with the offer aboard. The raw offer travels any other way too:</p>
-<textarea id="offer-text" class="form-control font-monospace" readonly></textarea>
-<h3 class="h6 mt-3">then the answer comes back</h3>
-<button id="scan" class="btn btn-outline-secondary mb-2" hidden>scan the answer</button>
-<video id="camera" hidden playsinline></video>
-<textarea id="answer-input" class="form-control font-monospace" placeholder="uics1.…"></textarea>
-<button id="connect" class="btn btn-primary mt-2">connect</button>
-</div>
-</div>
-<div id="guest-block" hidden>
-<p>Show this answer to the host — scan or copy it back.</p>
-<div class="qr" id="answer-qr"></div>
-<textarea id="answer-text" class="form-control font-monospace" readonly></textarea>
-</div>
-</div>
-</section>
+<pair-wizard></pair-wizard>
 <footer class="text-center small mt-3">
 <a class="link-secondary" href="./">← share through the server instead</a>
 </footer>

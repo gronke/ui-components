@@ -39,6 +39,10 @@ export class TodoApp extends LitElement {
         .draft {
             color: #e5c07b;
         }
+        .cursor {
+            color: #e5c07b;
+            font-weight: bold;
+        }
         .hint,
         .card-footer {
             color: #808a93;
@@ -290,8 +294,9 @@ export class TodoApp extends LitElement {
                 </ul>
                 <div class="card-body font-monospace">
                     <span class="prompt">&gt;</span>
-                    <span class="draft">${this.draft}</span>
-                    <span class="hint">${this.draft ? '' : 'type to add…'}</span>
+                    <span class="draft">${this.draft}</span>${this.editing < 0
+                        ? html`<span class="cursor">▏</span>`
+                        : ''}<span class="hint">${this.draft ? '' : 'type to add…'}</span>
                 </div>
                 <div class="card-footer small">
                     ${remaining} remaining · type + Enter adds · checkbox/Space toggles ·

@@ -649,6 +649,16 @@ fn gallery_page() -> String {
             "blurb": "Maintained end-to-end examples — foreign npm elements in both panes, the terminal side on the browser's own engine in a worker.",
             "cards": cards_for("examples"),
         },
+        {
+            "title": "apps",
+            "blurb": "A hand-written Lit app around the same runtime, deployed beside this gallery (locally: cargo run -p uic_lit_demo -- serve).",
+            "cards": [card(
+                "lit-demo/p2p",
+                "todo-app",
+                "pair two browsers over WebRTC",
+                "The lit-todo app with symmetric link pairing: each side sends one link — QR, message or paste — and both connect, with no server carrying state or signaling.",
+            )],
+        },
     ]);
     let mut context = Context::new();
     context.insert("head", &rendered_head("ui-components", 0));
