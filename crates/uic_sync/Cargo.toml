@@ -15,3 +15,6 @@ web_modules = { workspace = true, features = ["typescript"] }
 # Assembles the npm tree's package.json (package_json::manifest).
 npm-utils.workspace = true
 serde_json.workspace = true
+# The compact payload codec in Rust, byte-compatible with web/pair.ts.
+serde.workspace = true
+base64.workspace = true

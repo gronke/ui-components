@@ -13,6 +13,8 @@ uic_js.workspace = true
 uic_dom.workspace = true
 # The crossterm/ratatui re-exports drive the terminal loop and paint.
 uic_tui.workspace = true
+# The native QR widget registers its adapter through uic_core's inventory.
+uic_core.workspace = true
 web_modules = { workspace = true, default-features = true, features = ["dev"] }
 # The live mode's WebSocket state bridge rides the frontend router.
 axum = { workspace = true, features = ["ws"] }
@@ -20,6 +22,10 @@ qrcode.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 serde_json.workspace = true
 include_dir.workspace = true
+# The p2p mode: a native WebRTC peer speaking the compact payloads (ADR
+# 0028) — the codec rides uic_sync.
+uic_sync.workspace = true
+webrtc.workspace = true
 
 [build-dependencies]
 # Build-time baking: the app's TypeScript compiles into the npm tree and

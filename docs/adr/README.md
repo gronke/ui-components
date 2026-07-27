@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Every substantial decision lives here as one record; all of them are accepted and describe the status quo.
+Every substantial decision lives here as one record; each describes the status quo unless a later record supersedes it.
 The overview tying the crates and the runtime together is [../architecture.md](../architecture.md).
 
 | ADR | Decision |
@@ -29,6 +29,10 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0022](0022-the-demo-becomes-a-gallery.md) | The demo becomes a gallery |
 | [0023](0023-the-browser-hosts-its-own-runtime.md) | The browser hosts its own runtime |
 | [0024](0024-state-sync-tooling.md) | State synchronizes through one wire seam |
-| [0025](0025-pairing-rendezvous-relay.md) | A rendezvous relay may carry the pairing reply |
+| [0025](0025-pairing-rendezvous-relay.md) | A rendezvous relay may carry the pairing reply _(superseded by [0031](0031-pairing-is-a-mutual-exchange.md))_ |
 | [0026](0026-the-scripted-host-drives-native-widgets.md) | The scripted host drives native widgets |
 | [0027](0027-element-types-select-their-terminal-widgets.md) | Element types select their terminal widgets |
+| [0028](0028-the-terminal-is-a-pairing-peer.md) | The terminal is a pairing peer |
+| [0029](0029-the-pairing-ui-is-one-component.md) | The pairing UI is one component, two transports |
+| [0030](0030-a-cross-host-qr-code-component.md) | A cross-host `<qr-code>` component |
+| [0031](0031-pairing-is-a-mutual-exchange.md) | Pairing is a mutual exchange |

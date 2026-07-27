@@ -92,7 +92,10 @@ fn npm_tree(src: &Path, out: &Path) {
         json!({
             ".": "./todo-app.js",
             "./todo-app.js": "./todo-app.js",
-            "./todo-item.js": "./todo-item.js"
+            "./todo-item.js": "./todo-item.js",
+            "./pair-panel.js": "./pair-panel.js",
+            "./qr-code.js": "./qr-code.js",
+            "./p2p-deck.js": "./p2p-deck.js"
         }),
     );
     set_field(&mut doc, "peerDependencies", json!({ "lit": "^3" }));

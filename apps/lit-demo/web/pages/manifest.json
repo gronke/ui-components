@@ -1,0 +1,19 @@
+{
+    "name": "lit-todo",
+    "short_name": "lit-todo",
+    "description": "A shared todo list, paired peer-to-peer over WebRTC — no server carries the state.",
+    "start_url": ".",
+    "scope": ".",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#0d6efd",
+    "background_color": "#212529",
+    "icons": [
+        {
+            "src": "icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}

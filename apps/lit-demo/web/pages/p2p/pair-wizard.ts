@@ -1,17 +1,18 @@
-// The pairing flow as one Lit element: every step renders only what the
-// user needs right now and says what happens next. The wizard owns the
-// whole exchange — the symmetric swap, the QR/link/token surfaces, the
-// same-browser handover and the rendezvous relay — and hands the finished
-// wire to the page through a single 'wire' event. Browser-only by nature
-// (WebRTC), so unlike the todo components it never runs under the mocked
-// terminal lit.
+// The browser's pairing transport controller. It owns the whole exchange —
+// the symmetric swap and the same-browser tab handover — and hands the
+// finished wire to the page through a single 'wire' event. Pairing is a
+// mutual exchange with no third party (ADR 0031): each side sends its invite
+// and opens the other's. The UI itself is the shared <pair-panel> (ADR
+// 0029): this element renders one, feeds it state as properties, and listens
+// for its intent events; the terminal renders the same panel driven by its
+// native peer. Browser-only by nature (WebRTC), so it never runs under the
+// mocked terminal lit — the panel does.
 
 import { html, LitElement } from 'lit';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { payloadRole, swap } from '../@schuhkarton/uic-sync/pair.js';
 import type { PairOptions, PairSwap } from '../@schuhkarton/uic-sync/pair.js';
 import type { Wire } from '../@schuhkarton/uic-sync/wire.js';
-import qrcode from 'qrcode-generator';
+import '../@schuhkarton/lit-todo/pair-panel.js';
 
 type Step = 'idle' | 'invite' | 'answering' | 'connected' | 'dropped' | 'failed' | 'handed' | 'nortc';
 
@@ -41,22 +42,12 @@ function iceConfig(): PairOptions {
     return { iceServers };
 }
 
-// The rendezvous relay carries exactly one message — the reply payload —
-// so opening one link connects both sides; the todo state never touches
-// it. 'off' keeps the exchange fully manual, any other value points at a
-// self-hosted ntfy server.
-const BROKER = (() => {
-    const knob = localStorage.getItem('uic-broker');
-    if (knob === 'off') {
-        return null;
-    }
-    return knob || 'https://ntfy.sh';
-})();
-
-// Module-scoped on purpose: Chrome garbage-collects unreferenced
-// BroadcastChannels, listeners and all — a function-local channel goes
-// silently deaf once its scope ends. Optional because older WebKit lacks
-// the API; without it links simply always adopt in their own tab.
+// A same-browser handover, not a server: a link opened in a fresh tab offers
+// its payload to a tab already waiting. Module-scoped on purpose — Chrome
+// garbage-collects unreferenced BroadcastChannels, listeners and all, so a
+// function-local channel goes silently deaf once its scope ends. Optional
+// because older WebKit lacks the API; without it a link simply always adopts
+// in its own tab.
 const relay = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('uic-pair');
 
 /** Important pairing events go to the console — the hint line shows one
@@ -65,49 +56,25 @@ function note(...parts: unknown[]): void {
     console.info('[p2p]', ...parts);
 }
 
-/** The payload hidden in a link, pasted text or scanned code — behind
- * '#s=' or '?s=' (a camera flow may strip the fragment), cut before any
- * further parameter; bare payloads pass through untouched. */
+/** The payload carried by a link, pasted text or scanned code: the invite is
+ * a single `#uics1.…` fragment, so find the prefix and take the base64url
+ * run that follows; a bare token passes through unchanged. */
 function payloadOf(text: string): string {
-    let trimmed = text.trim();
-    for (const marker of ['#s=', '?s=']) {
-        const at = trimmed.indexOf(marker);
-        if (at >= 0) {
-            trimmed = trimmed.slice(at + marker.length);
-            break;
-        }
+    const trimmed = text.trim();
+    const at = trimmed.indexOf('uics1.');
+    if (at < 0) {
+        return trimmed;
     }
-    const tail = trimmed.indexOf('&');
-    return decodeURIComponent(tail >= 0 ? trimmed.slice(0, tail) : trimmed);
+    const rest = trimmed.slice(at);
+    return /^uics1\.[A-Za-z0-9_-]*/.exec(rest)?.[0] ?? rest;
 }
 
-/** The relay topic riding a link, if any — full URLs keep working as
- * plain payload carriers when there is none. */
-function viaOf(text: string): string | null {
-    const match = /[#?&]via=([\w-]+)/.exec(text);
-    return match ? match[1]! : null;
-}
-
-function linkFor(payload: string, topic: string | null): string {
+/** The invite link: the payload as a single URL-safe fragment (base64url
+ * needs no escaping), so a chat app linkifies the whole URL. */
+function linkFor(payload: string): string {
     const link = new URL(location.pathname, location.href);
-    link.hash = '#s=' + encodeURIComponent(payload) + (topic ? '&via=' + topic : '');
+    link.hash = payload;
     return link.href;
-}
-
-function newTopic(): string {
-    const bytes = crypto.getRandomValues(new Uint8Array(12));
-    let binary = '';
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
-    }
-    return 'uic-' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function qrSvg(text: string): string {
-    const code = qrcode(0, 'L');
-    code.addData(text);
-    code.make();
-    return code.createSvgTag({ cellSize: 4, margin: 4 });
 }
 
 /** Clipboard with the graceful path: plain http on a LAN address has no
@@ -170,20 +137,16 @@ export class PairWizard extends LitElement {
 
     private side: PairSwap | null = null;
     private paired = false;
-    private topic: string | null = null;
-    private source: EventSource | null = null;
     private link = '';
     private token = '';
-    private qr = '';
     private canScan = 'BarcodeDetector' in window && !!navigator.mediaDevices;
     private booted = false;
 
     constructor() {
         super();
         this.step = 'idle';
-        this.hint = BROKER
-            ? 'Share this list over WebRTC — no server carries the state. One of you creates an invite; opening it connects both.'
-            : 'Share this list over WebRTC — no server carries the state. Each side sends one link; open theirs, they open yours, done.';
+        this.hint =
+            'Share this list over WebRTC — no server carries the state. Each side sends one invite; open theirs, they open yours, done.';
         this.linked = null;
         this.scanning = false;
         this.starting = false;
@@ -210,17 +173,14 @@ export class PairWizard extends LitElement {
                 'This browser view hides WebRTC — open the page in a regular browser over HTTPS (in-app browsers often offer "Open in Browser").';
             return;
         }
-        const carried = location.hash.startsWith('#s=')
-            ? location.hash
-            : new URLSearchParams(location.search).has('s')
-              ? location.search
-              : null;
+        const carried = location.hash.length > 1 ? location.hash : null;
         if (carried) {
             note('opened through a peer link');
             // The link is consumed exactly once — a reload or bookmark lands
-            // on the clean idle page instead of re-feeding a stale payload.
+            // on the clean idle page instead of re-feeding a stale payload,
+            // and the payload never lingers in the address bar or history.
             history.replaceState(null, '', location.pathname);
-            this.relayOrAdopt(payloadOf(carried), viaOf(carried));
+            this.relayOrAdopt(payloadOf(carried));
             return;
         }
         if (['localhost', '127.0.0.1'].includes(location.hostname)) {
@@ -230,9 +190,9 @@ export class PairWizard extends LitElement {
 
     /** A link's payload first offers itself to a waiting tab in this
      * browser; unclaimed, this tab becomes the second side itself. */
-    private relayOrAdopt(peer: string, via: string | null): void {
+    private relayOrAdopt(peer: string): void {
         if (!relay) {
-            void this.startSide(peer, via);
+            void this.startSide(peer);
             return;
         }
         let claimed = false;
@@ -246,15 +206,15 @@ export class PairWizard extends LitElement {
                 this.resetLabel = 'start a fresh pairing here';
             }
         });
-        relay.postMessage({ type: 'peer', payload: peer, via });
+        relay.postMessage({ type: 'peer', payload: peer });
         setTimeout(() => {
             if (!claimed) {
-                void this.startSide(peer, via);
+                void this.startSide(peer);
             }
         }, CLAIM_WINDOW_MS);
     }
 
-    private async startSide(peerAtHand: string | null, peerVia: string | null): Promise<void> {
+    private async startSide(peerAtHand: string | null): Promise<void> {
         if (this.starting) {
             return;
         }
@@ -271,24 +231,18 @@ export class PairWizard extends LitElement {
         }
         this.side = side;
         note('side ready — own payload:', side.payload);
-        if (BROKER) {
-            this.topic = newTopic();
-            this.listen(side);
-        }
-        this.link = linkFor(side.payload, this.topic);
+        this.link = linkFor(side.payload);
         this.token = side.payload;
-        this.qr = qrSvg(this.link);
         this.resetLabel = 'start over';
         this.step = 'invite';
 
-        // A link opened elsewhere in this browser lands here over the
-        // relay. A spent side stays silent — the opening tab then adopts
-        // the payload itself instead of handing it to a swap that can no
-        // longer pair. Claiming answers with this side's own payload — over
-        // the BroadcastChannel for a tab of this browser, and through the
-        // relay topic the link carried for the remote side that made it.
+        // A link opened in another tab of this browser lands here over the
+        // BroadcastChannel. A spent side stays silent — the opening tab then
+        // adopts the payload itself instead of handing it to a swap that can
+        // no longer pair. Claiming answers with this side's own payload so
+        // the other tab pairs against it.
         relay?.addEventListener('message', (event) => {
-            const message = event.data as { type: string; payload?: string; via?: string };
+            const message = event.data as { type: string; payload?: string };
             if (
                 message.type === 'peer' &&
                 message.payload &&
@@ -298,91 +252,26 @@ export class PairWizard extends LitElement {
                 note('claimed a peer payload a link handed over in this browser');
                 relay.postMessage({ type: 'claimed', payload: message.payload });
                 relay.postMessage({ type: 'peer', payload: side.payload });
-                const exchanged = !!(message.via && BROKER);
-                if (message.via && BROKER) {
-                    void this.answerVia(message.via, side);
-                }
-                void this.pair(side, message.payload, exchanged);
+                void this.pair(side, message.payload);
             }
         });
 
         if (peerAtHand) {
-            // Opened through the peer's link: their payload is already here.
-            // With a relay topic the reply travels by itself; without one
-            // the link must go back by hand — the hint follows the pair()
-            // call so the instruction outlasts its "Connecting…".
-            const exchanged = !!(peerVia && BROKER);
-            if (peerVia && BROKER) {
-                void this.answerVia(peerVia, side);
-            }
-            void this.pair(side, peerAtHand, exchanged);
-            if (!exchanged) {
-                this.hint = 'Send your link back — you connect the moment they open it.';
-            }
+            // Opened through the peer's link: their payload is already here,
+            // so this side connects at once — but the return leg goes by
+            // hand, so send your invite back and they connect on opening it.
+            void this.pair(side, peerAtHand);
+            this.hint = 'Send your invite back — you connect the moment they open it.';
         } else {
-            this.hint = BROKER
-                ? 'Send the invite — the moment they open it on the other device, you connect.'
-                : 'Send the invite, then open theirs under "exchange by hand".';
-        }
-    }
-
-    /** The inviter's ear on the relay: the reply payload arrives on the
-     * one-time topic the invite link carried. */
-    private listen(side: PairSwap): void {
-        const source = new EventSource(`${BROKER}/${this.topic}/sse?since=30m`);
-        this.source = source;
-        let complained = false;
-        source.addEventListener('message', (event) => {
-            let body = '';
-            try {
-                body = String((JSON.parse(event.data as string) as { message?: string }).message ?? '');
-            } catch {
-                return;
-            }
-            const peer = body.trim();
-            if (payloadRole(peer) === 'offer' && peer !== side.payload && !side.spent()) {
-                note('their reply arrived over the relay');
-                void this.pair(side, peer, true);
-            }
-        });
-        source.addEventListener('error', () => {
-            // EventSource reconnects by itself; one note is enough, and the
-            // QR/manual paths keep working without the relay.
-            if (!complained && !this.paired) {
-                complained = true;
-                note('relay subscription hiccup — reconnecting; manual exchange keeps working');
-            }
-        });
-    }
-
-    /** The opener's reply: one POST to the topic the invite carried. */
-    private async answerVia(topic: string, side: PairSwap): Promise<void> {
-        try {
-            const response = await fetch(`${BROKER}/${topic}`, {
-                method: 'POST',
-                body: side.payload,
-            });
-            if (!response.ok) {
-                throw new Error(`the relay answered ${response.status}`);
-            }
-            note('reply payload posted to their relay topic');
-        } catch (error) {
-            note('relay post failed:', error);
-            if (this.step === 'answering') {
-                this.step = 'invite';
-            }
-            this.hint =
-                'The relay is unreachable — send your link back by hand; you connect the moment they open it.';
+            this.hint = 'Send your invite, then open theirs below to connect.';
         }
     }
 
     /** One side of the swap pairs with the peer payload whenever it FIRST
-     * arrives — over the relay, pasted, scanned, or opened as a link;
-     * later arrivals are ignored, the connection stands. Exactly one side
-     * greets: the lexically smaller payload. `exchanged` says the peer
-     * holds (or is about to receive) this side's payload too — then there
-     * is nothing left to show but the wait. */
-    private async pair(side: PairSwap, peer: string, exchanged: boolean): Promise<void> {
+     * arrives — pasted, scanned, or opened as a link; later arrivals are
+     * ignored, the connection stands. Exactly one side greets: the lexically
+     * smaller payload. */
+    private async pair(side: PairSwap, peer: string): Promise<void> {
         if (this.paired) {
             return;
         }
@@ -392,16 +281,11 @@ export class PairWizard extends LitElement {
             return;
         }
         this.paired = true;
-        if (exchanged) {
-            this.step = 'answering';
-            this.hint = 'Connecting — nothing else to do.';
-        } else {
-            this.hint = 'Connecting…';
-        }
+        this.hint = 'Connecting…';
         // The wait is legitimate — the connection completes only once BOTH
-        // sides applied each other's payload, and the peer may take minutes
-        // to open this side's link. A slow connect gets a hint, not an
-        // abort; truly unreachable peers reject with the pairing's message.
+        // sides applied each other's payload, and the peer may take a while
+        // to open this side's link. A slow connect gets a hint, not an abort;
+        // truly unreachable peers reject with the pairing's message.
         const slow = setTimeout(() => {
             this.hint =
                 "Still connecting — the other device must open this side's link too; if it already did, the networks may not allow a direct route.";
@@ -409,7 +293,6 @@ export class PairWizard extends LitElement {
         note('connecting to peer payload:', peer);
         try {
             const wire = await side.connect(peer);
-            this.source?.close();
             this.connect(wire, side.payload < peer);
         } catch (error) {
             this.paired = false;
@@ -440,7 +323,7 @@ export class PairWizard extends LitElement {
     }
 
     private invite(): void {
-        void this.startSide(null, null);
+        void this.startSide(null);
     }
 
     private reset(): void {
@@ -450,17 +333,15 @@ export class PairWizard extends LitElement {
         location.reload();
     }
 
-    private copyLink(event: Event): void {
-        // The link is for copying — navigating a waiting tab into a payload
-        // would tear the session it belongs to.
-        event.preventDefault();
+    private onCopyLink(): void {
+        // The panel already cancels the anchor's navigation; here we just
+        // put the link on the clipboard.
         void copied(this.link, 'Link').then((outcome) => {
             this.hint = outcome;
         });
     }
 
-    private copyToken(event: Event): void {
-        (event.currentTarget as HTMLTextAreaElement).select();
+    private onCopyToken(): void {
         void copied(this.token, 'Token').then((outcome) => {
             this.hint = outcome;
         });
@@ -473,12 +354,7 @@ export class PairWizard extends LitElement {
             this.scanning = true;
             await this.updateComplete;
             const raw = await scanFor(this.querySelector('video')!, side.payload);
-            const via = viaOf(raw);
-            const exchanged = !!(via && BROKER);
-            if (via && BROKER) {
-                void this.answerVia(via, side);
-            }
-            void this.pair(side, payloadOf(raw), exchanged);
+            void this.pair(side, payloadOf(raw));
         } catch (error) {
             this.hint = `Camera unavailable (${error}) — paste their link instead.`;
         } finally {
@@ -486,83 +362,37 @@ export class PairWizard extends LitElement {
         }
     }
 
-    private connectPeer(): void {
-        const box = this.querySelector('.peer-input') as HTMLTextAreaElement;
-        if (!box.value.trim()) {
+    private onConnect(event: CustomEvent<string>): void {
+        const pasted = (event.detail ?? '').trim();
+        if (!pasted) {
             this.hint = 'Paste their link (or token) first.';
             return;
         }
         const side = this.side!;
-        const via = viaOf(box.value);
-        const exchanged = !!(via && BROKER);
-        if (via && BROKER) {
-            void this.answerVia(via, side);
-        }
-        void this.pair(side, payloadOf(box.value), exchanged);
+        void this.pair(side, payloadOf(pasted));
     }
 
     render() {
-        return html`<section class="card">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                pair another browser
-                ${this.linked === null
-                    ? ''
-                    : html`<span class="badge ${this.linked ? 'text-bg-success' : 'text-bg-danger'}"
-                          >${this.linked ? 'connected' : 'disconnected'}</span
-                      >`}
-            </div>
-            <div class="card-body">
-                <p class="status text-body-secondary">${this.hint}</p>
-                ${this.renderStep()}
-                ${this.resetLabel
-                    ? html`<button class="btn btn-outline-secondary d-block mt-3" @click=${this.reset}>
-                          ${this.resetLabel}
-                      </button>`
-                    : ''}
-            </div>
-        </section>`;
-    }
-
-    private renderStep() {
-        switch (this.step) {
-            case 'idle':
-                return html`<button class="btn btn-primary" ?disabled=${this.starting} @click=${this.invite}>
-                    create an invite
-                </button>`;
-            case 'invite':
-                return html`<div class="qr">${unsafeHTML(this.qr)}</div>
-                    <a class="copy-link" href=${this.link} title="click to copy" @click=${this.copyLink}
-                        >${this.link}</a
-                    >
-                    <details ?open=${!BROKER}>
-                        <summary>exchange by hand</summary>
-                        <textarea
-                            name="token"
-                            class="form-control font-monospace mt-2"
-                            readonly
-                            title="click to copy"
-                            .value=${this.token}
-                            @click=${this.copyToken}
-                        ></textarea>
-                        <h3 class="h6 mt-3">and open theirs</h3>
-                        ${this.canScan
-                            ? html`<button class="btn btn-outline-secondary mb-2" @click=${this.scan}>
-                                  scan their code
-                              </button>`
-                            : ''}
-                        <video ?hidden=${!this.scanning} playsinline></video>
-                        <textarea
-                            name="peer"
-                            class="peer-input form-control font-monospace"
-                            placeholder="their link or uics1.…"
-                        ></textarea>
-                        <button class="btn btn-primary mt-2" @click=${this.connectPeer}>connect</button>
-                    </details>`;
-            case 'answering':
-                return html`<div class="spinner-border spinner-border-sm text-secondary" role="status"></div>`;
-            default:
-                return html``;
-        }
+        // The shared panel is the whole UI; this element only feeds it state
+        // and answers its intents. The camera video stays here — a
+        // browser-only surface the panel does not carry (the QR now lives
+        // inside the panel as <qr-code>).
+        return html`<pair-panel
+                .mode=${this.step}
+                .link=${this.link}
+                .token=${this.token}
+                .status=${this.hint}
+                .connected=${this.linked}
+                .resetLabel=${this.resetLabel}
+                .canScan=${this.canScan}
+                @invite=${this.invite}
+                @reset=${this.reset}
+                @connect=${this.onConnect}
+                @copy-link=${this.onCopyLink}
+                @copy-token=${this.onCopyToken}
+                @scan=${this.scan}
+            ></pair-panel>
+            <video ?hidden=${!this.scanning} playsinline></video>`;
     }
 }
 customElements.define('pair-wizard', PairWizard);

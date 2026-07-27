@@ -1,5 +1,9 @@
 # ADR 0025: A rendezvous relay may carry the pairing reply
 
+> **Superseded by [ADR 0031](0031-pairing-is-a-mutual-exchange.md).**
+> The rendezvous relay was removed; pairing is now a mutual exchange with no third-party service.
+> This record stands for the history.
+
 ## Decision
 
 The `/p2p` demo page hands the reply payload of a pairing to a public pub/sub relay (ntfy.sh by default) instead of demanding a second manual exchange.

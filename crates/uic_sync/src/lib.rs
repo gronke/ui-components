@@ -7,6 +7,12 @@
 //! Consumers integrate one of two ways: hand [`web_root`] to a
 //! `web_modules` build as an extra source root, or emit the compiled npm
 //! tree with [`npm_tree`] and install it like any package.
+//!
+//! [`pair`] carries the compact payload codec in Rust too — one byte
+//! contract, two languages — so a native peer (ADR 0028) exchanges the
+//! same `uics1.` strings as the browser.
+
+pub mod pair;
 
 use std::fs;
 use std::path::{Path, PathBuf};

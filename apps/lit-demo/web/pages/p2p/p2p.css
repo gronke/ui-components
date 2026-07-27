@@ -18,15 +18,18 @@ todo-app:focus-within .card {
 }
 
 
-pair-wizard {
+pair-wizard,
+pair-panel,
+qr-code {
     display: block;
 }
 
 /* Scanners want dark modules on a light ground — the code sits on its own
-   white card whatever the page theme. */
-pair-wizard .qr svg {
+   white card whatever the page theme, and never overflows the card. */
+qr-code svg {
     display: block;
     margin: 1rem auto;
+    max-width: 100%;
     background: #ffffff;
 }
 
@@ -44,12 +47,6 @@ pair-wizard .copy-link {
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 0.8rem;
-}
-
-pair-wizard summary {
-    cursor: pointer;
-    color: var(--bs-secondary-color);
-    font-size: 0.875rem;
 }
 
 pair-wizard video {

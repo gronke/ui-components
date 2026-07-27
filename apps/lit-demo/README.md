@@ -6,6 +6,8 @@ One hand-written Lit todo app — `<todo-app>` composing `<todo-item>` rows, pla
 cargo run -p uic_lit_demo             # the app in this terminal (uic_js/Boa + ratatui)
 cargo run -p uic_lit_demo -- serve    # the same sources on real lit, http://127.0.0.1:8090
 cargo run -p uic_lit_demo -- live     # both at once, one shared state (ADR 0024)
+cargo run -p uic_lit_demo -- p2p      # a serverless WebRTC peer: generate an invite (ADR 0028)
+cargo run -p uic_lit_demo -- p2p LINK # open someone's invite link or uics1. token
 ```
 
 Text entry is a plain `<input type="text">` in both hosts: the browser gives it the native caret, selection and focus outline, and the terminal mounts its rat widget twin by element type (ADR 0027) with the hardware cursor — mid-text editing, Home/End and selection chords work in both.
@@ -38,18 +40,27 @@ The app itself knows nothing about either; the glue rides `@schuhkarton/uic-sync
 The terminal shows the join URL as a scannable QR pane beside the app (dropped on narrow terminals — the status line keeps the URL) and listens on `0.0.0.0`, so phones on the network join by scanning; mind that this exposes the shared list to the LAN.
 The page probes `/live` first, so the same page stays quiet under plain `serve`.
 
-**`/p2p` — no server carries the state.** The pairing lives in a `<pair-wizard>` lit element that shows one step at a time — create an invite, send it, done — says what happens next at every turn, keeps a start-over button in reach from the first step, and wears a badge that turns green while the wire stands and red when it drops.
-An invite is one link (`#s=<payload>&via=<topic>`, QR-sized): whoever opens it answers automatically through a one-time topic on a public rendezvous relay (ntfy.sh, ADR 0025), so a single scan or opened link connects both sides — the reply payload is the only thing the relay ever carries, the todo state stays peer-to-peer.
-Pairing is symmetric underneath (ADR 0024): both sides create WebRTC offers and each synthesizes the peer's answer locally with fingerprint-derived DTLS roles, so nobody has to be "first"; a link opened in a browser that already has a waiting tab hands the connection over via BroadcastChannel, and the waiting tab answers through the link's topic.
-The manual exchange stays first-class behind "exchange by hand" — the raw token copies with a click, the paste box parses tokens and full links alike, and camera scanning appears where `BarcodeDetector` exists (secure contexts) — and the wizard falls back to it with an explicit hint whenever the relay is unreachable.
+**`/p2p` — no server carries the state.** The pairing lives in a `<pair-wizard>` lit element that renders the shared `<pair-panel>` (ADR 0029): it shows the invite to share and the box to open theirs, says what happens next at every turn, keeps a start-over button in reach, and wears a badge that turns green while the wire stands and red when it drops.
+Pairing is a mutual exchange with no third party (ADR 0031): each side creates an invite and opens the other's, and the two connect once each has applied the other's payload.
+An invite is one link — `#uics1.<payload>`, a single URL-safe fragment that stays in the hash (never sent to a server) and linkifies whole — mirrored as a copyable token and a scannable `<qr-code>` (ADR 0030, the same component the terminal renders).
+Pairing is symmetric underneath (ADR 0024): both sides create WebRTC offers and each synthesizes the peer's answer locally with fingerprint-derived DTLS roles, so nobody has to be "first"; a link opened in a browser that already has a waiting tab hands the connection over via BroadcastChannel — a same-browser handover, not a server.
+Opening a peer takes any form: the paste box parses tokens and full links alike, and camera scanning appears where `BarcodeDetector` exists (secure contexts).
 The page passes a public STUN server to the pairing (the library default is none); the repo ships no TURN relay, and unreachable peers fail with a message instead of hanging.
-Two localStorage knobs tune a browser: `uic-broker` (`off` for the fully manual flow, or the URL of a self-hosted ntfy) and `uic-ice` (a JSON `RTCIceServer` array appended to the STUN default — a TURN server with credentials reaches across hostile NATs; coturn mints long-lived credentials from its static secret with username = a future unix timestamp and credential = base64 of HMAC-SHA1(secret, username)).
-Links are consumed exactly once (a reload lands on the clean invite page) and the important pairing events log to the browser console.
+One localStorage knob tunes a browser: `uic-ice` (a JSON `RTCIceServer` array appended to the STUN default — a TURN server with credentials reaches across hostile NATs; coturn mints long-lived credentials from its static secret with username = a future unix timestamp and credential = base64 of HMAC-SHA1(secret, username)).
+Links are consumed exactly once (a load reads the payload, then strips it — a reload lands on the clean invite page and nothing lingers in history) and the important pairing events log to the browser console.
 Each swap pairs exactly two browsers; links carrying the whole peer set, so a connected tab can keep inviting others, is the natural next step.
 The baked dist is a plain static site, so the project's GitHub Pages serves it under `/lit-demo/` — the pairing page at `/lit-demo/p2p/` needs no server at all, and the HTTPS context enables the camera scanner there; the server-backed `live` mode naturally stays a `cargo run` affair.
+
+**The terminal is a peer too (ADR 0028), rendering the same pairing UI (ADR 0029).** `cargo run -p uic_lit_demo -- p2p` mounts the shared `<pair-panel>` beside the todo list — the same component the browser renders — showing the invite link, a scannable QR (a native terminal widget, ADR 0030), a copyable token, a peer-paste box, and the renew ("start over") and connect controls, with a live badge.
+The QR draws black on white whatever the terminal theme (a camera wants dark modules on a light ground) and docks to the right of both panes on a wide terminal, wrapping below them under about 200 columns — real flexbox from the p2p deck's stylesheet, not host rect math.
+`cargo run -p uic_lit_demo -- p2p '<link-or-token>'` opens an invite the other way — decode the browser's link or its `uics1.` token to connect, then send your own token back (paste it into the browser's panel) so the other side connects too.
+The panel is presentation only, driven by properties the host sets and signalling button intent back through a `command` property the terminal loop polls (Boa has no events); the transport differs per host — the browser's `pair-wizard` owns the swap and the clipboard, the terminal's native `webrtc-rs` peer carries the codec in Rust (`uic_sync::pair`, one byte contract with the page).
+The terminal runs as an ICE-lite agent (host candidates only, so it pairs on a shared network — the same LAN, a personal hotspot — while crossing NATs stays out of scope), and `UIC_LIT_DEMO_ICE_DEBUG=1` traces the candidates when a pairing will not come up.
 
 ## Knobs
 
 - `UIC_LIT_DEMO_ADDR=host:port` moves the server (default `127.0.0.1:8090`; `live` defaults to `0.0.0.0:8090`).
 - `WEB_MODULES_EMBEDDED=1` forces the fully-embedded dist (no filesystem reads).
 - Dev serving recompiles `web/pages/` live; a change under `web/src/` re-bakes through cargo — restart the server.
+- `UIC_LIT_DEMO_P2P_PAGE=url` sets the page a terminal invite links to (default the published `/lit-demo/p2p/`; point it at a dev server to pair locally).
+- `UIC_LIT_DEMO_ICE_DEBUG=1` traces the terminal peer's ICE candidates and connection state.

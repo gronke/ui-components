@@ -29,6 +29,9 @@ use uic_tui::crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
 use uic_tui::{crossterm, ratatui, KeyStroke};
 use web_modules::{serve, Frontend};
 
+mod pair;
+mod qr_widget;
+
 static DIST: Dir = include_dir!("$OUT_DIR/dist");
 
 const PACKAGE: &str = "@schuhkarton/lit-todo";
@@ -39,13 +42,85 @@ const STATE_FIELDS: [&str; 4] = ["draft", "editing", "items", "selected"];
 
 type Terminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>;
 
+/// The status line, shared: the p2p mode's pairing thread narrates into it
+/// while the terminal loop repaints on change.
+type StatusLine = Arc<Mutex<String>>;
+
+/// The `<pair-panel>` view state (ADR 0029): the pairing thread writes it,
+/// the terminal loop mirrors it onto the mounted panel with `set_prop` —
+/// the same component the browser renders, driven by properties.
+#[derive(Clone, PartialEq, Default)]
+struct PanelState {
+    mode: String,
+    link: String,
+    token: String,
+    status: String,
+    connected: Option<bool>,
+    reset_label: String,
+}
+
+impl PanelState {
+    fn apply(&self, host: &mut JsHost, node: NodeId) -> Result<(), Box<dyn std::error::Error>> {
+        host.set_prop(node, "mode", &serde_json::to_string(&self.mode)?)?;
+        host.set_prop(node, "link", &serde_json::to_string(&self.link)?)?;
+        host.set_prop(node, "token", &serde_json::to_string(&self.token)?)?;
+        host.set_prop(node, "status", &serde_json::to_string(&self.status)?)?;
+        let connected = match self.connected {
+            Some(value) => value.to_string(),
+            None => "null".into(),
+        };
+        host.set_prop(node, "connected", &connected)?;
+        host.set_prop(
+            node,
+            "resetLabel",
+            &serde_json::to_string(&self.reset_label)?,
+        )?;
+        Ok(())
+    }
+}
+
+/// A button intent read off the mounted panel and forwarded to the pairing
+/// thread (there is no event-out seam under Boa — ADR 0029).
+enum Command {
+    /// Start a fresh invite (the reset / "invite somebody else" button).
+    Renew,
+    /// Connect to a pasted invite (the "connect" button).
+    Connect(String),
+}
+
+/// The terminal loop's handle on the mounted panel: mirror its state in,
+/// forward its commands out. The deck's QR element rides along — the panel
+/// state's link is its data (ADR 0030).
+struct PanelDriver<'a> {
+    node: NodeId,
+    qr: NodeId,
+    state: &'a Arc<Mutex<PanelState>>,
+    commands: &'a mpsc::UnboundedSender<Command>,
+}
+
+/// The first element of a tag below the document root — how the p2p mode
+/// finds the components its deck composed (the deck renders once and is
+/// never re-committed, so the nodes stay put).
+fn node_by_tag(host: &JsHost, tag: &str) -> Option<NodeId> {
+    let state = host.state.borrow();
+    let root = state.doc.root();
+    let found = state.doc.descendants(root).find(|&node| {
+        state
+            .doc
+            .element(node)
+            .is_some_and(|el| el.tag().as_ref() == tag)
+    });
+    found
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     match std::env::args().nth(1).as_deref() {
         None => tui(),
         Some("serve") => serve_web(),
         Some("live") => live(),
+        Some("p2p") => p2p(std::env::args().nth(2)),
         Some(other) => Err(format!(
-            "unknown mode {other:?}: no arguments runs the terminal app, `serve` the browser host, `live` both on one state"
+            "unknown mode {other:?}: no arguments runs the terminal app, `serve` the browser host, `live` both on one state, `p2p [link-or-token]` a serverless peer"
         )
         .into()),
     }
@@ -80,8 +155,10 @@ fn mounted_host() -> Result<(JsHost, NodeId), Box<dyn std::error::Error>> {
 
 fn tui() -> Result<(), Box<dyn std::error::Error>> {
     let (mut host, node) = mounted_host()?;
-    let status = "lit-todo via Boa · typing lands in the input · Enter adds/edits · Space toggles · F5/F6 reorder · Del removes · Esc quits";
-    with_terminal(|terminal| run(&mut host, node, terminal, status, None, None))
+    let status: StatusLine = Arc::new(Mutex::new(
+        "lit-todo via Boa · typing lands in the input · Enter adds/edits · Space toggles · F5/F6 reorder · Del removes · Esc quits".into(),
+    ));
+    with_terminal(|terminal| run(&mut host, node, terminal, &status, None, None, None))
 }
 
 /// Brackets the run with terminal setup and restore.
@@ -96,35 +173,25 @@ fn with_terminal(
     result
 }
 
-/// The join URL as a scannable half-block code. Dark modules stay unpainted
-/// (the terminal background), light ones paint in the foreground — standard
-/// polarity on dark terminals.
+/// The join URL as a scannable half-block code, painted black on white like
+/// the shared widget — a camera wants dark modules on a light ground
+/// whatever the terminal theme (ADR 0030).
 struct QrPane {
     text: String,
     width: u16,
     height: u16,
     url: String,
+    title: &'static str,
 }
 
-fn qr_pane(url: &str) -> Option<QrPane> {
-    use qrcode::render::unicode::Dense1x2;
-    let code = qrcode::QrCode::new(url).ok()?;
-    let text = code
-        .render::<Dense1x2>()
-        .dark_color(Dense1x2::Light)
-        .light_color(Dense1x2::Dark)
-        .build();
-    let width = text
-        .lines()
-        .map(|line| line.chars().count())
-        .max()
-        .unwrap_or(0) as u16;
-    let height = text.lines().count() as u16;
+fn qr_pane(url: &str, title: &'static str) -> Option<QrPane> {
+    let (text, width, height) = qr_widget::render_qr(url)?;
     Some(QrPane {
         text,
         width,
         height,
         url: url.to_string(),
+        title,
     })
 }
 
@@ -151,10 +218,11 @@ fn app_area(frame_area: ratatui::layout::Rect, qr: Option<&QrPane>) -> ratatui::
 fn draw(
     host: &JsHost,
     terminal: &mut Terminal,
-    status: &str,
+    status: &StatusLine,
     qr: Option<&QrPane>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let state = host.state.clone();
+    let status = status.lock().expect("status line").clone();
     terminal.draw(|frame| {
         let mut s = state.borrow_mut();
         s.dirty = false;
@@ -167,7 +235,8 @@ fn draw(
                 ..full
             };
             frame.render_widget(
-                ratatui::widgets::Paragraph::new(status).style(ratatui::style::Style::new().dim()),
+                ratatui::widgets::Paragraph::new(status.as_str())
+                    .style(ratatui::style::Style::new().dim()),
                 status_area,
             );
         }
@@ -181,11 +250,13 @@ fn draw(
                 height: (qr.height + 3).min(area.height),
             };
             frame.render_widget(
-                ratatui::widgets::Paragraph::new(format!("{}\n{}", qr.text, qr.url)).block(
-                    ratatui::widgets::Block::bordered()
-                        .title("join")
-                        .padding(ratatui::widgets::Padding::horizontal(1)),
-                ),
+                ratatui::widgets::Paragraph::new(format!("{}\n{}", qr.text, qr.url))
+                    .style(qr_widget::qr_card_style())
+                    .block(
+                        ratatui::widgets::Block::bordered()
+                            .title(qr.title)
+                            .padding(ratatui::widgets::Padding::horizontal(1)),
+                    ),
                 pane,
             );
         }
@@ -225,13 +296,16 @@ fn run(
     host: &mut JsHost,
     node: NodeId,
     terminal: &mut Terminal,
-    status: &str,
+    status: &StatusLine,
     qr: Option<&QrPane>,
     mut bridge: Option<&mut LiveBridge>,
+    panel: Option<PanelDriver>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Double clicks detect by cell, not node: a click's re-render swaps
     // the subtree, so node identities never survive between the two.
     let mut last_click: Option<(u16, u16, std::time::Instant)> = None;
+    let mut last_status = status.lock().expect("status line").clone();
+    let mut last_panel = PanelState::default();
     draw(host, terminal, status, qr)?;
     loop {
         let changed = match next_input(bridge.as_deref_mut())? {
@@ -292,6 +366,58 @@ fn run(
             if let Some(bridge) = bridge.as_deref_mut() {
                 publish(host, node, bridge)?;
             }
+            // A click may have set the panel's command property; forward the
+            // intent to the pairing thread and clear it (Boa has no events).
+            if let Some(panel) = panel.as_ref() {
+                let command = host.prop_json(panel.node, "command")?;
+                if command != "null" {
+                    host.set_prop(panel.node, "command", "null")?;
+                    let name: String = serde_json::from_str(&command)?;
+                    match name.as_str() {
+                        "invite" | "reset" => {
+                            let _ = panel.commands.send(Command::Renew);
+                        }
+                        "connect" => {
+                            let peer: String =
+                                serde_json::from_str(&host.prop_json(panel.node, "peer")?)?;
+                            let _ = panel.commands.send(Command::Connect(peer));
+                        }
+                        // copy-* / scan have no terminal effect (the link is
+                        // selectable text; no clipboard, no camera).
+                        _ => {}
+                    }
+                }
+            }
+        }
+        // The p2p pairing thread narrates into the shared status line —
+        // its changes repaint too, not only the app's own.
+        let status_changed = {
+            let now = status.lock().expect("status line");
+            if *now != last_status {
+                last_status = now.clone();
+                true
+            } else {
+                false
+            }
+        };
+        // The pairing thread also writes the panel's state; mirror it onto
+        // the mounted component when it moves.
+        let panel_changed = if let Some(panel) = panel.as_ref() {
+            let now = panel.state.lock().expect("panel state").clone();
+            if now != last_panel {
+                now.apply(host, panel.node)?;
+                // The deck's QR shows the same invite; an unchanged link is
+                // a no-op re-set (the property dirty check absorbs it).
+                host.set_prop(panel.qr, "data", &serde_json::to_string(&now.link)?)?;
+                last_panel = now;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if changed || status_changed || panel_changed {
             draw(host, terminal, status, qr)?;
         }
     }
@@ -398,8 +524,10 @@ fn live() -> Result<(), Box<dyn std::error::Error>> {
         addr.ip()
     };
     let join_url = format!("http://{join_host}:{}/", addr.port());
-    let qr = qr_pane(&join_url);
-    let status = format!("lit-todo live · everyone edits one state · {join_url} · Esc quits");
+    let qr = qr_pane(&join_url, "join");
+    let status: StatusLine = Arc::new(Mutex::new(format!(
+        "lit-todo live · everyone edits one state · {join_url} · Esc quits"
+    )));
     with_terminal(|terminal| {
         run(
             &mut host,
@@ -408,8 +536,227 @@ fn live() -> Result<(), Box<dyn std::error::Error>> {
             &status,
             qr.as_ref(),
             Some(&mut bridge),
+            None,
         )
     })
+}
+
+// ---- the p2p peer: the terminal joins the serverless pairing (ADR 0028) --
+
+/// The published pairing page an invite link opens;
+/// `UIC_LIT_DEMO_P2P_PAGE` points it elsewhere (the dev server).
+const P2P_PAGE: &str = "https://schuhkarton.github.io/ui-components/lit-demo/p2p/";
+
+fn p2p(invite: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    // One mounted root, the p2p deck: the todo card and the shared pairing
+    // panel (ADR 0029) stack in a column, the QR (ADR 0030) docks beside
+    // them — responsive flexbox from the deck's own styles, no rect math.
+    // The extra modules are baked in the package but off the todo-app entry
+    // graph, so they load explicitly, import order inside-out; then the
+    // mount upgrades the whole composition.
+    let mut host = JsHost::new()?;
+    host.load_package(Path::new(env!("UIC_LIT_DEMO_NPM_ROOT")), PACKAGE)?;
+    for module in ["qr-code.js", "pair-panel.js", "p2p-deck.js"] {
+        let src = std::fs::read_to_string(
+            Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
+                .join(PACKAGE)
+                .join(module),
+        )?;
+        host.load_module(&format!("@schuhkarton/lit-todo/{module}"), &src)?;
+    }
+    host.mount("p2p-deck", &[])?;
+    let node = node_by_tag(&host, "todo-app").ok_or("the deck mounts a todo-app")?;
+    let panel = node_by_tag(&host, "pair-panel").ok_or("the deck mounts a pair-panel")?;
+    // The deck's own QR — captured now, while the panel is still idle and
+    // has not rendered its (terminal-hidden) inline copy; the deck never
+    // re-commits, so the node stays put.
+    let qr = node_by_tag(&host, "qr-code").ok_or("the deck mounts a qr-code")?;
+
+    // Fail on garbage before taking over the screen.
+    let opener = invite.as_deref().map(uic_sync::pair::link_payload);
+    if let Some(payload) = &opener {
+        if uic_sync::pair::payload_role(payload) != Some(uic_sync::pair::Role::Offer) {
+            return Err(format!(
+                "not a pairing invite: pass the link or the uics1. token ({invite:?})"
+            )
+            .into());
+        }
+    }
+
+    let runtime = tokio::runtime::Runtime::new()?;
+    let page = std::env::var("UIC_LIT_DEMO_P2P_PAGE").unwrap_or_else(|_| P2P_PAGE.into());
+
+    let (inbound_tx, inbound_rx) = mpsc::unbounded_channel();
+    let (outbound_tx, _) = broadcast::channel(64);
+    let latest = Arc::new(Mutex::new(state_snapshot(&mut host, node)?));
+    let mut bridge = LiveBridge {
+        inbound: inbound_rx,
+        outbound: outbound_tx.clone(),
+        latest: latest.clone(),
+    };
+    let status: StatusLine = Arc::new(Mutex::new("lit-todo p2p · Esc quits".to_string()));
+    let panel_state = Arc::new(Mutex::new(PanelState::default()));
+    let (command_tx, command_rx) = mpsc::unbounded_channel();
+
+    // The pairing state machine runs beside the terminal loop — live()'s
+    // threading pattern — and drives the panel through `panel_state`.
+    let thread_state = panel_state.clone();
+    std::thread::spawn(move || {
+        runtime.block_on(pairing_loop(
+            opener,
+            page,
+            thread_state,
+            command_rx,
+            inbound_tx,
+            outbound_tx,
+            latest,
+        ));
+    });
+
+    with_terminal(|terminal| {
+        run(
+            &mut host,
+            node,
+            terminal,
+            &status,
+            None,
+            Some(&mut bridge),
+            Some(PanelDriver {
+                node: panel,
+                qr,
+                state: &panel_state,
+                commands: &command_tx,
+            }),
+        )
+    })
+}
+
+/// Builds an invite link the pairing page opens: the payload as a single
+/// URL-safe fragment `#uics1.…`, so a chat app linkifies the whole URL.
+fn invite_link(page: &str, payload: &str) -> String {
+    format!("{page}#{payload}")
+}
+
+/// The terminal's pairing state machine: create an invite, wait for the peer
+/// (its pasted token — pairing is a mutual exchange, ADR 0031), connect, and
+/// stand ready to renew. Everything it learns lands in `panel_state`, which
+/// the terminal loop mirrors onto the mounted `<pair-panel>`.
+#[allow(clippy::too_many_arguments)]
+async fn pairing_loop(
+    mut opener: Option<String>,
+    page: String,
+    panel_state: Arc<Mutex<PanelState>>,
+    mut commands: mpsc::UnboundedReceiver<Command>,
+    inbound: mpsc::UnboundedSender<String>,
+    outbound: broadcast::Sender<String>,
+    latest: Arc<Mutex<String>>,
+) {
+    let set = |state: PanelState| *panel_state.lock().expect("panel state") = state;
+    let set_status =
+        |text: &str| panel_state.lock().expect("panel state").status = text.to_string();
+
+    loop {
+        let swap = match pair::Swap::new().await {
+            Ok(swap) => swap,
+            Err(err) => {
+                set(PanelState {
+                    mode: "failed".into(),
+                    status: format!("pairing setup failed: {err}"),
+                    reset_label: "try again".into(),
+                    ..PanelState::default()
+                });
+                match commands.recv().await {
+                    Some(_) => continue,
+                    None => return,
+                }
+            }
+        };
+
+        // Pairing is a mutual exchange (ADR 0031): each side sends its invite
+        // and opens the other's. An opener already holds the peer's payload
+        // from the link it opened; an inviter waits for the peer's token.
+        let answering = opener.is_some();
+        let link = invite_link(&page, &swap.payload);
+        eprintln!("invite link:  {link}");
+        set(PanelState {
+            mode: "invite".into(),
+            link,
+            token: swap.payload.clone(),
+            status: if answering {
+                "opened their invite — send your token back so they connect too".into()
+            } else {
+                "send your invite, then paste their token to connect".into()
+            },
+            connected: None,
+            reset_label: "start over".into(),
+        });
+
+        // Find the peer: an opener holds it already; an inviter waits for a
+        // pasted token (the panel's connect button) or a renew.
+        let peer_payload: Option<String> = if let Some(peer) = opener.take() {
+            Some(peer)
+        } else {
+            match commands.recv().await {
+                Some(Command::Connect(peer)) => Some(uic_sync::pair::link_payload(&peer)),
+                Some(Command::Renew) => {
+                    swap.close().await;
+                    None
+                }
+                None => return,
+            }
+        };
+        let Some(peer_payload) = peer_payload else {
+            continue;
+        };
+
+        set_status("connecting…");
+        let closed: Arc<dyn Fn(String) + Send + Sync> = {
+            let panel_state = panel_state.clone();
+            Arc::new(move |text: String| {
+                let mut state = panel_state.lock().expect("panel state");
+                state.mode = "dropped".into();
+                state.connected = Some(false);
+                state.status = text;
+                state.reset_label = "invite somebody else".into();
+            })
+        };
+        match swap
+            .connect(
+                &peer_payload,
+                inbound.clone(),
+                outbound.clone(),
+                latest.clone(),
+                closed,
+            )
+            .await
+        {
+            Ok(()) => set(PanelState {
+                mode: "connected".into(),
+                status: "paired — one list, two ends".into(),
+                connected: Some(true),
+                reset_label: "invite somebody else".into(),
+                ..PanelState::default()
+            }),
+            Err(err) => set(PanelState {
+                mode: "failed".into(),
+                status: format!("pairing failed: {err}"),
+                reset_label: "start a new pairing".into(),
+                ..PanelState::default()
+            }),
+        }
+
+        // Stand ready: the reset button renews, a pasted token connects anew.
+        match commands.recv().await {
+            Some(Command::Renew) => {
+                swap.close().await;
+            }
+            Some(Command::Connect(peer)) => {
+                swap.close().await;
+                opener = Some(uic_sync::pair::link_payload(&peer));
+            }
+            None => return,
+        }
+    }
 }
 
 /// The frontend router plus the live endpoints: `/live` answers the page

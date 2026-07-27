@@ -73,6 +73,10 @@ axum = "0.8"
 # Renders the live mode's join URL as terminal half-blocks; the default
 # features would pull in the image stack.
 qrcode = { version = "0.14", default-features = false }
+base64 = "0.22"
+# The terminal's WebRTC peer (ADR 0028). 0.17 is the final tokio-coupled
+# line — master is a sans-io rewrite with a different API.
+webrtc = "0.17"
 
 # The browser TUI build (scripts/build-wasm.sh). One codegen unit per crate:
 # wasm-ld extracts archive members lazily, and the element registry's
