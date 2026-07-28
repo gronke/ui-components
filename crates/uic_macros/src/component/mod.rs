@@ -274,10 +274,10 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
     })
 }
 
-/// `.options` bindings carry option lists (ADR 0006): they belong on
+/// `.options` bindings carry option lists (ADR 0005): they belong on
 /// `<select>` elements — whose children then come from the data — on custom
 /// elements, which receive the list as a property, or on `data-tui` widgets,
-/// whose adapters store the rows (ADR 0015).
+/// whose adapters store the rows (ADR 0002).
 fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String> {
     use uic_template::{Attribute, Node};
     for node in nodes {
@@ -315,7 +315,7 @@ fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String>
 
 /// Whether the element mounts a terminal widget: an explicit `data-tui`
 /// marker, or a plain form element the runtime detects by element type
-/// (ADR 0027, the shared `uic_template::native` table). A bound `type`
+/// (ADR 0026, the shared `uic_template::native` table). A bound `type`
 /// counts conservatively — the committed value may imply a widget — and a
 /// static negative tabindex opts a presentation twin out, mirroring the
 /// mount.
@@ -353,7 +353,7 @@ fn implies_widget(el: &uic_template::Element) -> bool {
 
 /// A `for` body renders data rows, not widgets: it may not mount a custom
 /// element or a widget, whose instance counts the slot model needs fixed
-/// (ADR 0006/0018). Lists of widgets stay options-as-data.
+/// (ADR 0005/0001). Lists of widgets stay options-as-data.
 fn validate_for_bodies(nodes: &[uic_template::Node]) -> Result<(), String> {
     use uic_template::Node;
     fn no_widgets(nodes: &[Node]) -> Result<(), String> {
@@ -363,7 +363,7 @@ fn validate_for_bodies(nodes: &[uic_template::Node]) -> Result<(), String> {
                     if el.is_custom() || implies_widget(el) {
                         return Err(format!(
                             "<{}> is a widget and cannot appear inside a <template for=…>; \
-                             a loop body renders data rows, not widgets (ADR 0006/0018)",
+                             a loop body renders data rows, not widgets (ADR 0005/0001)",
                             el.tag
                         ));
                     }

@@ -5,10 +5,11 @@
 
 use uic_js::JsHost;
 
-// A trimmed copy of the component: the render surface and the property /
-// command contract, without importing the app's build tree. It mirrors
-// apps/lit-demo/web/src/pair-panel.ts — the test pins the seam the terminal
-// depends on (properties in, command out), not the app file itself.
+// A deliberately minimal fixture: the property / command seam without the
+// app's build tree (the dependency points the other way — uic_js cannot
+// import the demo's baked package). The REAL pair-panel.ts is exercised
+// under this host in apps/lit-demo/tests/p2p_components.rs; this test pins
+// the seam contract (properties in, command out), not the app's markup.
 const PANEL: &str = r#"
 import { html, LitElement } from 'lit';
 
@@ -65,13 +66,12 @@ customElements.define('pair-panel', PairPanel);
 fn node_by(host: &JsHost, selector: &str) -> uic_dom::NodeId {
     let state = host.state.borrow();
     let root = state.doc.root();
-    let found = state.doc.descendants(root).find(|&node| {
-        state
-            .doc
-            .element(node)
-            .is_some_and(|el| el.attr("class").is_some_and(|c| c.contains(selector)))
-    });
-    found.expect("a matching node")
+    state
+        .doc
+        .find_element(root, |el| {
+            el.attr("class").is_some_and(|c| c.contains(selector))
+        })
+        .expect("a matching node")
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn properties_drive_the_render() {
 
     // The host sets the invite state; the panel renders the link and badge.
     host.set_prop(panel, "mode", "\"invite\"").unwrap();
-    host.set_prop(panel, "link", "\"https://example/p2p/#s=uics1.abc\"")
+    host.set_prop(panel, "link", "\"https://example/p2p/#abc123\"")
         .unwrap();
     host.set_prop(panel, "status", "\"share the invite\"")
         .unwrap();
@@ -91,7 +91,7 @@ fn properties_drive_the_render() {
         .unwrap();
 
     let html = host.state.borrow().doc.inner_html(panel);
-    assert!(html.contains("uics1.abc"), "the link renders: {html}");
+    assert!(html.contains("abc123"), "the link renders: {html}");
     assert!(
         html.contains("share the invite"),
         "the status renders: {html}"

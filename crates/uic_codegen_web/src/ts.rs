@@ -39,7 +39,7 @@ export function notifyProperties(
   }
 }
 
-// One entry of a select option list (ADR 0006): `value` commits, `short` is
+// One entry of a select option list (ADR 0005): `value` commits, `short` is
 // the closed-layer text, `label` the open-list text; both fall back to value.
 export type SelectOption = { value: string; short?: string; label?: string };
 "#;
@@ -276,7 +276,7 @@ fn template_has_if(nodes: &[Node]) -> bool {
 }
 
 /// A hole expression as a JS expression: `this.<member>` for a property or
-/// computed, or `<var>.<field>` for a loop-variable member (ADR 0018), which
+/// computed, or `<var>.<field>` for a loop-variable member (ADR 0001), which
 /// binds to the `.map` parameter, not to `this`.
 fn expr_js(expr: &Expr, def: &ComponentDef) -> String {
     if let Expr::Member { base, field } = expr {
@@ -318,7 +318,7 @@ fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {
                 out.push_str("` : nothing}");
             }
             Node::For { each, item, body } => {
-                // The proven `.map` shape (ADR 0006/0018): each row a nested
+                // The proven `.map` shape (ADR 0005/0001): each row a nested
                 // html literal, the loop variable the map parameter. A nested
                 // source is a member of the outer row (`unknown` to the type
                 // system), so it carries the runtime-shape cast.
@@ -347,7 +347,7 @@ fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {
                 out.push_str(&el.tag);
                 for attr in &el.attrs {
                     // Native selects have no options property; the binding
-                    // becomes the <option> children below (ADR 0006).
+                    // becomes the <option> children below (ADR 0005).
                     if select_options.is_some()
                         && matches!(attr, Attribute::Prop { name, .. } if name == "options")
                     {
@@ -372,7 +372,7 @@ fn emit_nodes(nodes: &[Node], def: &ComponentDef, out: &mut String) {
 }
 
 /// Expands a `<select .options=${…}>` binding into its `<option>` children
-/// (ADR 0006). The closed front layer (class `input-front`) prefers the
+/// (ADR 0005). The closed front layer (class `input-front`) prefers the
 /// compact `short` label; `?selected` compares against the select's own
 /// `.value` binding (its computed already renders null as `""`), keeping
 /// the first render correct before Lit assigns the value property.

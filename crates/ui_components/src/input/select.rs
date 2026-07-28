@@ -1,5 +1,5 @@
 //! `<input-select>` — the generic dropdown of the catalog's select family.
-//! Options are data (ADR 0006): a `SelectOption` list assigned as a property
+//! Options are data (ADR 0005): a `SelectOption` list assigned as a property
 //! or produced by a computed, rendered as the two-layer front/back select in
 //! the browser and as a dropdown widget in the terminal.
 
@@ -24,7 +24,7 @@ pub struct InputSelect {
     /// Flush rendering when embedded in another input's group.
     #[property(reflect)]
     pub embedded: bool,
-    /// The option list; property-only, starts empty (ADR 0006).
+    /// The option list; property-only, starts empty (ADR 0005).
     #[property]
     pub options: Vec<SelectOption>,
 }

@@ -1,4 +1,4 @@
-//! The catalog's own TUI-compatibility gate (ADR 0016): every registered
+//! The catalog's own TUI-compatibility gate (ADR 0026): every registered
 //! template must be servable by the terminal. Third-party component crates
 //! add the same two lines against their own `link()` anchor.
 

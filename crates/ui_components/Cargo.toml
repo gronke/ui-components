@@ -14,7 +14,7 @@ chrono-tz.workspace = true
 uic_tui = { workspace = true, optional = true }
 
 [features]
-# The co-located TUI widget twins (ADR 0015). TUI consumers enable it;
+# The co-located TUI widget twins (ADR 0002). TUI consumers enable it;
 # web-only consumers (codegen build scripts, the npm tree) stay lean.
 tui = ["dep:uic_tui"]
 

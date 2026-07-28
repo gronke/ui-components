@@ -161,7 +161,7 @@ fn roots_stack_and_tab_crosses_their_boundary() {
 }
 
 /// The option wire format of `TuiSession::set_options_json` — the deliberate
-/// array escape hatch beside the state-shaped `set_prop_json` (ADR 0006):
+/// array escape hatch beside the state-shaped `set_prop_json` (ADR 0005):
 /// JSON rows in through `options_from_json`, applied as the options property
 /// of a bare select.
 #[test]
@@ -274,7 +274,7 @@ fn option_rows_seed_by_property_name() {
     let (mut app, out) = app(50, 12);
     let el = app.mount("input-suggestion").unwrap();
     app.set_attr(el, "label", "Word");
-    // The rows land as Value::Options (ADR 0006), the type a plain JSON
+    // The rows land as Value::Options (ADR 0005), the type a plain JSON
     // array cannot express — the widget offers them once the popup opens.
     app.set_prop(
         el,

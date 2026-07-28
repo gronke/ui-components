@@ -11,7 +11,7 @@ export type ExampleConfig = {
     attrs: Record<string, string>;
     /** Plain-valued property seeds (JSON-expressible). */
     props: Record<string, unknown>;
-    /** Option-rows properties — their own data type, not plain arrays (ADR 0006). */
+    /** Option-rows properties — their own data type, not plain arrays (ADR 0005). */
     optionProps: Record<string, OptionRow[]>;
     /** The notify events that sync the panes, each carrying one property. */
     notify: { event: string; prop: string }[];

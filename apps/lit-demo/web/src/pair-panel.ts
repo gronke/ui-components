@@ -1,64 +1,84 @@
 // The pairing UI, shared by both hosts. This element is presentation only —
-// the invite link, the copyable token, the peer-paste box, the buttons, the
-// status line and the connection badge — driven entirely by properties a
-// host sets and signalling intent back through the `command` property (a
-// button click writes it; the host reads and clears it). The browser also
-// gets a real CustomEvent for the same intents, but the property is the
-// channel that works under the mocked terminal lit, which has no events.
+// the invite link, the peer-paste box, the buttons, the status line and the
+// connection badge — driven entirely by properties a host sets and
+// signalling intent back through the `command` property (a button click
+// writes it; the host reads and clears it). The browser also gets a real
+// CustomEvent for the same intents, but the property is the channel that
+// works under the mocked terminal lit, which has no events.
 //
 // The transport (WebRTC, the clipboard, the camera) is NOT here — each host
 // owns it: the browser's pair-wizard, the terminal's Rust peer. The QR is
-// the shared <qr-code> the invite body renders (ADR 0030): the browser draws
+// the shared <qr-code> the invite body renders (ADR 0029): the browser draws
 // an SVG, the terminal a native block-char widget — one element, two
-// renderers, the same reason todo-item keeps a `[x]` span twin.
+// renderers, the same reason todo-item keeps a `[x]` span twin. The invite
+// itself shows once per host: the browser a compact 🔗 copy-link (it has a
+// clipboard), the terminal the full link as wrapped, selectable text.
 import { css, html, LitElement } from 'lit';
-import { live } from 'lit/directives/live.js';
+import { terminalTheme } from './theme.js';
 import './qr-code.js';
+
+/** The mode vocabulary hosts drive the panel with. The native session
+ * produces the first five (Rust twin: `uic_sync::session::PanelMode`); the
+ * browser wizard adds the takeover roles and the no-WebRTC dead end. Only
+ * `idle` and `invite` render a body — every other mode speaks through the
+ * status line, the badge and the action/reset buttons. */
+export type PanelMode =
+    | 'idle'
+    | 'invite'
+    | 'connected'
+    | 'dropped'
+    | 'failed'
+    | 'handed'
+    | 'moved'
+    | 'nortc';
 
 export class PairPanel extends LitElement {
     static properties = {
         mode: {},
         link: {},
-        token: {},
         status: {},
         connected: {},
         resetLabel: {},
+        actionLabel: {},
         canScan: { type: Boolean },
         command: {},
         peer: {},
     };
 
     // The terminal's look: the mapped Bootstrap subset draws the card and
-    // the badge; these rules add what the map leaves unset. The inline QR
-    // hides here — static styles are the terminal-only layer, and the
-    // terminal's p2p deck shows the QR beside the panes instead (ADR 0030);
-    // the browser ignores these rules and keeps the QR inside the card.
-    static styles = css`
-        :host {
-            display: block;
-        }
-        .card-header {
-            font-weight: bold;
-            color: #e5c07b;
-        }
-        .status {
-            color: #808a93;
-        }
-        .copy-link {
-            color: #6fb3d2;
-        }
-        .qr-lead,
-        qr-code {
-            display: none;
-        }
-    `;
+    // the badge; these rules add what the map leaves unset. Host-specific
+    // slots hide here — static styles are the terminal-only layer: the
+    // inline QR (the p2p deck docks it beside the panes, ADR 0029) and the
+    // copy-link anchor (no clipboard) vanish, while the link text wraps
+    // mid-token so the long URL reads across lines. The browser ignores
+    // these rules; its page css hides the link text instead.
+    static styles = [
+        terminalTheme,
+        css`
+            :host {
+                display: block;
+            }
+            .status {
+                color: var(--tui-muted);
+            }
+            .link-text {
+                overflow-wrap: anywhere;
+                color: var(--tui-info);
+            }
+            .copy-link,
+            .qr-lead,
+            qr-code {
+                display: none;
+            }
+        `,
+    ];
 
-    declare mode: 'idle' | 'invite' | 'answering' | 'connected' | 'dropped' | 'failed';
+    declare mode: PanelMode;
     declare link: string;
-    declare token: string;
     declare status: string;
     declare connected: boolean | null;
     declare resetLabel: string;
+    declare actionLabel: string;
     declare canScan: boolean;
     declare command: string | null;
     declare peer: string;
@@ -67,10 +87,10 @@ export class PairPanel extends LitElement {
         super();
         this.mode = 'idle';
         this.link = '';
-        this.token = '';
         this.status = '';
         this.connected = null;
         this.resetLabel = '';
+        this.actionLabel = '';
         this.canScan = false;
         this.command = null;
         this.peer = '';
@@ -80,14 +100,55 @@ export class PairPanel extends LitElement {
         return this;
     }
 
+    /** The focused control's stable identity, captured before a re-render:
+     * a structural update (the mode body swapping, a label button appearing
+     * or vanishing) tears the focused node down, the browser drops focus to
+     * `body`, and a keyboard user gets knocked back to the top of the page.
+     * Captured by the control's `name` or its leading class and restored
+     * onto the successor. Guarded: the terminal host has no `document`. */
+    private focusedKey: string | null = null;
+
+    willUpdate(): void {
+        this.focusedKey = null;
+        if (typeof document === 'undefined') {
+            return;
+        }
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && this.contains(active)) {
+            this.focusedKey = active.getAttribute('name') ?? active.classList[0] ?? null;
+        }
+    }
+
+    updated(): void {
+        if (!this.focusedKey || typeof document === 'undefined') {
+            return;
+        }
+        const active = document.activeElement;
+        if (active && active !== document.body && this.contains(active)) {
+            return;
+        }
+        // The same control re-rendered, or — when a mode swap removed it,
+        // e.g. "create an invite" giving way to the invite card — the new
+        // body's first control, so the keyboard walk continues in place.
+        const successor =
+            this.querySelector(`[name="${this.focusedKey}"]`) ??
+            this.querySelector('.' + this.focusedKey) ??
+            this.querySelector('a[href], button, textarea, input');
+        (successor as HTMLElement | null)?.focus?.();
+    }
+
     /** The one seam back to the host: a click sets the command property the
      * host polls, and — where the platform has events — dispatches the same
      * intent so a browser controller can just listen. The terminal reads
-     * the property and clears it; the browser uses the event. */
+     * the property and clears it; the browser uses the event. Only
+     * `connect` carries a detail (the pasted peer text); `action` stays a
+     * deliberately generic name — the panel is presentation-only and the
+     * host supplies the label (the tab takeover today). */
     private emit(command: string): void {
         this.command = command;
         if (typeof CustomEvent === 'function' && typeof this.dispatchEvent === 'function') {
-            this.dispatchEvent(new CustomEvent(command, { detail: this.peer, bubbles: true }));
+            const detail = command === 'connect' ? this.peer : undefined;
+            this.dispatchEvent(new CustomEvent(command, { detail, bubbles: true }));
         }
     }
 
@@ -114,8 +175,8 @@ export class PairPanel extends LitElement {
         this.emit('copy-link');
     }
 
-    private onCopyToken(): void {
-        this.emit('copy-token');
+    private onAction(): void {
+        this.emit('action');
     }
 
     private onScan(): void {
@@ -136,8 +197,13 @@ export class PairPanel extends LitElement {
             <div class="card-body">
                 <p class="status text-body-secondary">${this.status}</p>
                 ${this.renderBody()}
+                ${this.actionLabel
+                    ? html`<button class="action btn btn-primary d-block mt-3" @click=${this.onAction}>
+                          ${this.actionLabel}
+                      </button>`
+                    : ''}
                 ${this.resetLabel
-                    ? html`<button class="btn btn-outline-secondary d-block mt-3" @click=${this.onReset}>
+                    ? html`<button class="reset btn btn-outline-secondary d-block mt-3" @click=${this.onReset}>
                           ${this.resetLabel}
                       </button>`
                     : ''}
@@ -148,52 +214,48 @@ export class PairPanel extends LitElement {
     private renderBody() {
         switch (this.mode) {
             case 'idle':
-                return html`<button class="btn btn-primary" @click=${this.onInvite}>
+                return html`<button class="invite btn btn-primary" @click=${this.onInvite}>
                     create an invite
                 </button>`;
             case 'invite':
-                // Pairing is a mutual exchange (ADR 0031): both halves are
-                // first-class — share your invite, and open theirs. The QR
-                // trails the controls in the browser card; the terminal hides
-                // this inline copy and docks the QR beside the panes instead
-                // (the p2p deck, ADR 0030).
+                // Pairing is a mutual exchange (ADR 0028): both halves are
+                // first-class — share your invite, and open theirs. The
+                // invite shows once per host: the compact copy-link in the
+                // browser, the wrapped link text in the terminal. The QR
+                // trails the controls in the browser card; the terminal
+                // hides this inline copy and docks the QR beside the panes
+                // instead (the p2p deck, ADR 0029).
                 return html`<h3 class="h6">share your invite</h3>
                     <a
                         class="copy-link"
                         href=${this.link}
-                        title="click to copy"
+                        title="copy the invite link"
                         @click=${this.onCopyLink}
-                        >${this.link}</a
+                        >🔗 copy link</a
                     >
-                    <textarea
-                        name="token"
-                        class="form-control font-monospace mt-2"
-                        readonly
-                        title="click to copy"
-                        .value=${live(this.token)}
-                        @click=${this.onCopyToken}
-                    ></textarea>
+                    <p class="link-text">${this.link}</p>
                     <h3 class="h6 mt-3">open their invite</h3>
                     ${this.canScan
-                        ? html`<button class="btn btn-outline-secondary mb-2" @click=${this.onScan}>
+                        ? html`<button class="scan btn btn-outline-secondary mb-2" @click=${this.onScan}>
                               scan their code
                           </button>`
                         : ''}
                     <textarea
                         name="peer"
                         class="peer-input form-control font-monospace"
-                        placeholder="their link or uics1.…"
+                        placeholder="their link or code…"
                         @input=${this.onPeerInput}
                     ></textarea>
-                    <button class="btn btn-primary mt-2" @click=${this.onConnect}>connect</button>
+                    <button class="connect btn btn-primary mt-2" @click=${this.onConnect}>
+                        connect
+                    </button>
                     <h3 class="h6 qr-lead mt-3">or show this code</h3>
                     <qr-code data=${this.link}></qr-code>`;
-            case 'answering':
-                return html`<div
-                    class="spinner-border spinner-border-sm text-secondary"
-                    role="status"
-                ></div>`;
             default:
+                // Every other mode — connected, dropped, failed, the
+                // takeover roles — renders no body on purpose: the status
+                // line, the badge and the action/reset buttons outside
+                // this switch carry those states.
                 return html``;
         }
     }

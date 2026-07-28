@@ -1,6 +1,6 @@
 //! The lit-parts engine: a template compiles once into a part plan, render
 //! targets instantiate the prototype by cloning, and updates patch only the
-//! bound parts — lit-html's architecture over the retained tree (ADR 0010).
+//! bound parts — lit-html's architecture over the retained tree (ADR 0008).
 //!
 //! The dialect's holes are NAMED (`${ident}`), so unlike lit no marker
 //! sentinels are injected before parsing: the raw source goes through
@@ -70,7 +70,7 @@ enum SpecKind {
     Conditional { hole: usize, branch: usize },
     /// `<template for=${each} as=item>` — the anchor is the template element;
     /// the body holes live in their own space, resolved per row by the
-    /// caller and delivered as a [`PartValue::List`] (ADR 0018).
+    /// caller and delivered as a [`PartValue::List`] (ADR 0001).
     Repeat {
         hole: usize,
         branch: usize,
@@ -93,7 +93,7 @@ pub enum PartValue {
     /// lit's `noChange`: keep whatever is committed.
     NoChange,
     /// A repeat's resolved rows: one inner vector of body-hole values per
-    /// row, in body-hole order (ADR 0018). Only a repeat's `each` hole
+    /// row, in body-hole order (ADR 0001). Only a repeat's `each` hole
     /// carries it.
     List(Vec<Vec<PartValue>>),
 }
@@ -197,13 +197,13 @@ pub struct EventBinding {
 
 /// A repeat's shape, so the caller can resolve the body holes per row: the
 /// index (into [`CompiledTemplate::holes`]) of the array hole, the loop
-/// variable, and the body-hole expressions in commit order (ADR 0018).
+/// variable, and the body-hole expressions in commit order (ADR 0001).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepeatMeta {
     pub each_hole: usize,
     pub item: String,
     pub body_holes: Vec<String>,
-    /// Repeats nested in this body (ADR 0018): their `each_hole` indexes THIS
+    /// Repeats nested in this body (ADR 0001): their `each_hole` indexes THIS
     /// meta's `body_holes`, and their rows resolve with this loop's variable
     /// still in scope. The caller places their resolved lists at that body
     /// slot, nesting `PartValue::List` values.
@@ -282,7 +282,7 @@ impl CompiledTemplate {
 
     /// The repeat tree of the template, so the caller resolves the body holes
     /// per row and hands back a [`PartValue::List`] at each repeat's
-    /// `each_hole` (ADR 0018). Repeats inside conditional branches are
+    /// `each_hole` (ADR 0001). Repeats inside conditional branches are
     /// included at their level; repeats nested inside another repeat body
     /// appear under their parent's `nested`, with the parent's loop variable
     /// still in scope for their rows.
@@ -432,7 +432,7 @@ impl IrBuilder {
                     });
                     // The array reference is a top-level hole; the body holes
                     // live in their own space, numbered from zero, resolved
-                    // per row by the caller (ADR 0018).
+                    // per row by the caller (ADR 0001).
                     let each_hole = self.push_hole(each);
                     let outer = std::mem::take(&mut self.holes);
                     let mut branch_plan = Vec::new();
@@ -1116,7 +1116,7 @@ fn commit_parts<T: Default>(
                 if last.as_deref() == Some(rows) {
                     continue;
                 }
-                // Rebuild the rows on any change (ADR 0018): tear the old
+                // Rebuild the rows on any change (ADR 0001): tear the old
                 // instances down, then clone one branch per row after the
                 // anchor, in order.
                 for mut inner in std::mem::take(instances) {

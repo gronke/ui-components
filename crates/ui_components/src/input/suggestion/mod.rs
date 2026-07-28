@@ -4,7 +4,7 @@
 //! picking one commits like typed text. Commit semantics follow the text
 //! family: trimmed, empty becoming null when `allow-null` is set.
 //!
-//! Every asset of the component lives in this directory (ADR 0015): the
+//! Every asset of the component lives in this directory (ADR 0002): the
 //! shared template and logic here, the browser popup in
 //! `suggestion.impl.ts`, the terminal popup in `tui.rs`.
 
@@ -120,7 +120,7 @@ mod tests {
         assert_eq!(def.shared_style_id, Some("input-default"));
         assert!(def.scss.is_some());
 
-        // The rows are data, property-only (ADR 0006).
+        // The rows are data, property-only (ADR 0005).
         let suggestions = def.property("suggestions").expect("suggestions");
         assert_eq!(suggestions.js_type, uic_core::JsType::Options);
         assert_eq!(suggestions.attribute, None);

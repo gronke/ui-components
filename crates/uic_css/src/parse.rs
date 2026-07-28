@@ -1,7 +1,7 @@
 //! Stylesheet parsing into the closed dialect: qualified rules whose
 //! selectors parse and whose declarations name supported properties survive;
 //! everything else drops into the report — the degradation contract, made
-//! measurable (ADR 0016's reserved slot).
+//! measurable (ADR 0026's reserved slot).
 
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationParser, ParseError, Parser, ParserInput,
@@ -50,6 +50,9 @@ const SUPPORTED: &[&str] = &[
     "text-align",
     "text-decoration",
     "text-decoration-line",
+    "overflow-wrap",
+    // overflow-wrap's legacy alias.
+    "word-wrap",
     "content",
     "transform",
 ];

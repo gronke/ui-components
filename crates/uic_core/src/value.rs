@@ -24,7 +24,7 @@ pub enum Value {
     /// carrier of state-shaped properties (ADR 0013).
     Object(ObjectMap),
     /// An object-valued ordered list (JS array analog), the carrier of
-    /// iterated rows (ADR 0018).
+    /// iterated rows (ADR 0001).
     Array(Vec<Value>),
 }
 

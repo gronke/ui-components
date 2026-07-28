@@ -29,7 +29,7 @@ pub fn parse(src: &str) -> Result<Template, ParseError> {
 struct Parser<'s> {
     src: &'s str,
     pos: usize,
-    /// Loop variables in scope, innermost last (ADR 0018); a `${base.field}`
+    /// Loop variables in scope, innermost last (ADR 0001); a `${base.field}`
     /// hole is valid only when `base` is one of these.
     scope: Vec<String>,
 }
@@ -163,7 +163,7 @@ impl<'s> Parser<'s> {
                 "unsupported expression: holes take a property or computed name, or !name",
             )
         })?;
-        // `${base.field}` — a member of a loop variable in scope (ADR 0018).
+        // `${base.field}` — a member of a loop variable in scope (ADR 0001).
         let member_field = if self.starts_with(".") {
             if negated {
                 return Err(self.error_at(offset, "a loop variable member cannot be negated"));
@@ -336,7 +336,7 @@ impl<'s> Parser<'s> {
 
     /// Converts a parsed `<template for=${each} as=item>` into `Node::For`.
     /// The `as` binding enters scope for the body, so `${item.field}` holes
-    /// inside resolve (ADR 0018).
+    /// inside resolve (ADR 0001).
     fn finish_template_for(
         &mut self,
         offset: usize,

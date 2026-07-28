@@ -1,9 +1,9 @@
 //! `<nav-tabs>` — a value-driven Bootstrap tab bar, the catalog's first
-//! non-input component. The rows arrive as `.options` data (ADR 0006), the
+//! non-input component. The rows arrive as `.options` data (ADR 0005), the
 //! selected value leaves through `value-changed`; panes are the host's job
 //! (two `<template if>` branches beside the bar, see the demo).
 //!
-//! Every asset lives in this directory (ADR 0015): the shared template and
+//! Every asset lives in this directory (ADR 0002): the shared template and
 //! logic here, the button rows in `nav_tabs.impl.ts`, the terminal tab row
 //! in `tui.rs`.
 
@@ -23,7 +23,7 @@ pub struct NavTabs {
     /// The selected tab's value; a pick notifies `value-changed`.
     #[property(notify, default = "")]
     pub value: String,
-    /// The tab rows (ADR 0006); captions render `short || label || value`.
+    /// The tab rows (ADR 0005); captions render `short || label || value`.
     #[property]
     pub options: Vec<SelectOption>,
 }
@@ -72,7 +72,7 @@ mod tests {
         assert!(def.scss.is_some());
         assert!(def.dist, "the bar ships in the npm package");
 
-        // The rows are data, property-only (ADR 0006).
+        // The rows are data, property-only (ADR 0005).
         let options = def.property("options").expect("options");
         assert_eq!(options.js_type, uic_core::JsType::Options);
         assert_eq!(options.attribute, None);

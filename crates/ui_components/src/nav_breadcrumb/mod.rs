@@ -1,8 +1,8 @@
 //! `<nav-breadcrumb>` — a static breadcrumb trail. The crumbs arrive as
-//! `.items` data rows (`{label, href?}`, ADR 0006 spirit); a computed
+//! `.items` data rows (`{label, href?}`, ADR 0005 spirit); a computed
 //! decorates them with the divider so both targets paint the same text
 //! separators, because CSS `::before` dividers cannot render in a terminal
-//! (ADR 0020). The trail is static content: no widget twin, no events.
+//! (ADR 0017). The trail is static content: no widget twin, no events.
 
 use uic_core::{CustomElement, ObjectMap, PropertyStore, Value};
 
@@ -26,7 +26,7 @@ pub struct NavBreadcrumb {
 impl NavBreadcrumbLogic for NavBreadcrumb {
     /// The display rows `{label, href, sep, plain}`: `sep` is empty on the
     /// first crumb and the divider afterwards; `plain` complements `href`
-    /// (loop members cannot be negated, ADR 0018). Mirrored for the browser
+    /// (loop members cannot be negated, ADR 0001). Mirrored for the browser
     /// in `nav_breadcrumb.impl.ts` — keep both in sync.
     fn crumbs(&self, store: &PropertyStore) -> Value {
         let divider = match store.get("divider") {
@@ -156,7 +156,7 @@ mod tests {
         assert!(def.scss.is_some());
         assert!(def.dist, "the trail ships in the npm package");
 
-        // The rows are data, property-only (ADR 0006).
+        // The rows are data, property-only (ADR 0005).
         let items = def.property("items").expect("items");
         assert_eq!(items.js_type, uic_core::JsType::Array);
         assert_eq!(items.attribute, None);

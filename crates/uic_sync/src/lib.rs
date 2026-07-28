@@ -1,8 +1,8 @@
-//! The state-sync tooling as a reusable artifact (ADR 0024): a tagged
+//! The state-sync tooling as a reusable artifact (ADR 0013): a tagged
 //! structured-clone codec, one string-payload wire seam (WebSocket,
-//! RTCDataChannel, BroadcastChannel), root-component attachment, and the
-//! compact-SDP pairing that connects two browsers through mutually scanned
-//! QR codes — no signaling server.
+//! RTCDataChannel), root-component attachment, and the compact pairing
+//! that connects two browsers through mutually scanned QR codes — no
+//! signaling server.
 //!
 //! Consumers integrate one of two ways: hand [`web_root`] to a
 //! `web_modules` build as an extra source root, or emit the compiled npm
@@ -10,9 +10,12 @@
 //!
 //! [`pair`] carries the compact payload codec in Rust too — one byte
 //! contract, two languages — so a native peer (ADR 0028) exchanges the
-//! same `uics1.` strings as the browser.
+//! same pairing codes as the browser. [`session`] is that peer's pairing
+//! lifecycle as a pure state machine (`web/session.ts` is the browser
+//! sibling, whose cross-tab job stays TS-only).
 
 pub mod pair;
+pub mod session;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,8 +23,8 @@ use std::path::{Path, PathBuf};
 use npm_utils::package_json::manifest::{self, remove_field, set_field};
 use serde_json::json;
 
-/// The TypeScript sources (`codec.ts`, `wire.ts`, `sync.ts`, `pair.ts`) —
-/// an extra root for a consumer's `web_modules` build.
+/// The TypeScript sources (`codec.ts`, `wire.ts`, `sync.ts`, `pair.ts`,
+/// `session.ts`) — an extra root for a consumer's `web_modules` build.
 pub fn web_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("web")
 }
@@ -59,7 +62,7 @@ pub fn npm_tree(out: &Path, version: &str) -> Result<Vec<String>, String> {
     set_field(
         &mut doc,
         "description",
-        json!("One wire for component state: structured-clone snapshots over WebSocket, WebRTC or BroadcastChannel, plus serverless QR pairing"),
+        json!("One wire for component state: structured-clone snapshots over WebSocket or WebRTC, plus serverless QR pairing"),
     );
     set_field(&mut doc, "license", json!("MIT"));
     set_field(&mut doc, "type", json!("module"));
@@ -70,6 +73,7 @@ pub fn npm_tree(out: &Path, version: &str) -> Result<Vec<String>, String> {
             ".": "./sync.js",
             "./codec.js": "./codec.js",
             "./pair.js": "./pair.js",
+            "./session.js": "./session.js",
             "./sync.js": "./sync.js",
             "./wire.js": "./wire.js"
         }),

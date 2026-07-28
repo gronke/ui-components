@@ -1,5 +1,5 @@
 //! The dropdown select: rat's `ChoiceState` plus the option rows delivered
-//! as `.options` property writes (ADR 0006) and the bound value Esc reverts
+//! as `.options` property writes (ADR 0005) and the bound value Esc reverts
 //! to, like the browser's dropdown.
 
 use crossterm::event::{Event, KeyCode, KeyEventKind, MouseEvent, MouseEventKind};

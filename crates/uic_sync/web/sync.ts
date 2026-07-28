@@ -10,14 +10,15 @@
 import { decode, encode } from './codec.js';
 import type { Wire } from './wire.js';
 
+/** The root's announcement event. */
+const STATE_EVENT = 'state-changed';
+
 export interface AttachOptions {
     /** The reactive property names the snapshot mirrors. */
     fields: string[];
     wire: Wire;
     /** Announce our snapshot on open (default: wait for the far side's). */
     greet?: boolean;
-    /** The root's announcement event (default 'state-changed'). */
-    event?: string;
 }
 
 export interface Attachment {
@@ -26,7 +27,6 @@ export interface Attachment {
 
 export function attach(root: any, options: AttachOptions): Attachment {
     const { fields, wire } = options;
-    const eventName = options.event ?? 'state-changed';
     let last = '';
     let ready = false;
     let applying = false;
@@ -74,12 +74,12 @@ export function attach(root: any, options: AttachOptions): Attachment {
         last = state;
         wire.send(state);
     };
-    root.addEventListener(eventName, announce);
+    root.addEventListener(STATE_EVENT, announce);
 
     return {
         detach(): void {
             detached = true;
-            root.removeEventListener(eventName, announce);
+            root.removeEventListener(STATE_EVENT, announce);
         },
     };
 }

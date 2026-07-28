@@ -7,15 +7,18 @@ use std::path::Path;
 fn the_npm_tree_is_publish_ready() {
     let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join("npm-sync");
     let modules = uic_sync::npm_tree(&out, "0.0.0-test").expect("emit the npm tree");
-    assert_eq!(modules, ["codec.js", "pair.js", "sync.js", "wire.js"]);
+    assert_eq!(
+        modules,
+        ["codec.js", "pair.js", "session.js", "sync.js", "wire.js"]
+    );
 
     // Type-stripped, ESM, and free of TypeScript syntax.
     let sync = fs::read_to_string(out.join("sync.js")).expect("read sync.js");
     assert!(sync.contains("export function attach"));
     assert!(!sync.contains(": Wire"));
     let pair = fs::read_to_string(out.join("pair.js")).expect("read pair.js");
-    assert!(pair.contains("export async function createHost"));
-    assert!(pair.contains("export async function join"));
+    assert!(pair.contains("export async function swap"));
+    assert!(pair.contains("export function replyDigest"));
 
     // Intra-package imports stay relative, resolvable in the compiled tree.
     assert!(sync.contains("from \"./codec.js\"") || sync.contains("from './codec.js'"));
@@ -29,6 +32,6 @@ fn the_npm_tree_is_publish_ready() {
     assert!(manifest.get("dependencies").is_none());
     assert_eq!(
         manifest["files"],
-        serde_json::json!(["codec.js", "pair.js", "sync.js", "wire.js"])
+        serde_json::json!(["codec.js", "pair.js", "session.js", "sync.js", "wire.js"])
     );
 }

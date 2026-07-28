@@ -171,7 +171,7 @@ pub(super) fn load_template(
 /// derive, then upward through its ancestors, stopping at the directory
 /// holding the crate's Cargo.toml. The search serves shared assets like the
 /// input chrome, which components reference from varying directory depths
-/// (ADR 0015); the nearest match wins.
+/// (ADR 0002); the nearest match wins.
 pub(super) fn read_relative(
     file: &LitStr,
     source_file: Option<&Path>,

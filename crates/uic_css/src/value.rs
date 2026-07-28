@@ -314,7 +314,7 @@ fn component<'i>(parser: &mut Parser<'i, '_>) -> Result<u8, cssparser::ParseErro
 
 /// Below one half the backdrop dominates a translucent color, so painting
 /// it opaque would lie; such declarations drop instead — cells have no
-/// compositor (the degradation contract, ADR 0016). At or above, the color
+/// compositor (the degradation contract, ADR 0026). At or above, the color
 /// dominates and opaque is the closest honest cell.
 const ALPHA_THRESHOLD: f32 = 0.5;
 

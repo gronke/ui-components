@@ -1,4 +1,4 @@
-// The one wire seam (ADR 0024): string payloads over whatever carries them.
+// The one wire seam (ADR 0013): string payloads over whatever carries them.
 // Demo-grade by design — a dead wire stays dead (no reconnect), one
 // listener per event, sends before open drop silently.
 
@@ -77,36 +77,5 @@ export class DataChannelWire implements Wire {
 
     close(): void {
         this.channel.close();
-    }
-}
-
-export class BroadcastWire implements Wire {
-    channel: BroadcastChannel;
-    closed: (() => void) | null = null;
-
-    constructor(name: string) {
-        this.channel = new BroadcastChannel(name);
-    }
-
-    send(text: string): void {
-        this.channel.postMessage(text);
-    }
-
-    onMessage(callback: (text: string) => void): void {
-        this.channel.onmessage = (event) => callback(String(event.data));
-    }
-
-    onOpen(callback: () => void): void {
-        queueMicrotask(callback);
-    }
-
-    // BroadcastChannel has no close event — only the local close() reports.
-    onClose(callback: () => void): void {
-        this.closed = callback;
-    }
-
-    close(): void {
-        this.channel.close();
-        this.closed?.();
     }
 }

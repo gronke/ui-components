@@ -73,6 +73,10 @@ pub struct ComputedStyle {
     pub underlined: bool,
     pub crossed_out: bool,
     pub text_align: TextAlign,
+    /// `overflow-wrap: anywhere` (or `break-word`): an unbreakable token may
+    /// break at any character, so a text box's min-content drops to one cell
+    /// instead of the longest word. Inherited, like in the browser.
+    pub break_anywhere: bool,
     /// Inherited custom properties, raw token text.
     pub custom: HashMap<String, String>,
 
@@ -108,6 +112,7 @@ impl Default for ComputedStyle {
             underlined: false,
             crossed_out: false,
             text_align: TextAlign::Start,
+            break_anywhere: false,
             custom: HashMap::new(),
             content: None,
             rotation: 0,
@@ -127,6 +132,7 @@ impl ComputedStyle {
             underlined: self.underlined,
             crossed_out: self.crossed_out,
             text_align: self.text_align,
+            break_anywhere: self.break_anywhere,
             custom: self.custom.clone(),
             ..ComputedStyle::default()
         }
@@ -246,6 +252,11 @@ impl ComputedStyle {
                     self.underlined = false;
                     self.crossed_out = false;
                 }
+                _ => {}
+            },
+            ("overflow-wrap" | "word-wrap", Value::Keyword(kw)) => match kw.as_str() {
+                "anywhere" | "break-word" => self.break_anywhere = true,
+                "normal" => self.break_anywhere = false,
                 _ => {}
             },
             _ => {}

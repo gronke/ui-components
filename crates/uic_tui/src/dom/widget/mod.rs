@@ -11,10 +11,12 @@
 //! the runtime.
 //!
 //! Beyond the built-in kinds, components register their co-located widget
-//! twins through [`WidgetRegistration`] (ADR 0015) — the runtime needs no
+//! twins through [`WidgetRegistration`] (ADR 0002) — the runtime needs no
 //! edit for a new `data-tui` kind.
 
 mod date;
+#[cfg(feature = "qr")]
+pub mod qr;
 mod select;
 mod text;
 mod textarea;
@@ -52,7 +54,7 @@ pub(crate) struct WidgetBox {
 }
 
 /// Registers a widget adapter for a `data-tui` kind from outside the
-/// runtime — the co-located TUI twin of a component (ADR 0015). Collected
+/// runtime — the co-located TUI twin of a component (ADR 0002). Collected
 /// through `inventory`; `WidgetBox::new` consults the registry after the
 /// built-in kinds.
 pub struct WidgetRegistration {
@@ -129,7 +131,7 @@ impl WidgetBox {
 /// `data-tui` wins — the extension point for registered kinds and the
 /// discriminator of the framework's own input templates — and mounts
 /// anywhere, even on a `<ul>`. Plain form elements resolve by element type
-/// (ADR 0027, the shared `uic_template::native` table), except presentation
+/// (ADR 0026, the shared `uic_template::native` table), except presentation
 /// twins opted out with a negative tabindex.
 pub(crate) fn detect_kind(
     el: &uic_dom::ElementData<WidgetPayload>,
@@ -225,7 +227,7 @@ pub trait WidgetAdapter {
     /// widgets without a movable caret ignore it.
     fn caret_to_end(&mut self) {}
 
-    /// Receives a `.options` property write (ADR 0006); only the select
+    /// Receives a `.options` property write (ADR 0005); only the select
     /// stores rows.
     fn set_options(&mut self, _options: Vec<SelectOption>) {}
 

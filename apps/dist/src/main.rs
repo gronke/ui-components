@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  <{tag}>");
     }
 
-    // The worker host publishes beside the components (ADR 0023).
+    // The worker host publishes beside the components (ADR 0007).
     let worker_out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dist/npm-worker");
     let modules = uic_worker::npm_tree(&worker_out, env!("CARGO_PKG_VERSION"))?;
     println!("worker host tree: {}", worker_out.display());
@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  {module}");
     }
 
-    // The sync tooling publishes beside them (ADR 0024).
+    // The sync tooling publishes beside them (ADR 0013).
     let sync_out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dist/npm-sync");
     let modules = uic_sync::npm_tree(&sync_out, env!("CARGO_PKG_VERSION"))?;
     println!("sync tooling tree: {}", sync_out.display());

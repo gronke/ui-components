@@ -88,7 +88,7 @@ impl TuiSession {
 
     /// Replays an option list property as JSON rows of
     /// `{value, short?, label?}` — options are their own data type, distinct
-    /// from a plain array (ADR 0006): a host mounting a bare `<input-select>`
+    /// from a plain array (ADR 0005): a host mounting a bare `<input-select>`
     /// feeds the rows through here so they land as `Value::Options`.
     pub fn set_options_json(&mut self, index: u32, json: &str) -> Result<(), JsError> {
         self.set_option_rows_json(index, "options", json)
@@ -213,7 +213,7 @@ impl TuiSession {
 }
 
 /// Parses JSON rows of `{value, short?, label?}` into option data
-/// (ADR 0006) — the wire format of [`TuiSession::set_options_json`].
+/// (ADR 0005) — the wire format of [`TuiSession::set_options_json`].
 pub fn options_from_json(json: &str) -> Result<Vec<SelectOption>, serde_json::Error> {
     #[derive(serde::Deserialize)]
     struct Row {

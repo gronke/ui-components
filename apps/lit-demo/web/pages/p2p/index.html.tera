@@ -2,12 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<script>
-document.documentElement.setAttribute('data-bs-theme',
-    localStorage.getItem('uic-theme')
-        ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-</script>
 <base href="../">
+<script src="./theme.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0d6efd">
 <link rel="manifest" href="manifest.json">
@@ -17,22 +13,12 @@ document.documentElement.setAttribute('data-bs-theme',
 <link rel="apple-touch-icon" href="icon.svg">
 <title>lit-todo · p2p</title>
 <link rel="stylesheet" href="./web_modules/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="./todo.css">
 <link rel="stylesheet" href="./p2p/p2p.css">
 {{ importmap | safe }}
 <script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
 <script type="module" src="./p2p/p2p.js"></script>
-<script type="module">
-// Typing always lands in the list: a click on page chrome refocuses the
-// active input — the row being edited, or the entry row.
-document.addEventListener('pointerdown', (event) => {
-    if (!event.target.closest('a, button, input, textarea, summary, video')) {
-        queueMicrotask(() => {
-            const app = document.querySelector('todo-app');
-            (app?.querySelector('todo-item input.label') ?? app?.querySelector('input.draft'))?.focus();
-        });
-    }
-});
-</script>
+<script type="module" src="./refocus.js"></script>
 </head>
 <body class="py-4">
 <main class="container">

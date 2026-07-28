@@ -1,4 +1,4 @@
-error: <input> is a widget and cannot appear inside a <template for=…>; a loop body renders data rows, not widgets (ADR 0006/0018)
+error: <input> is a widget and cannot appear inside a <template for=…>; a loop body renders data rows, not widgets (ADR 0005/0001)
  --> tests/ui/fail_native_input_in_for.rs:6:16
   |
 6 |     template = "<div><template for=${rows} as=r><input type=\"text\"></template></div>"

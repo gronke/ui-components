@@ -50,7 +50,7 @@ pub enum Node {
     },
     /// `<template for=${each} as=item>…</template>` — repeats the body once
     /// per element of the array `each`, binding each element to `item`
-    /// (ADR 0018).
+    /// (ADR 0001).
     For {
         each: Expr,
         item: String,
@@ -107,7 +107,7 @@ pub enum AttrPart {
 }
 
 /// A hole expression: a property/computed reference, optionally negated, or a
-/// member of a loop variable (ADR 0018).
+/// member of a loop variable (ADR 0001).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
     Ident(String),

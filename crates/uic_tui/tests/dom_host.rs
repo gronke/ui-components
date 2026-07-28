@@ -149,7 +149,7 @@ fn boolean_parts_reach_children_as_absent_attributes() {
 }
 
 /// A parent binding an optional member onto a child property — the fixture
-/// of the property-part contract at the child boundary (ADR 0010).
+/// of the property-part contract at the child boundary (ADR 0008).
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "null-flow",

@@ -8,27 +8,56 @@
 import { DataChannelWire } from './wire.js';
 import type { Wire } from './wire.js';
 
-const PREFIX = 'uics1.';
+// The payload wears no prefix: in a link the fragment position is the
+// discriminator, and the binary layout self-validates — structural checks
+// replace a marker.
 const GATHER_TIMEOUT_MS = 3000;
+
+/** The reply-routing digest (fnv1a-32, 8 hex chars) of an invite payload. A
+ * return link answering an invite carries `.{digest}` after its own payload,
+ * so the same-browser handover routes the reply to the exact tab that
+ * invited. A routing hint only — the payload's own credential guards stay
+ * the security. Rust twin: `src/pair.rs` `reply_digest`; the pinned vector
+ * is replyDigest('abc') === '1a47e90b'. */
+export function replyDigest(payload: string): string {
+    let hash = 0x811c9dc5;
+    for (const byte of new TextEncoder().encode(payload)) {
+        hash ^= byte;
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(16).padStart(8, '0');
+}
 
 export interface PairOptions {
     iceServers?: RTCIceServer[];
 }
 
-export interface PairHost {
-    /** The compact offer — put it in a QR code or hand it over any way. */
-    offer: string;
-    /** Feeds the guest's compact answer back; resolves on channel open. */
-    complete(answer: string): Promise<Wire>;
-    close(): void;
+/** The payload carried by a link, pasted text or scanned code: the invite
+ * is the whole fragment, so the payload sits after `#` in a link and at
+ * the front of a bare code — the base64url run from there (a reply link's
+ * `.{digest}` suffix is cut with the rest). Text with no payload passes
+ * through for the decode to reject. Rust twin: `src/pair.rs`
+ * `link_payload`. */
+export function linkPayload(text: string): string {
+    const trimmed = text.trim();
+    const match = /#([A-Za-z0-9_-]+)/.exec(trimmed) ?? /^([A-Za-z0-9_-]+)/.exec(trimmed);
+    return match ? match[1]! : trimmed;
 }
 
-export interface PairGuest {
-    /** The compact answer to travel back to the host. */
-    answer: string;
-    /** Resolves when the host's data channel arrives and opens. */
-    wire: Promise<Wire>;
-    close(): void;
+/** The reply-routing digest riding a return link (`#<payload>.<digest>`) —
+ * the invite it answers, so the same-browser handover reaches the exact
+ * tab that sent it. Null on a plain invite. */
+export function linkReply(text: string): string | null {
+    const match = /#[A-Za-z0-9_-]+\.([A-Za-z0-9_-]{4,16})/.exec(text);
+    return match ? match[1]! : null;
+}
+
+/** Builds an invite link the pairing page opens: the payload as a single
+ * URL-safe fragment (base64url needs no escaping), so a chat app linkifies
+ * the whole URL; `replyTo` appends the reply digest. Rust twin:
+ * `src/pair.rs` `invite_link`. */
+export function inviteLink(pageHref: string, payload: string, replyTo?: string): string {
+    return replyTo ? `${pageHref}#${payload}.${replyTo}` : `${pageHref}#${payload}`;
 }
 
 export interface PairSwap {
@@ -80,65 +109,6 @@ export function payloadRole(text: string): 'offer' | 'answer' | null {
         return 'answer';
     }
     return null;
-}
-
-export async function createHost(options?: PairOptions): Promise<PairHost> {
-    requireRtc();
-    const pc = new RTCPeerConnection({ iceServers: options?.iceServers ?? [] });
-    const channel = pc.createDataChannel('uic-sync');
-    await pc.setLocalDescription(await pc.createOffer());
-    await gatheringComplete(pc);
-    const offer = encodePayload(parseSdp(pc.localDescription!.sdp));
-    return {
-        offer,
-        async complete(answer: string): Promise<Wire> {
-            if (payloadRole(answer) !== 'answer') {
-                throw new Error(
-                    'uic-sync pair: expected an answer payload — the other device answers after opening the offer link',
-                );
-            }
-            const compact = decodePayload(answer);
-            await pc.setRemoteDescription({ type: 'answer', sdp: buildSdp(compact) });
-            await openOrFail(pc, channel);
-            return new DataChannelWire(channel);
-        },
-        close(): void {
-            pc.close();
-        },
-    };
-}
-
-export async function join(offer: string, options?: PairOptions): Promise<PairGuest> {
-    requireRtc();
-    if (payloadRole(offer) !== 'offer') {
-        throw new Error('uic-sync pair: expected an offer payload');
-    }
-    const pc = new RTCPeerConnection({ iceServers: options?.iceServers ?? [] });
-    const wire = new Promise<Wire>((resolve, reject) => {
-        pc.addEventListener('datachannel', (event) => {
-            openOrFail(pc, event.channel).then(
-                () => resolve(new DataChannelWire(event.channel)),
-                reject,
-            );
-        });
-        pc.addEventListener('connectionstatechange', () => {
-            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-                reject(new Error(UNREACHABLE));
-            }
-        });
-    });
-    const compact = decodePayload(offer);
-    await pc.setRemoteDescription({ type: 'offer', sdp: buildSdp(compact) });
-    await pc.setLocalDescription(await pc.createAnswer());
-    await gatheringComplete(pc);
-    const answer = encodePayload(parseSdp(pc.localDescription!.sdp));
-    return {
-        answer,
-        wire,
-        close(): void {
-            pc.close();
-        },
-    };
 }
 
 /** Symmetric, order-free pairing: BOTH sides create offers over a
@@ -294,22 +264,266 @@ function buildSdp(compact: Compact): string {
     ].join('\r\n');
 }
 
+// The wire layout, declaratively — the single place the payload's shape
+// lives. The Rust twin mirrors this table verbatim (`src/pair.rs`,
+// `LAYOUT`): field order, kinds and enum values must match byte for byte,
+// and the Rust golden vector pins them. Kinds: `str8` is u8 length + ASCII,
+// `hex32` 32 raw bytes shown as colon-hex, `enum` a u8 index into its
+// values, `addrs8` a u8 count of tagged address + big-endian u16 port
+// entries (IPv4 = 4 bytes, IPv6 = 16, an mDNS `<uuid>.local` = its 16 uuid
+// bytes, anything else length-prefixed ASCII).
+const LAYOUT = [
+    ['u', 'str8'],
+    ['p', 'str8'],
+    ['f', 'hex32'],
+    ['s', 'enum', ['actpass', 'active', 'passive']],
+    ['c', 'addrs8'],
+] as const;
+
+const ADDR_V4 = 0;
+const ADDR_V6 = 1;
+const ADDR_MDNS = 2;
+const ADDR_NAME = 3;
+
 function encodePayload(compact: Compact): string {
-    const bytes = new TextEncoder().encode(JSON.stringify(compact));
+    const out: number[] = [];
+    for (const entry of LAYOUT) {
+        const [name, kind] = entry;
+        const value = compact[name];
+        if (kind === 'str8') {
+            pushShort(out, value as string);
+        } else if (kind === 'hex32') {
+            for (const pair of (value as string).split(':')) {
+                out.push(parseInt(pair, 16) || 0);
+            }
+        } else if (kind === 'enum') {
+            const index = (entry[2] as readonly string[]).indexOf(value as string);
+            if (index < 0) {
+                throw new Error(`uic-sync pair: unknown ${name} value ${JSON.stringify(value)}`);
+            }
+            out.push(index);
+        } else {
+            const addrs = value as [string, number][];
+            out.push(addrs.length);
+            for (const [address, port] of addrs) {
+                pushAddr(out, address);
+                out.push((port >> 8) & 0xff, port & 0xff);
+            }
+        }
+    }
     let binary = '';
-    for (const byte of bytes) {
+    for (const byte of out) {
         binary += String.fromCharCode(byte);
     }
-    return PREFIX + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function decodePayload(text: string): Compact {
-    const trimmed = text.trim();
-    if (!trimmed.startsWith(PREFIX)) {
-        throw new Error(`uic-sync pair: payload does not start with ${JSON.stringify(PREFIX)}`);
-    }
-    const base64 = trimmed.slice(PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = text.trim().replace(/-/g, '+').replace(/_/g, '/');
     const binary = atob(base64);
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes)) as Compact;
+    let at = 0;
+    const take = (len: number): Uint8Array => {
+        if (at + len > bytes.length) {
+            throw new Error('uic-sync pair: payload is truncated');
+        }
+        const slice = bytes.subarray(at, at + len);
+        at += len;
+        return slice;
+    };
+    const byte = (): number => take(1)[0]!;
+    const short = (): string => new TextDecoder().decode(take(byte()));
+
+    const fields: Record<string, unknown> = {};
+    for (const entry of LAYOUT) {
+        const [name, kind] = entry;
+        if (kind === 'str8') {
+            fields[name] = short();
+        } else if (kind === 'hex32') {
+            fields[name] = [...take(32)]
+                .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+                .join(':');
+        } else if (kind === 'enum') {
+            const value = (entry[2] as readonly string[])[byte()];
+            if (!value) {
+                throw new Error(`uic-sync pair: unknown ${name} byte`);
+            }
+            fields[name] = value;
+        } else {
+            const count = byte();
+            const addrs: [string, number][] = [];
+            for (let i = 0; i < count; i++) {
+                const address = takeAddr(take, byte, short);
+                const port = take(2);
+                addrs.push([address, (port[0]! << 8) | port[1]!]);
+            }
+            fields[name] = addrs;
+        }
+    }
+    // Structural validation: every byte consumed, at least one candidate.
+    if (at !== bytes.length) {
+        throw new Error('uic-sync pair: payload has trailing bytes');
+    }
+    const compact = fields as unknown as Compact;
+    if (compact.c.length === 0) {
+        throw new Error('uic-sync pair: payload carries no candidates');
+    }
+    return compact;
+}
+
+/** One tagged address entry. */
+function pushAddr(out: number[], address: string): void {
+    const uuid = mdnsUuidBytes(address);
+    const v4 = ipv4Bytes(address);
+    const v6 = uuid || v4 ? null : ipv6Bytes(address);
+    if (uuid) {
+        out.push(ADDR_MDNS, ...uuid);
+    } else if (v4) {
+        out.push(ADDR_V4, ...v4);
+    } else if (v6) {
+        out.push(ADDR_V6, ...v6);
+    } else {
+        out.push(ADDR_NAME);
+        pushShort(out, address);
+    }
+}
+
+function takeAddr(
+    take: (len: number) => Uint8Array,
+    byte: () => number,
+    short: () => string,
+): string {
+    const tag = byte();
+    if (tag === ADDR_V4) {
+        return [...take(4)].join('.');
+    }
+    if (tag === ADDR_V6) {
+        return ipv6String(take(16));
+    }
+    if (tag === ADDR_MDNS) {
+        const hex = [...take(16)].map((b) => b.toString(16).padStart(2, '0')).join('');
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}.local`;
+    }
+    if (tag === ADDR_NAME) {
+        return short();
+    }
+    throw new Error(`uic-sync pair: unknown address tag ${tag}`);
+}
+
+function pushShort(out: number[], text: string): void {
+    const bytes = new TextEncoder().encode(text);
+    out.push(bytes.length, ...bytes);
+}
+
+/** The 16 uuid bytes of an mDNS `<uuid>.local` candidate, or null. */
+function mdnsUuidBytes(address: string): number[] | null {
+    if (!address.endsWith('.local')) {
+        return null;
+    }
+    const uuid = address.slice(0, -'.local'.length);
+    const hex = uuid.replace(/-/g, '');
+    if (uuid.length !== 36 || !/^[0-9a-fA-F]{32}$/.test(hex)) {
+        return null;
+    }
+    const out: number[] = [];
+    for (let i = 0; i < 32; i += 2) {
+        out.push(parseInt(hex.slice(i, i + 2), 16));
+    }
+    return out;
+}
+
+function ipv4Bytes(address: string): number[] | null {
+    const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
+    if (!match) {
+        return null;
+    }
+    const octets = match.slice(1).map(Number);
+    return octets.every((o) => o <= 255) ? octets : null;
+}
+
+/** IPv6 text into its 16 bytes: `::` expansion plus an optional embedded
+ * IPv4 tail. Null when the text is no IPv6 address. */
+function ipv6Bytes(address: string): number[] | null {
+    if (!address.includes(':')) {
+        return null;
+    }
+    let head = address;
+    let v4tail: number[] = [];
+    const lastColon = address.lastIndexOf(':');
+    if (address.includes('.', lastColon)) {
+        const v4 = ipv4Bytes(address.slice(lastColon + 1));
+        if (!v4) {
+            return null;
+        }
+        v4tail = v4;
+        head = address.slice(0, lastColon) + ':0:0';
+    }
+    const halves = head.split('::');
+    if (halves.length > 2) {
+        return null;
+    }
+    const parse = (part: string): number[] | null => {
+        if (part === '') {
+            return [];
+        }
+        const groups = part.split(':');
+        const out: number[] = [];
+        for (const group of groups) {
+            if (!/^[0-9a-fA-F]{1,4}$/.test(group)) {
+                return null;
+            }
+            const value = parseInt(group, 16);
+            out.push(value >> 8, value & 0xff);
+        }
+        return out;
+    };
+    const left = parse(halves[0]!);
+    const right = halves.length === 2 ? parse(halves[1]!) : [];
+    if (left === null || right === null) {
+        return null;
+    }
+    const v4pad = v4tail.length; // replaces the trailing ':0:0' placeholder
+    const total = left.length + right.length - (v4pad ? 4 : 0) + v4pad;
+    if (halves.length === 1 && total !== 16) {
+        return null;
+    }
+    if (total > 16) {
+        return null;
+    }
+    const bytes = [...left, ...Array(16 - total).fill(0), ...right] as number[];
+    if (v4pad) {
+        bytes.splice(12, 4, ...v4tail);
+    }
+    return bytes.length === 16 ? bytes : null;
+}
+
+/** RFC 5952-style text for 16 IPv6 bytes: lowercase hex groups, the first
+ * longest run of two or more zero groups compressed to `::`. */
+function ipv6String(bytes: Uint8Array): string {
+    const groups: number[] = [];
+    for (let i = 0; i < 16; i += 2) {
+        groups.push((bytes[i]! << 8) | bytes[i + 1]!);
+    }
+    let bestAt = -1;
+    let bestLen = 0;
+    for (let i = 0; i < 8; i++) {
+        if (groups[i] !== 0) {
+            continue;
+        }
+        let len = 0;
+        while (i + len < 8 && groups[i + len] === 0) {
+            len++;
+        }
+        if (len > bestLen) {
+            bestAt = i;
+            bestLen = len;
+        }
+        i += len;
+    }
+    if (bestLen < 2) {
+        return groups.map((g) => g.toString(16)).join(':');
+    }
+    const left = groups.slice(0, bestAt).map((g) => g.toString(16));
+    const right = groups.slice(bestAt + bestLen).map((g) => g.toString(16));
+    return `${left.join(':')}::${right.join(':')}`;
 }

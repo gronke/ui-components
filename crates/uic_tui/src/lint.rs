@@ -1,5 +1,5 @@
 //! TUI-compatibility lint over the registered component templates
-//! (ADR 0016).
+//! (ADR 0026).
 //!
 //! The macros validate grammar and placement at compile time, but two facts
 //! only exist once a binary links: which `data-tui` kinds the widget
@@ -145,7 +145,7 @@ fn label(el: &Element) -> String {
 enum Kind<'t> {
     Static(&'t str),
     Bound,
-    /// A plain form element the mount detects by element type (ADR 0027).
+    /// A plain form element the mount detects by element type (ADR 0026).
     Detected,
     /// A plain `<input>` whose `type` is a hole — the committed value
     /// decides at runtime, the lint cannot see through it.
@@ -173,7 +173,7 @@ fn static_attr<'t>(el: &'t Element, wanted: &str) -> Option<&'t str> {
 }
 
 /// How the element resolves to a terminal widget, statically: an explicit
-/// `data-tui`, the element-type detection of ADR 0027 (through the same
+/// `data-tui`, the element-type detection of ADR 0026 (through the same
 /// shared table the mount uses, so the two can never drift), or a bound
 /// `type` hole the lint cannot see through.
 fn widget_kind<'t>(el: &'t Element) -> Option<Kind<'t>> {
@@ -238,7 +238,7 @@ fn check_element(
         Some(Kind::BoundType) => push(
             format!(
                 "a bound type on a plain <{}> is not statically checkable — the \
-                 terminal mounts widgets by element type (ADR 0027)",
+                 terminal mounts widgets by element type (ADR 0026)",
                 el.tag
             ),
             Severity::Warning,
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn a_plain_input_is_a_detected_widget() {
         // Detection applies the widget event contract to plain form
-        // elements (ADR 0027): @click never dispatches there.
+        // elements (ADR 0026): @click never dispatches there.
         let clean = check(r#"<input type="text" @change=${on_change} @input=${on_input} />"#);
         assert!(clean.is_empty(), "{clean:?}");
 

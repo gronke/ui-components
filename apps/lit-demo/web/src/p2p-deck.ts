@@ -1,4 +1,4 @@
-// The terminal's p2p arrangement (ADR 0030): the todo card and the pairing
+// The terminal's p2p arrangement (ADR 0029): the todo card and the pairing
 // panel stack in one column, and the QR docks to their right on a wide
 // terminal, wrapping below the panes on a narrow one — real flexbox (the
 // taffy layout) driven by this element's terminal-only styles, no host rect
@@ -7,7 +7,10 @@
 //
 // The deck deliberately has no reactive properties: it renders exactly once,
 // so a re-commit can never swap the todo app's live state away. The hosts
-// drive the nested elements directly by node.
+// drive the nested elements directly by node. It also imports neither
+// `./pair-panel.js` nor `./qr-code.js` on purpose — the terminal host loads
+// those modules explicitly before mounting, and an import here would drag
+// the pairing UI into the browser's todo-app graph.
 import { css, html, LitElement } from 'lit';
 
 export class P2pDeck extends LitElement {

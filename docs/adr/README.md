@@ -1,38 +1,45 @@
 # Architecture decision records
 
-Every substantial decision lives here as one record; each describes the status quo unless a later record supersedes it.
+Every record describes the status quo — a decision that still shapes the code today.
+Records that a later decision absorbed live on in git history; the gaps in the numbering are theirs.
 The overview tying the crates and the runtime together is [../architecture.md](../architecture.md).
+
+## Foundations
 
 | ADR | Decision |
 |-----|----------|
 | [0001](0001-expression-language.md) | The template expression language is closed |
 | [0002](0002-per-target-behavior.md) | Behavior hooks are implemented once per target behind shared names |
-| [0003](0003-catalog-migration.md) | Migrating the upstream catalog |
-| [0004](0004-npm-distribution.md) | The web output is an npm-distributable artifact |
-| [0005](0005-object-valued-properties.md) | Object-valued properties are a closed set, starting with `Zoned` |
-| [0006](0006-select-options-are-data.md) | Select options are data, not template structure |
-| [0007](0007-the-tui-runs-in-the-browser.md) | The TUI runs in the browser |
 | [0008](0008-a-retained-dom-for-the-tui.md) | A retained DOM for the TUI |
-| [0009](0009-composites-synchronize-in-will-update.md) | Composites synchronize in will_update |
-| [0010](0010-templates-compile-to-parts.md) | Templates compile to parts |
-| [0011](0011-components-mount-on-the-dom.md) | Components mount on the DOM |
-| [0012](0012-the-paint-migration.md) | The paint migration |
-| [0013](0013-app-state-synchronization.md) | App state is an object property, synchronized over a broadcast channel |
-| [0014](0014-data-connectors.md) | Async data sources are connectors behind one query interface |
-| [0015](0015-component-directories.md) | A component's directory holds all of its targets |
-| [0016](0016-tui-compatibility-lint.md) | A linked lint validates TUI compatibility |
-| [0017](0017-nav-tabs-and-the-card.md) | nav-tabs is a value-driven bar; the card is the bordered block |
-| [0018](0018-template-iteration.md) | Template iteration over data rows |
-| [0019](0019-table-layout.md) | Tables lay out as shared column tracks |
-| [0020](0020-nav-breadcrumb.md) | A static breadcrumb trail |
 | [0021](0021-the-class-map-becomes-a-stylesheet.md) | The class map becomes a stylesheet |
-| [0022](0022-the-demo-becomes-a-gallery.md) | The demo becomes a gallery |
-| [0023](0023-the-browser-hosts-its-own-runtime.md) | The browser hosts its own runtime |
-| [0024](0024-state-sync-tooling.md) | State synchronizes through one wire seam |
-| [0025](0025-pairing-rendezvous-relay.md) | A rendezvous relay may carry the pairing reply _(superseded by [0031](0031-pairing-is-a-mutual-exchange.md))_ |
+
+## The component catalog
+
+| ADR | Decision |
+|-----|----------|
+| [0003](0003-catalog-migration.md) | The catalog ports carry the upstream conventions, with recorded deviations |
+| [0005](0005-object-valued-properties.md) | Object-valued properties are a closed set |
+| [0014](0014-data-connectors.md) | Async data sources are connectors behind one query interface |
+| [0017](0017-nav-tabs-and-the-card.md) | Structural HTML maps to the terminal: the tab bar, the card, tables and the breadcrumb |
+
+## Terminal hosts and widgets
+
+| ADR | Decision |
+|-----|----------|
+| [0007](0007-the-tui-runs-in-the-browser.md) | The TUI runs in the browser |
 | [0026](0026-the-scripted-host-drives-native-widgets.md) | The scripted host drives native widgets |
-| [0027](0027-element-types-select-their-terminal-widgets.md) | Element types select their terminal widgets |
-| [0028](0028-the-terminal-is-a-pairing-peer.md) | The terminal is a pairing peer |
-| [0029](0029-the-pairing-ui-is-one-component.md) | The pairing UI is one component, two transports |
-| [0030](0030-a-cross-host-qr-code-component.md) | A cross-host `<qr-code>` component |
-| [0031](0031-pairing-is-a-mutual-exchange.md) | Pairing is a mutual exchange |
+
+## State, pairing and sessions
+
+| ADR | Decision |
+|-----|----------|
+| [0013](0013-app-state-synchronization.md) | State synchronizes as one canonical snapshot over one wire |
+| [0028](0028-the-terminal-is-a-pairing-peer.md) | Pairing is a serverless mutual exchange |
+| [0029](0029-the-pairing-ui-is-one-component.md) | The pairing UI is one shared component set |
+| [0032](0032-sessions-hand-over-through-their-own-wire.md) | Sessions hand over through their own wire |
+
+## Distribution
+
+| ADR | Decision |
+|-----|----------|
+| [0004](0004-npm-distribution.md) | The web output is an npm-distributable artifact |

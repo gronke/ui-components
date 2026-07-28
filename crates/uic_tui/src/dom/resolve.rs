@@ -34,7 +34,7 @@ pub(super) fn resolve_hole(
     }
 }
 
-/// Resolves a repeat body hole under a stack of loop scopes (ADR 0018): a
+/// Resolves a repeat body hole under a stack of loop scopes (ADR 0001): a
 /// member hole `${var.field}` reads the innermost matching loop variable's
 /// row member; anything else resolves against the store or a computed, so
 /// component values stay reachable inside loop bodies.
@@ -58,7 +58,7 @@ pub(super) fn resolve_hole_in_scopes(
 /// Resolves one repeat into its [`PartValue::List`]: each row of the array
 /// resolves the body holes with the loop variable pushed onto the scope
 /// stack, and nested repeats recurse with their `each` read from that scope,
-/// nesting their lists at their body slot (ADR 0018).
+/// nesting their lists at their body slot (ADR 0001).
 pub(super) fn resolve_repeat(
     meta: &uic_dom::parts::RepeatMeta,
     each: &Value,

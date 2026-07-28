@@ -1,6 +1,6 @@
 //! The scripted host drives native widgets: a plain mocked-lit component
 //! renders an ordinary `<input>`, the element type mounts its rat widget
-//! (ADR 0027), an uncancelled keydown runs the widget as the browser's
+//! (ADR 0026), an uncancelled keydown runs the widget as the browser's
 //! editing default action, the synthesized `input` event reads the live
 //! text back through `target.value`, and the widget — text AND caret —
 //! survives the component echoing the value through its subtree-swap

@@ -1,4 +1,4 @@
-//! The closed option-list entry behind `.options` bindings (ADR 0006).
+//! The closed option-list entry behind `.options` bindings (ADR 0005).
 //!
 //! Select options are data, not template structure: components expose a
 //! `Vec<SelectOption>` (stored or computed) and both render targets consume

@@ -26,7 +26,7 @@ uic_core::inventory::submit! {
 
 struct TabBarAdapter {
     state: TabbedState,
-    /// The option rows delivered as `.options` property writes (ADR 0006).
+    /// The option rows delivered as `.options` property writes (ADR 0005).
     options: Vec<SelectOption>,
     /// The bound value; the highlighted index derives from it at paint.
     bound: String,

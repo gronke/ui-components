@@ -1,6 +1,6 @@
 //! Which plain HTML elements imply a terminal widget — the one table the
 //! runtime mount, the template lint and the macro checks all consult, so
-//! the three can never drift (ADR 0027). `data-tui` stays the explicit
+//! the three can never drift (ADR 0026). `data-tui` stays the explicit
 //! override beside it: the extension point for registered kinds and the
 //! discriminator inside the framework's own input templates, which render
 //! `<input type="text">` for four different kinds on purpose.

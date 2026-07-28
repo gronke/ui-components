@@ -90,9 +90,6 @@ codegen-units = 1
 # fallback's import map; drop the pin with the next web_modules release.
 [patch.crates-io]
 web_modules = { git = "https://github.com/gronke/web_modules", rev = "2f9e4d90ba0fc12411cd7698a52d7df5de86908e" }
-# The manifest field transforms (set_field/remove_field) merged upstream
-# ahead of a release; drop the pin with the 0.6.2 release.
-npm-utils = { git = "https://github.com/gronke/npm-utils", rev = "b0ed4fded875e97064163ab621b6c2321e6142bb" }
 # Upstream master plus neutral cfg(not(any(unix, windows))) stubs so the TUI
 # stack compiles to wasm — the branch behind crossterm-rs/crossterm#1066;
 # re-pin if that PR rebases, drop when a release carrying it reaches

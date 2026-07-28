@@ -46,7 +46,7 @@ struct Example {
     attrs: &'static [(&'static str, &'static str)],
     /// Plain-valued property seeds, a JSON object.
     props_json: &'static str,
-    /// Option-rows properties (ADR 0006), a JSON object of row arrays.
+    /// Option-rows properties (ADR 0005), a JSON object of row arrays.
     option_props_json: &'static str,
     cols: u16,
     rows: u16,

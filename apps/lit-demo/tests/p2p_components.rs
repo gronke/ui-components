@@ -1,9 +1,9 @@
-//! The shared `<qr-code>` under the scripted (terminal) host (ADR 0030): the
-//! same element the browser draws as an SVG renders, on the terminal, a
-//! `data-tui="qr"` marker carrying its payload on the `value` attribute — the
-//! exact input the native QR widget mounts from (see `src/qr_widget.rs` for
-//! the adapter). Loaded from the real baked package, so it exercises the
-//! component the app ships, not a trimmed copy.
+//! The p2p composition under the scripted (terminal) host, loaded from the
+//! real baked package so the shipped components are what runs — not trimmed
+//! copies: the shared `<qr-code>` renders its `data-tui="qr"` widget marker
+//! (ADR 0029), `<pair-panel>` signals intent through the polled `command`
+//! property (ADR 0029), and `<p2p-deck>` composes the panes with the QR
+//! beside them.
 
 use std::path::Path;
 
@@ -30,7 +30,7 @@ fn qr_code_renders_the_terminal_widget_marker() {
 
     // The data attribute (composition flows as attributes, not `.prop=`)
     // reaches the element and drives its render.
-    let node = host.mount("qr-code", &[("data", "uics1.PAYLOAD")]).unwrap();
+    let node = host.mount("qr-code", &[("data", "PAYLOAD64")]).unwrap();
     let html = host.state.borrow().doc.inner_html(node);
 
     assert!(
@@ -38,15 +38,49 @@ fn qr_code_renders_the_terminal_widget_marker() {
         "the native QR widget marker renders: {html}"
     );
     assert!(
-        html.contains("uics1.PAYLOAD"),
+        html.contains("PAYLOAD64"),
         "the payload rides the value channel the widget reads: {html}"
     );
+}
+
+#[test]
+fn the_panel_action_button_signals_through_the_command() {
+    let mut host = JsHost::new().unwrap();
+    host.load_package(npm_root(), PACKAGE).unwrap();
+    module(&mut host, "theme.js");
+    module(&mut host, "qr-code.js");
+    module(&mut host, "pair-panel.js");
+    let panel = host.mount("pair-panel", &[]).unwrap();
+
+    // The generic secondary action (ADR 0029's seam, used by the takeover):
+    // a host sets the label, the button renders, a click writes the command.
+    host.set_prop(panel, "actionLabel", "\"take the session over\"")
+        .unwrap();
+    let html = host.state.borrow().doc.inner_html(panel);
+    assert!(
+        html.contains("take the session over"),
+        "the action button renders: {html}"
+    );
+
+    let button = {
+        let state = host.state.borrow();
+        let root = state.doc.root();
+        state
+            .doc
+            .find_element(root, |el| {
+                el.attr("class").is_some_and(|c| c.contains("action"))
+            })
+            .expect("the action button")
+    };
+    host.click(button).unwrap();
+    assert_eq!(host.prop_json(panel, "command").unwrap(), "\"action\"");
 }
 
 #[test]
 fn the_deck_composes_the_panes_and_the_qr() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
+    module(&mut host, "theme.js");
     module(&mut host, "qr-code.js");
     module(&mut host, "pair-panel.js");
     module(&mut host, "p2p-deck.js");
@@ -63,18 +97,15 @@ fn the_deck_composes_the_panes_and_the_qr() {
     let qr = {
         let state = host.state.borrow();
         let root = state.doc.root();
-        let found = state.doc.descendants(root).find(|&node| {
-            state
-                .doc
-                .element(node)
-                .is_some_and(|el| el.tag().as_ref() == "qr-code")
-        });
-        found.expect("the deck's qr-code")
+        state
+            .doc
+            .descendant_by_tag(root, "qr-code")
+            .expect("the deck's qr-code")
     };
-    host.set_prop(qr, "data", "\"uics1.DECK\"").unwrap();
+    host.set_prop(qr, "data", "\"DECKCODE\"").unwrap();
     let html = host.state.borrow().doc.inner_html(qr);
     assert!(
-        html.contains("data-tui=\"qr\"") && html.contains("uics1.DECK"),
+        html.contains("data-tui=\"qr\"") && html.contains("DECKCODE"),
         "the driven QR renders its widget marker with the data: {html}"
     );
 }
@@ -83,13 +114,15 @@ fn the_deck_composes_the_panes_and_the_qr() {
 fn the_panel_invite_embeds_the_qr_with_the_link() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    // pair-panel and the <qr-code> it embeds are off the todo-app entry graph
-    // (as in main.rs); load qr-code first so the panel's import resolves.
+    // pair-panel, its theme fragment and the <qr-code> it embeds are off the
+    // todo-app entry graph (as in main.rs); load the panel's imports first so
+    // its scoped specifiers resolve.
+    module(&mut host, "theme.js");
     module(&mut host, "qr-code.js");
     module(&mut host, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
-    let link = "https://example/lit-demo/p2p/#uics1.PAYLOAD";
+    let link = "https://example/lit-demo/p2p/#PAYLOAD64";
     host.set_prop(panel, "mode", "\"invite\"").unwrap();
     host.set_prop(panel, "link", &format!("{link:?}")).unwrap();
 

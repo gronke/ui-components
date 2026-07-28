@@ -72,7 +72,7 @@ pub fn expand(mut item: ItemStruct) -> syn::Result<TokenStream> {
     // A second custom_element attribute; ElementArgs folds all of them and
     // errors when the user set any of these options too. The upward asset
     // search resolves the `_shared/` paths from any component directory
-    // depth (ADR 0015).
+    // depth (ADR 0002).
     item.attrs.push(parse_quote!(#[custom_element(
         wraps_file = "_shared/chrome.html",
         shared_style = "input-default",

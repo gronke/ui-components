@@ -1,4 +1,4 @@
-//! The browser worker host as a reusable artifact (ADR 0023): the worker
+//! The browser worker host as a reusable artifact (ADR 0007): the worker
 //! that runs a foreign lit element on the browser's own engine against
 //! `uic_tui_web::DomSession`, and the page-side client whose session
 //! surface matches the wasm sessions'.

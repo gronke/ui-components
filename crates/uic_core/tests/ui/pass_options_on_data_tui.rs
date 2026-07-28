@@ -1,7 +1,7 @@
 use uic_core::{CustomElement, SelectOption};
 
 // A data-tui widget receives its `.options` rows through the adapter
-// (ADR 0015) — the binding is legal beyond <select> and custom elements.
+// (ADR 0002) — the binding is legal beyond <select> and custom elements.
 #[derive(CustomElement, Default)]
 #[custom_element(
     tag = "x-options-on-widget",

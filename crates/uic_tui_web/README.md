@@ -7,7 +7,7 @@ Two sessions share the `XtermBackend`:
 
 - `TuiSession` — the catalog path: mounts registered Rust components (`ui_components`), replays
   attributes and properties, routes notify events out, resizes, themes.
-- `DomSession` — the native engine's host boundary (ADR 0023): exposes the shared host operations
+- `DomSession` — the native engine's host boundary (ADR 0007): exposes the shared host operations
   (`uic_tui::dom::HostState`) so the unchanged mocked-lit runtime runs on the browser's own JS
   engine in a dedicated worker; a foreign npm lit element mounts against the retained document,
   its `static styles` parsed into the cascade, keys and clicks delivered by the worker through

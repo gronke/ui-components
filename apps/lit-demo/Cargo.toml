@@ -11,14 +11,15 @@ rust-version.workspace = true
 [dependencies]
 uic_js.workspace = true
 uic_dom.workspace = true
-# The crossterm/ratatui re-exports drive the terminal loop and paint.
-uic_tui.workspace = true
-# The native QR widget registers its adapter through uic_core's inventory.
-uic_core.workspace = true
+# The crossterm/ratatui re-exports drive the terminal loop and paint; the
+# qr feature carries the native QR widget and its half-block renderer.
+uic_tui = { workspace = true, features = ["qr"] }
+# default-features = true is load-bearing: the workspace pins web_modules
+# with default-features = false, and the dev server needs the defaults
+# (tera, builder) back to render live pages.
 web_modules = { workspace = true, default-features = true, features = ["dev"] }
 # The live mode's WebSocket state bridge rides the frontend router.
 axum = { workspace = true, features = ["ws"] }
-qrcode.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 serde_json.workspace = true
 include_dir.workspace = true

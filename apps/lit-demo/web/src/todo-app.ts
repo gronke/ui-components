@@ -9,6 +9,7 @@ import { css, html, LitElement } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { terminalTheme } from './theme.js';
 import './todo-item.js';
 
 interface TodoRow {
@@ -16,6 +17,11 @@ interface TodoRow {
     text: string;
     done: boolean;
 }
+
+/** The reactive properties a sync harness mirrors — the app's one state
+ * contract, imported by every page that attaches a wire. Rust twin:
+ * `STATE_FIELDS` in the demo's main.rs. */
+export const STATE_FIELDS: string[] = ['draft', 'editing', 'items', 'selected'];
 
 export class TodoApp extends LitElement {
     static properties = {
@@ -27,30 +33,32 @@ export class TodoApp extends LitElement {
 
     // The terminal's look: the mapped Bootstrap subset draws the card and
     // the active row; these rules add what the map leaves unset.
-    static styles = css`
-        :host {
-            display: block;
-        }
-        .card-header {
-            font-weight: bold;
-            color: #e5c07b;
-        }
-        todo-item {
-            display: block;
-        }
-        .prompt,
-        .draft {
-            color: #e5c07b;
-        }
-        .card-footer {
-            color: #808a93;
-        }
-    `;
+    static styles = [
+        terminalTheme,
+        css`
+            :host {
+                display: block;
+            }
+            todo-item {
+                display: block;
+            }
+            .prompt,
+            .draft {
+                color: var(--tui-accent);
+            }
+            .card-footer {
+                color: var(--tui-muted);
+            }
+        `,
+    ];
 
     declare items: TodoRow[];
     declare draft: string;
     declare selected: number;
     declare editing: number;
+
+    // Transient drag source — plain field, neither reactive nor synced.
+    private dragFrom = -1;
 
     constructor() {
         super();
@@ -61,8 +69,6 @@ export class TodoApp extends LitElement {
         this.draft = '';
         this.selected = 0;
         this.editing = -1;
-        // Transient drag source — plain field, neither reactive nor synced.
-        (this as any).dragFrom = -1;
         this.addEventListener('keydown', (event: KeyboardEvent) => this.onKey(event));
         this.addEventListener('input', (event: Event) => this.onInput(event));
         this.addEventListener('click', (event: Event) => this.onBackgroundClick(event));
@@ -81,11 +87,13 @@ export class TodoApp extends LitElement {
         draft?.focus();
     }
 
-    // The announcement the live bridge listens to. The terminal's mocked lit
-    // calls updated with an empty map, so the guard keeps Boa off the
-    // (unmocked) dispatchEvent path — there the host reads state directly.
+    // The announcement the live bridge listens to — a plain Event carrying
+    // nothing: the snapshot is read off the properties. The terminal's
+    // mocked lit calls updated with an empty map, so the guard keeps Boa
+    // off the (unmocked) dispatchEvent path — there the host reads state
+    // directly.
     updated(changed: Map<string, unknown>): void {
-        if (['items', 'draft', 'selected', 'editing'].some((name) => changed.has(name))) {
+        if (STATE_FIELDS.some((name) => changed.has(name))) {
             this.dispatchEvent(new Event('state-changed'));
         }
     }
@@ -118,22 +126,28 @@ export class TodoApp extends LitElement {
             }
             this.toggle(this.selected);
         } else if (key === 'ArrowDown' && event.shiftKey) {
-            if (this.editing < 0) {
-                this.moveSelected(1);
+            if (this.editing >= 0) {
+                return;
             }
+            this.moveSelected(1);
         } else if (key === 'ArrowUp' && event.shiftKey) {
-            if (this.editing < 0) {
-                this.moveSelected(-1);
+            if (this.editing >= 0) {
+                return;
             }
+            this.moveSelected(-1);
         } else if (key === 'ArrowDown') {
-            if (this.editing < 0) {
-                this.selected = Math.min(this.selected + 1, this.items.length - 1);
+            if (this.editing >= 0) {
+                return;
             }
+            this.selected = Math.min(this.selected + 1, this.items.length - 1);
         } else if (key === 'ArrowUp') {
-            if (this.editing < 0) {
-                this.selected = Math.max(this.selected - 1, 0);
+            if (this.editing >= 0) {
+                return;
             }
+            this.selected = Math.max(this.selected - 1, 0);
         } else {
+            // A key the chrome does not consume — Tab above all — keeps its
+            // default: cancel only what was acted on.
             return;
         }
         event.preventDefault();
@@ -202,12 +216,9 @@ export class TodoApp extends LitElement {
         this.editing = index;
     }
 
-    moveSelected(delta: number): void {
-        const from = this.selected;
-        const to = from + delta;
-        if (to < 0 || to >= this.items.length) {
-            return;
-        }
+    // The one reorder primitive — Shift+arrows and drag both land here: the
+    // row moves and the selection follows it.
+    private moveItem(from: number, to: number): void {
         const items = this.items.slice();
         const moved = items.splice(from, 1)[0];
         items.splice(to, 0, moved);
@@ -215,12 +226,20 @@ export class TodoApp extends LitElement {
         this.selected = to;
     }
 
+    moveSelected(delta: number): void {
+        const to = this.selected + delta;
+        if (to < 0 || to >= this.items.length) {
+            return;
+        }
+        this.moveItem(this.selected, to);
+    }
+
     onDragStart(event: DragEvent): void {
         if (this.editing >= 0) {
             this.finishEdit();
         }
         const index = Number((event.currentTarget as Element).getAttribute('data-index'));
-        (this as any).dragFrom = index;
+        this.dragFrom = index;
         this.selected = index;
         event.dataTransfer?.setData('text/plain', String(index));
         if (event.dataTransfer) {
@@ -232,31 +251,26 @@ export class TodoApp extends LitElement {
     // the move happen.
     onDragOver(event: DragEvent): void {
         event.preventDefault();
-        const from = (this as any).dragFrom as number;
         const over = Number((event.currentTarget as Element).getAttribute('data-index'));
-        if (from < 0 || over === from) {
+        if (this.dragFrom < 0 || over === this.dragFrom) {
             return;
         }
-        const items = this.items.slice();
-        const moved = items.splice(from, 1)[0];
-        items.splice(over, 0, moved);
-        this.items = items;
-        this.selected = over;
-        (this as any).dragFrom = over;
+        this.moveItem(this.dragFrom, over);
+        this.dragFrom = over;
     }
 
     onDrop(event: DragEvent): void {
         event.preventDefault();
-        (this as any).dragFrom = -1;
+        this.dragFrom = -1;
     }
 
     onDragEnd(): void {
-        (this as any).dragFrom = -1;
+        this.dragFrom = -1;
     }
 
     toggle(index: number): void {
         this.items = this.items.map((item, at) =>
-            at === index ? { id: item.id, text: item.text, done: !item.done } : item,
+            at === index ? { ...item, done: !item.done } : item,
         );
     }
 
@@ -269,9 +283,7 @@ export class TodoApp extends LitElement {
     // text change letter by letter.
     editText(text: string): void {
         const index = this.editing;
-        this.items = this.items.map((item, at) =>
-            at === index ? { id: item.id, text, done: item.done } : item,
-        );
+        this.items = this.items.map((item, at) => (at === index ? { ...item, text } : item));
     }
 
     finishEdit(): void {

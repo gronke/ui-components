@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 chrono = "0.4"
 crossterm = "0.29"
+qrcode = { workspace = true, optional = true }
 rat-widget = "=3.2.1"
 ratatui = "0.30"
 taffy = "0.12"
@@ -20,7 +21,16 @@ uic_dom.workspace = true
 uic_template.workspace = true
 unicode-width = "0.2"
 
+[features]
+# The native QR widget (`data-tui="qr"`) and its half-block renderer; off
+# for the wasm terminal, so the browser bundle carries no encoder.
+qr = ["dep:qrcode"]
+
 [dev-dependencies]
 # With the tui feature: the integration tests mount components whose widget
-# twins live in the catalog (ADR 0015).
+# twins live in the catalog (ADR 0002).
 ui_components = { workspace = true, features = ["tui"] }
+
+[[test]]
+name = "qr_registry"
+required-features = ["qr"]

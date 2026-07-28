@@ -1,7 +1,7 @@
 # uic_js
 
 A Boa-embedded JS engine hosting real LitElement components on the terminal runtime — any npm lit element, byte-unmodified.
-Boa is the host for real terminals, where no JS engine exists; in the browser the same runtime modules run on the native engine in a worker against `uic_tui_web::DomSession` (ADR 0023), and the host operations behind both are one shared implementation (`uic_tui::dom::HostState`).
+Boa is the host for real terminals, where no JS engine exists; in the browser the same runtime modules run on the native engine in a worker against `uic_tui_web::DomSession` (ADR 0007), and the host operations behind both are one shared implementation (`uic_tui::dom::HostState`).
 
 Loading is generic: `JsHost::load_package(vendor_root, "@scope/name")` derives the package's ESM entry from its own manifest (`exports` ".", then `module`, then `main`), registers the whole dist tree under path-preserving specifiers, and evaluates the entry; `mount(tag, attrs)` takes any tag.
 Packages arrive through the same registry-read-only vendoring the rest of the repo uses (ADR 0004): `build.rs` vendors whatever `package.json` declares for the tests and examples, and the `third_party` example vendors any `name@range` at runtime.
@@ -54,10 +54,10 @@ Not provided (async model, raw HTML injection): `until`, `asyncAppend`, `asyncRe
 `LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
 A committed subtree upgrades the nested custom elements it names: components compose, and a parent's re-commit swaps its children in fresh, re-synced from their attributes (the serialize commit drops `.prop=` bindings, so composition data flows as attributes).
 
-Plain `input`/`textarea`/`select` elements are first-class: the shared commit mounts each one's terminal widget by element type (ADR 0027; `data-tui` overrides), `.value=` on the browser's value-carrying elements serializes as the `value` attribute and syncs the widget echo-skipped — a component echoing back what the user just typed never moves the caret — and the focused widget survives the subtree swap keyed by the same `data-path` that keys focus survival (plus a one-slot stash for a nested input whose parent commit re-renders it a beat later).
+Plain `input`/`textarea`/`select` elements are first-class: the shared commit mounts each one's terminal widget by element type (ADR 0026; `data-tui` overrides), `.value=` on the browser's value-carrying elements serializes as the `value` attribute and syncs the widget echo-skipped — a component echoing back what the user just typed never moves the caret — and the focused widget survives the subtree swap keyed by the same `data-path` that keys focus survival (plus a one-slot stash for a nested input whose parent commit re-renders it a beat later).
 An uncancelled keydown then runs the focused widget as the browser's editing default action; a text change synthesizes a bubbling `input` event whose `target.value` reads the live text (the node facade's `value` accessor), so `preventDefault()` on keydown suppresses the editing exactly like in a browser.
 Text inputs are the first-class kinds; `.options` (select, date) is not serialized yet.
-A component can also mount a host-drawn widget of its own by rendering a `data-tui` marker its co-located Rust adapter registers for through the inventory registry (ADR 0027) — the lit-demo's `<qr-code>` draws a native QR that way, reading its payload off the `value` channel (ADR 0030).
+A component can also mount a host-drawn widget of its own by rendering a `data-tui` marker its co-located Rust adapter registers for through the inventory registry (ADR 0026) — the lit-demo's `<qr-code>` draws a native QR that way, reading its payload off the `value` channel (ADR 0029).
 
 Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`dblclick`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint; focus survives each subtree swap by re-resolving its `data-path`.
 Synthesized events carry the modifier flags the host hands in — `JsHost::dispatch` takes the shared `uic_tui::KeyStroke` (the DOM key name plus all four flags; `dispatch_key`/`dispatch_key_shift` stay as shorthands) — and their `target` exposes `matches(selector)` and `closest(selector)`: the hit test lands on text nodes, so click discrimination walks up with closest.
@@ -65,6 +65,7 @@ Template `@event` values want to be method references (`@click=${this.onPick}`) 
 There is no `dispatchEvent` under Boa, so a component signals intent OUT to the host through a property the host reads via `prop_json` and clears with `set_prop` — a shared component keeps a `command` property its handlers write, polled after each click (ADR 0029; `tests/pair_panel.rs`); a browser controller of the same component can also `addEventListener`, from a guarded `CustomEvent` the handler dispatches alongside.
 
 A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — no Bootstrap assumed, the element's own stylesheet drives colors, indentation and generated content (json-viewer's `.collapsable::before` marker renders as a generated box, ▶ turning ▼ through `transform: rotate(90deg)`).
+`overflow-wrap: anywhere` is honored: an unbreakable token — a long URL — wraps mid-word across lines instead of pinning its box one clipped line wide (min-content drops to one cell; `tests/overflow_wrap.rs`).
 
 ## The pinned test component
 

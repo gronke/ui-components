@@ -1,6 +1,6 @@
 // The serializer polyfill: lit's template tags and the render-to-string
 // commit, recovering the binding prefixes (`.prop=`, `@event=`, `?attr=`)
-// from the static strings exactly like the parts compiler does (ADR 0010).
+// from the static strings exactly like the parts compiler does (ADR 0008).
 
 import { listenerFns, nothing } from './state.js';
 
@@ -55,7 +55,7 @@ export function releaseListeners(ids: number[]): void {
 
 // Handles the tail of the accumulated output before a hole: lit's `.prop=`,
 // `@event=` and `?attr=` prefixes are recovered from the static strings
-// exactly like the parts compiler does (ADR 0010).
+// exactly like the parts compiler does (ADR 0008).
 const BINDING_TAIL = /([.@?])([a-zA-Z][\w-]*)=("|')?$/;
 
 interface Out {

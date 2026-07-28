@@ -19,13 +19,13 @@ pub enum JsType {
     /// (no attribute, no reflection); Rust side is `Option<Zoned>`.
     Zoned,
     /// `SelectOption[]` — object-valued, property-only; Rust side is
-    /// `Vec<SelectOption>` and starts empty (ADR 0006).
+    /// `Vec<SelectOption>` and starts empty (ADR 0005).
     Options,
     /// `Record<string, unknown>` — object-valued, property-only; Rust side
     /// is `ObjectMap` and starts empty (ADR 0013).
     Object,
     /// `unknown[]` — object-valued, property-only; Rust side is `Vec<Value>`
-    /// and starts empty, the carrier of iterated rows (ADR 0018).
+    /// and starts empty, the carrier of iterated rows (ADR 0001).
     Array,
 }
 

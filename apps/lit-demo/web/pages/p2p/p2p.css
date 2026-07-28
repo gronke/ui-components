@@ -2,22 +2,6 @@ main {
     max-width: 34rem;
 }
 
-/* The terminal's checkbox twin — the browser shows the real input. */
-todo-app .check {
-    display: none;
-}
-
-todo-app {
-    outline: none;
-}
-
-/* The keyboard lives on the app element; the ring says so — !important
-   because the card's shadow-sm utility carries it too. */
-todo-app:focus-within .card {
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
-}
-
-
 pair-wizard,
 pair-panel,
 qr-code {
@@ -39,14 +23,15 @@ pair-wizard textarea {
     font-size: 0.8rem;
 }
 
-/* The full URL in short form: one ellipsized line, the click copies. */
+/* The compact copy affordance; the wrapped full-URL text is the terminal's
+   rendering of the same invite and stays hidden here. */
 pair-wizard .copy-link {
-    display: block;
+    display: inline-block;
     margin-bottom: 0.5rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 0.8rem;
+}
+
+pair-panel .link-text {
+    display: none;
 }
 
 pair-wizard video {

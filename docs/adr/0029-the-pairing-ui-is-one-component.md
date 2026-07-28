@@ -1,50 +1,40 @@
-# ADR 0029: The pairing UI is one component, two transports
+# ADR 0029: The pairing UI is one shared component set
 
 ## Decision
 
-The pairing UI is a single shared component, `<pair-panel>` (baked into `@schuhkarton/lit-todo`, loaded by
-both hosts): the card, the connection badge, the status line, the invite link, the copyable token, the
-peer-paste box and the buttons. It renders in the terminal and the browser alike — the framework's thesis,
-applied to pairing. Only the WebRTC transport differs per host: the browser's `pair-wizard` (the swap, the
-clipboard, the camera) renders a `<pair-panel>` and drives it; the terminal's native Rust peer mounts the
-same panel and drives it from `main.rs`. (The relay is since removed — ADR 0031 — and the QR is now the
-shared `<qr-code>`, in the panel for the browser and beside the panes in the terminal's deck, ADR 0030.)
+The pairing UI is one shared component set — `<pair-panel>`, `<qr-code>` and the terminal's `<p2p-deck>`, baked into `@schuhkarton/lit-todo` and loaded by both hosts; only the transport differs per host, the browser's `pair-wizard` owning the swap, the clipboard and the camera, the terminal's native Rust peer driving the same elements from the demo binary (ADR 0028).
 
-The panel is presentation only. State flows in as properties (`mode`, `link`, `token`, `status`,
-`connected`, `resetLabel`, `canScan`); intent flows out through a `command` property a host reads and
-clears. In the browser the panel additionally dispatches a `CustomEvent` for the same intent, so a browser
-controller can just `addEventListener`; the property is the channel that also works under the mocked terminal
-lit, which has no `dispatchEvent`.
+`<pair-panel>` is presentation only: the card, the connection badge, the status line, the invite body, the peer-paste box and the buttons, driven entirely by properties (`mode`, `link`, `status`, `connected`, `resetLabel`, `actionLabel`, `canScan`, `peer`, `command`).
+The exported `PanelMode` union is the mode contract — `idle`, `invite`, `connected`, `dropped`, `failed`, `handed`, `moved`, `nortc` — of which the native session machine produces the first five (Rust twin: `uic_sync::session::PanelMode`), the browser wizard adding the takeover roles and the no-WebRTC dead end.
+Only `idle` and `invite` render a body; every other mode speaks through the status line, the badge and the action/reset buttons.
+Intent flows back through the `command` property: a click writes it, the host reads and clears it, and — where the platform has events — the same `emit()` also dispatches a browser `CustomEvent` of that name so a controller can just listen.
+Only `connect` carries a detail (the pasted peer text); `action` stays a deliberately generic name — the panel is presentation-only and the host supplies the label (the tab takeover today, ADR 0032).
+The wizard's reactive state speaks the panel's own vocabulary, so its render is a plain pass-through; the terminal loop mirrors the session machine's `PanelState` onto the mounted panel with `set_prop` and polls `command` after each click.
+
+`<qr-code data="…">` renders alike in both hosts: the browser draws an SVG with `qrcode-generator`, loaded through a guarded dynamic `import()`, while the terminal mounts a native Rust QR widget, selected by a `data-tui="qr"` marker through the widget registry (ADR 0026) behind `uic_tui`'s `qr` feature.
+The data rides the widget's `value` channel — the one attribute the scripted host mirrors — and flows to the nested element as an attribute, since a `.prop=` binding would not survive the serialize commit.
+Both hosts paint it black on white explicitly — a camera wants dark modules on a light ground whatever the theme — the browser's SVG on its own white card, the widget with explicit cell colors; the half-block renderer (`qrcode` crate, Dense1x2) is one `render_qr` function shared by the widget and the live-mode join pane.
+
+`<p2p-deck>` is the terminal's arrangement: the todo card and the panel stack in one column and the QR docks to their right, wrapping below the panes under about 200 columns — real taffy flexbox from the deck's own stylesheet (a 111ch stack width as the flex basis beside the QR's ~87 intrinsic columns and the 2ch gap), no host rect math.
+The deck deliberately has no reactive properties: it renders exactly once, so a re-commit can never swap the composed `<todo-app>`'s live state away, and the hosts drive the nested elements directly by node.
+It also deliberately imports neither `pair-panel.js` nor `qr-code.js`: the terminal loads those modules explicitly before mounting, and an import here would drag the pairing UI into the browser's todo-app graph.
+
+The invite shows once per host: the browser a compact copy-link (it has a clipboard), the terminal the full link as wrapped, selectable text (`overflow-wrap: anywhere`, honored by the text layout).
+The panel's `static styles` are the terminal-only layer — hiding the copy-link and the inline QR (the deck docks its own beside the panes) while the mapped Bootstrap subset draws the card and the badge (ADR 0021) — and the browser page's CSS hides the link text instead.
+
+The panel restores focus across re-renders: `willUpdate` captures the focused control's stable identity (its `name` or leading class), and `updated` puts focus back on the same control or the new body's first one — guarded, because the terminal host has no `document`.
 
 ## Why
 
-The pairing UI existed twice: a heavyweight browser `pair-wizard` and a hand-rolled Rust QR pane + status
-line. Sharing the *view* removes the duplication and makes the terminal's pairing look and behave like the
-browser's — the invite link, a renew button, a join-another control, the live badge — while the transport,
-which genuinely cannot be shared (Boa has no WebRTC), stays where it must.
-
-Two host constraints shaped the seam:
-- **No event-out under Boa.** The mocked lit has no `Event`/`CustomEvent`/`dispatchEvent`; `JsHost` exposes
-  only `set_prop`/`prop_json`. So a shared component cannot signal intent by dispatching an event — it writes
-  a `command` property the terminal loop polls after each click and clears. The browser gets a real event
-  too, from the same `emit()` helper, guarded by `typeof CustomEvent`.
-- **No SVG/`unsafeHTML` under Boa.** The QR cannot render inside the shared component *as an SVG*; at this
-  ADR it stayed host-drawn beside the panel — the browser an SVG, the terminal a block-char pane. This is
-  the `.check`/`[x]`-span precedent from `todo-item` at panel scale: one feature, two irreducibly
-  host-specific renderings, each drawn where it can be. (ADR 0030 later folds the QR back into the panel as
-  the shared `<qr-code>`, giving the terminal a native QR widget, so the SVG is no longer the only path.)
+The pairing UI existed in per-host copies, while the transport is the only part that genuinely cannot be shared: Boa has no WebRTC, no clipboard and no camera.
+The mocked terminal lit has no `Event`/`CustomEvent`/`dispatchEvent`, and `JsHost` exposes only `set_prop`/`prop_json`, so a shared component cannot signal intent by dispatching an event — the `command` property is the channel that works everywhere, and the browser event is a convenience on top of the same helper.
+Boa has no SVG path either, but the widget registry already lets a custom element mount a host-drawn terminal widget (ADR 0026), so the QR is one real component with two renderers instead of a host-drawn pane — the todo-item checkbox precedent (a `[x]` span beside the real `<input>`) at QR scale.
+A structural re-render (the mode body swapping, a label button appearing or vanishing) tears the focused node down and the browser drops focus to `body`, knocking a keyboard user back to the top of the page; the restoration keeps the keyboard walk in place.
 
 ## Consequences
 
-- The terminal mounts `<pair-panel>` as a second sibling root beside `<todo-app>` (`paint_document` renders
-  the whole document); a `PanelState` the pairing thread writes is mirrored onto it with `set_prop` each
-  tick, and its `command` property is polled after clicks and forwarded to the pairing thread — which can
-  now create a fresh `Swap` on renew (`Swap::connect` borrows `&self` so the loop can `close()` the old wire
-  first).
-- The terminal's invite is the panel's link text (selectable, always current through renew), replacing the
-  separate always-static QR pane in p2p mode; the QR is since the shared `<qr-code>` (ADR 0030) — inline in
-  the panel for the browser, docked beside the panes by the terminal's p2p deck.
-- The browser's `pair-wizard` keeps every transport method unchanged; only its `render()` changed — it now
-  renders and drives the panel and answers its intent events. The `'wire'` event to the page is unchanged.
-- The clipboard stays host-specific by necessity; "one component" holds for the link, QR, buttons, status
-  and badge (the QR since folded in as `<qr-code>`, ADR 0030), which is the pairing UI proper.
+- The browser QR library must never enter Boa's static module graph, which would fail the terminal at link time; the dynamic `import()` runs only in the browser, and a run under Boa rejects and is swallowed, leaving the native widget.
+- The terminal QR is as large as its payload: a long invite link is a high-version grid, so the deck wraps it below the panes on narrow terminals, where the wrapped link text remains the working fallback (an unbreakable token's min-content drops to one cell and the wrap machinery breaks it).
+- The deck's breakpoint is flex-basis arithmetic (the stack's `width` beside the QR's intrinsic columns), not a media query: `uic_css` maps `display: flex`, `flex-wrap`, `min-width` and `ch` lengths onto taffy, but has no `@media`/container conditions and no `flex-basis` property — the recorded follow-ups, issue #98.
+- The clipboard and the camera stay host-specific by necessity: the terminal answers `copy-link` and `scan` intents with nothing (the link is selectable text), and `canScan` turns the scan button on only where `BarcodeDetector` exists.
+- "One component" holds for the pairing UI proper — link, QR, buttons, status, badge — with the browser-only camera video living in the wizard beside the panel.

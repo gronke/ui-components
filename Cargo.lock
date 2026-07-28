@@ -1241,7 +1241,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2552,7 +2552,8 @@ dependencies = [
 [[package]]
 name = "npm-utils"
 version = "0.6.2"
-source = "git+https://github.com/gronke/npm-utils?rev=b0ed4fded875e97064163ab621b6c2321e6142bb#b0ed4fded875e97064163ab621b6c2321e6142bb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41ad1af8efe2b568c2c33dca11d13eaaf2b283149756a7ae908ab1742dc99132"
 dependencies = [
  "base64",
  "flate2",
@@ -4121,7 +4122,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4178,7 +4179,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4588,7 +4589,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4866,7 +4867,7 @@ dependencies = [
  "parking_lot",
  "rustix",
  "signal-hook",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5377,10 +5378,8 @@ dependencies = [
  "axum",
  "include_dir",
  "npm-utils",
- "qrcode",
  "serde_json",
  "tokio",
- "uic_core",
  "uic_dom",
  "uic_js",
  "uic_sync",
@@ -5423,6 +5422,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "crossterm",
+ "qrcode",
  "rat-widget",
  "ratatui",
  "taffy",
@@ -6054,7 +6054,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

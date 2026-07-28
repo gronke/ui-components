@@ -19,11 +19,13 @@ pub mod dom;
 pub mod keys;
 pub mod lint;
 
+#[cfg(feature = "qr")]
+pub use dom::qr;
 pub use dom::{App, OverlayOutcome, WidgetAdapter, WidgetRegistration};
 pub use keys::KeyStroke;
 
 // The widget-implementation surface for co-located component twins
-// (ADR 0015): adapters build against the runtime's own stack, so versions
+// (ADR 0002): adapters build against the runtime's own stack, so versions
 // can never drift.
 pub use {crossterm, rat_widget, ratatui, unicode_width};
 

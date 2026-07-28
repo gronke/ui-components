@@ -1,4 +1,4 @@
-//! LitElement semantics on the retained DOM (ADR 0011): registered custom
+//! LitElement semantics on the retained DOM (ADR 0008): registered custom
 //! elements mount as element nodes, their templates instantiate through the
 //! parts engine, holes resolve against the property store, and every update
 //! cycle patches only the parts that changed.
@@ -318,7 +318,7 @@ impl Mount {
             .map(|expr| resolve::resolve_hole(expr, &self.store, self.behavior.as_ref()))
             .collect();
         // Each repeat tree resolves per row against its scope stack, nesting
-        // lists for repeats inside repeat bodies (ADR 0018).
+        // lists for repeats inside repeat bodies (ADR 0001).
         for repeat in template.repeats() {
             let each = match &values[repeat.each_hole] {
                 PartValue::Value(value) => value.clone(),

@@ -1,4 +1,4 @@
-//! The DOM runtime (ADR 0011/0012): components mount on the retained
+//! The DOM runtime (ADR 0008): components mount on the retained
 //! `uic_dom::Document`, widget state lives in the node payload, layout and
 //! paint read the tree, and events travel it.
 
@@ -17,6 +17,8 @@ pub use app::App;
 pub use css::adopt_component_sheet;
 pub use host::DomHost;
 pub use host_state::HostState;
+#[cfg(feature = "qr")]
+pub use widget::qr;
 pub use widget::{OverlayOutcome, WidgetAdapter, WidgetPayload, WidgetRegistration};
 
 /// The runtime's document type: every element node can carry a terminal

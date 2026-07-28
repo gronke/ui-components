@@ -379,6 +379,23 @@ impl<T> Document<T> {
             .flatten()
     }
 
+    /// The first element under `from` (document order, `from` included)
+    /// whose data matches the predicate.
+    pub fn find_element(
+        &self,
+        from: NodeId,
+        matches: impl Fn(&ElementData<T>) -> bool,
+    ) -> Option<NodeId> {
+        self.descendants(from)
+            .find(|&node| self.element(node).is_some_and(&matches))
+    }
+
+    /// The first element of a tag under `from` — how a host finds the
+    /// components a one-shot composition mounted.
+    pub fn descendant_by_tag(&self, from: NodeId, tag: &str) -> Option<NodeId> {
+        self.find_element(from, |el| el.tag().as_ref() == tag)
+    }
+
     // -- attributes -------------------------------------------------------
 
     pub fn attribute(&self, node: NodeId, name: &str) -> Option<&str> {

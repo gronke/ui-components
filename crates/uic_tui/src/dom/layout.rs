@@ -91,7 +91,11 @@ impl FlowItem<'_> {
 }
 
 enum Measured {
-    Text(String),
+    /// A text leaf; the flag carries `overflow-wrap: anywhere` — an
+    /// unbreakable token may then break at any character, so min-content
+    /// drops to one cell instead of the longest word (the height count and
+    /// the paint already break oversized words).
+    Text(String, bool),
     /// A widget leaf, with its content width when the widget sizes to
     /// content (the select's closed label); `None` measures the flex
     /// default.
@@ -145,10 +149,11 @@ pub(crate) fn compute_styled(
             height: AvailableSpace::Definite(area.height as f32),
         },
         |known, available, _id, context, _style| match context {
-            Some(Measured::Text(text)) => {
+            Some(Measured::Text(text, break_anywhere)) => {
                 let intrinsic = text.width() as f32;
                 let width = known.width.unwrap_or(match available.width {
                     AvailableSpace::Definite(limit) => intrinsic.min(limit),
+                    AvailableSpace::MinContent if *break_anywhere => 1.0,
                     AvailableSpace::MinContent => longest_word(text),
                     AvailableSpace::MaxContent => intrinsic,
                 });
@@ -185,7 +190,8 @@ fn build(
     styles: &StyleTable,
 ) -> Option<Shadow> {
     match doc.node(node)? {
-        NodeData::Text(text) => build_text(tree, node, collapse_whitespace(text)),
+        // A root-level text node inherits nothing (the root has no style).
+        NodeData::Text(text) => build_text(tree, node, collapse_whitespace(text), false),
         NodeData::Element(el) => {
             // Conditional anchors render nothing; their bodies are siblings.
             if &**el.tag() == "template" {
@@ -403,7 +409,13 @@ fn build_plain_item(
 ) {
     match item {
         FlowItem::Text { node, raw } => {
-            out.extend(build_text(tree, node, collapse_whitespace(raw)));
+            let break_anywhere = owner_breaks_anywhere(styles, owner);
+            out.extend(build_text(
+                tree,
+                node,
+                collapse_whitespace(raw),
+                break_anywhere,
+            ));
         }
         FlowItem::Element { node, .. } => {
             out.extend(build(tree, doc, node, false, styles));
@@ -429,6 +441,8 @@ fn build_run_items(
         return Vec::new();
     };
     let mut out = Vec::new();
+    // A per-owner constant — one lookup serves the whole run.
+    let break_anywhere = owner_breaks_anywhere(styles, owner);
     // The run start behaves like text after a space: leading whitespace
     // never renders at a line start.
     let mut prev_spaced = true;
@@ -441,7 +455,7 @@ fn build_run_items(
                 let collapsed = collapse_whitespace(raw);
                 if collapsed.is_empty() {
                     if !prev_spaced {
-                        out.extend(build_text(tree, node, " ".to_string()));
+                        out.extend(build_text(tree, node, " ".to_string(), break_anywhere));
                         prev_spaced = true;
                     }
                     continue;
@@ -456,7 +470,7 @@ fn build_run_items(
                 if trail {
                     text.push(' ');
                 }
-                out.extend(build_text(tree, node, text));
+                out.extend(build_text(tree, node, text, break_anywhere));
                 prev_spaced = trail;
             }
             FlowItem::Element { node, .. } => {
@@ -476,11 +490,21 @@ fn build_run_items(
     out
 }
 
+/// The owner element's inherited `overflow-wrap: anywhere` — the flag its
+/// text children measure under.
+fn owner_breaks_anywhere(styles: &StyleTable, owner: uic_dom::NodeId) -> bool {
+    styles
+        .get(&owner)
+        .is_some_and(|entry| entry.style.break_anywhere)
+}
+
 /// A text leaf carrying its prepared string; empty text builds nothing.
+/// `break_anywhere` is the owner's inherited `overflow-wrap: anywhere`.
 fn build_text(
     tree: &mut TaffyTree<Measured>,
     node: uic_dom::NodeId,
     text: String,
+    break_anywhere: bool,
 ) -> Option<Shadow> {
     if text.is_empty() {
         return None;
@@ -491,7 +515,7 @@ fn build_text(
                 flex_shrink: 0.0,
                 ..Default::default()
             },
-            Measured::Text(text.clone()),
+            Measured::Text(text.clone(), break_anywhere),
         )
         .expect("taffy text leaf");
     Some(Shadow {
@@ -518,7 +542,7 @@ fn build_generated(
     let mut style = taffy_style(pseudo);
     style.flex_shrink = 0.0;
     let taffy = tree
-        .new_leaf_with_context(style, Measured::Text(text.clone()))
+        .new_leaf_with_context(style, Measured::Text(text.clone(), pseudo.break_anywhere))
         .expect("taffy generated leaf");
     Some(Shadow {
         kind: LaidKind::Generated { owner, which, text },
@@ -527,7 +551,7 @@ fn build_generated(
     })
 }
 
-/// Lays a `<table>` out as a grid with shared column tracks (ADR 0019).
+/// Lays a `<table>` out as a grid with shared column tracks (ADR 0017).
 ///
 /// The section elements and `<tr>` are structural: the cells become the grid
 /// items, placed explicitly by row and column line so a short row never

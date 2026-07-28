@@ -1,14 +1,27 @@
 # ui-components
 
-This project assembles custom web components from Rust code.
+Web components with a terminal target: one component definition renders as an idiomatic Lit element in the browser and as a real TUI in the terminal — same properties, same events, same keyboard.
 
 One Rust definition per component — reactive properties, a lit-flavored template (inline or `.html`), co-located `.scss`, named behavior hooks — renders to two targets:
 
 - Browser: generated TypeScript web components (LitElement variant: plain class, `static properties`, light DOM, no decorators), vendored, compiled and served by [web_modules](https://github.com/gronke/web_modules).
 - Terminal: a runtime interpreting the same template IR with ratatui, laid out by taffy (real CSS flexbox/block over terminal cells) and rat-widget input primitives.
 
+It also works the other way around: [`apps/lit-demo`](apps/lit-demo/README.md) is a plain, hand-written Lit app the terminal runs byte-unmodified — a frontend designed with a TUI layer in mind gets a second, honest render target for free, and what survives 80 columns tends to be a better web page too.
+The stack stays purist on both sides: light-DOM Lit over web standards in the browser; a retained DOM, real CSS (flexbox, the cascade, custom properties) and ratatui in the terminal; platform primitives over services — state travels one wire seam (ADR 0013), and two devices pair over WebRTC with no server between them (ADR 0028).
+
 Component registration mirrors `customElements.define` through the `inventory` crate; properties follow the catalog's `LitNotify` vocabulary (`notify` → `<name>-changed` events).
 The crate map and runtime overview live in [docs/architecture.md](docs/architecture.md), the decisions in [docs/adr](docs/adr); the plan and milestones in [issue #1](https://github.com/schuhkarton/ui-components/issues/1).
+
+## See it running
+
+```sh
+cargo run -p uic_lit_demo             # the hand-written Lit todo app, in this terminal
+cargo run -p uic_lit_demo -- p2p      # the same app as a serverless WebRTC peer — QR invites included
+cargo run -p uic_web_demo             # the component gallery: every element web-beside-terminal
+```
+
+The demo's own guide (`serve`, `live`, `p2p` and the pairing story) is [apps/lit-demo/README.md](apps/lit-demo/README.md).
 
 ## Defining a component
 
@@ -44,15 +57,15 @@ Browser-side behavior lives in the co-located `date.impl.ts` under the same name
 Templates can nest registered custom elements (`<input-date …>` inside another component's template).
 In the terminal, children mount recursively: `.prop=${…}` and `?attr=${…}` bindings sync down on parent updates, `@value-changed=${handler}` bindings route child notify events into the parent behavior, and Tab traverses parent and child widgets in template order.
 
-Select options are data, not template structure (ADR 0006): a `Vec<SelectOption>` property or computed binds as `<select .options=${…}>`, which the web generator expands into the `<option>` children and the terminal feeds to its dropdown widget — `<input-select>` is the generic element; `data-tui` widgets take the same binding through their adapters.
+Select options are data, not template structure (ADR 0005): a `Vec<SelectOption>` property or computed binds as `<select .options=${…}>`, which the web generator expands into the `<option>` children and the terminal feeds to its dropdown widget — `<input-select>` is the generic element; `data-tui` widgets take the same binding through their adapters.
 
-New components group every asset in one directory — definition, template, stylesheet, browser twin AND terminal widget twin (`tui.rs`, behind the catalog's `tui` feature, registered through `uic_tui::WidgetRegistration`) — see ADR 0015 and `input/suggestion/` as the reference.
+New components group every asset in one directory — definition, template, stylesheet, browser twin AND terminal widget twin (`tui.rs`, behind the catalog's `tui` feature, registered through `uic_tui::WidgetRegistration`) — see ADR 0002 and `input/suggestion/` as the reference.
 Async data reaches a component through connectors (ADR 0014): `<input-suggestion>` raises `query-changed` per keystroke and renders whatever rows land in its `suggestions` property; `QuerySource` implementations ship in `ui_components::connect` (in-memory pool, method wrapper, browser `FetchSource`) with `connectSuggestions(el, source)` as the browser glue.
 `<nav-tabs>` is the first non-input component: a value-driven tab bar (rows as `options` data, `value-changed` on pick) whose terminal twin wraps rat's `Tabbed` — the demo composes it with a Bootstrap card and two `<template if>` panes, and the terminal renders the `card` class as its bordered block (ADR 0017).
-`<nav-breadcrumb>` renders a static breadcrumb trail from `items` rows (`{label, href?}`): a computed decorates the rows with the `divider` so both targets paint the same text separators, and linked crumbs stay anchors in the browser while degrading to plain text in the terminal (ADR 0020).
+`<nav-breadcrumb>` renders a static breadcrumb trail from `items` rows (`{label, href?}`): a computed decorates the rows with the `divider` so both targets paint the same text separators, and linked crumbs stay anchors in the browser while degrading to plain text in the terminal (ADR 0017).
 
 Plain HTML translates to the closest terminal representation: unknown tags render as generic blocks, text wraps, and a Bootstrap-class subset maps to layout and text styling (margins, flex, `w-100`, `form-label`, `card`, …) while unmapped classes degrade silently.
-Interactivity does not degrade silently: `uic_tui::lint` (ADR 0016) fails on template bindings the terminal can never serve and warns on web-only markup — see "Authoring components in your own crate".
+Interactivity does not degrade silently: `uic_tui::lint` (ADR 0026) fails on template bindings the terminal can never serve and warns on web-only markup — see "Authoring components in your own crate".
 
 The same `<input-date>` renders as a Lit element with Bootstrap chrome in the browser, and as this frame in a terminal:
 
@@ -80,11 +93,11 @@ The package is not on npm yet (the real publish stays gated until the registry d
 
 The catalog is not special: any crate can define components against `uic_core` (it re-exports the derive, `#[input_shared]` and the registry) and render them through both targets.
 
-- Model each component as one directory (ADR 0015): `mod.rs` beside its `.html`, `.scss` and `.impl.ts`; the derive registers the definition at link time.
+- Model each component as one directory (ADR 0002): `mod.rs` beside its `.html`, `.scss` and `.impl.ts`; the derive registers the definition at link time.
 - Provide a link anchor so the registrations survive the linker — `#[inline(never)] pub fn link() {}` — and have consumers call it before touching the registry (the pattern behind `ui_components::link()`).
 - Generate the web side in the consuming app's `build.rs`: call `your_crate::link()` and run `uic_codegen_web::WebCodegen::new(out)` (see `apps/web-demo/build.rs`); `DistBuild` wraps the same output as an npm tree.
 - A terminal-interactive component registers its widget twin from a co-located `tui.rs` — `inventory::submit! { uic_tui::WidgetRegistration { kind: "…", build } }` behind your own `tui` cargo feature; the runtime needs no edit (`nav_tabs/tui.rs` is the reference).
-- Gate terminal compatibility with one integration test (ADR 0016); it fails on bindings the terminal can never serve — unknown `data-tui` kinds, undispatched widget events, notify-event typos — and prints warnings for web-only markup:
+- Gate terminal compatibility with one integration test (ADR 0026); it fails on bindings the terminal can never serve — unknown `data-tui` kinds, undispatched widget events, notify-event typos — and prints warnings for web-only markup:
 
 ```rust
 #[test]
@@ -96,21 +109,7 @@ fn tui_compatible() {
 
 ## Workspace
 
-| Crate | Role |
-| --- | --- |
-| `crates/uic_template` | Lit-flavored template string parser and IR, shared by the derive macro, codegen and TUI |
-| `crates/uic_core` | Component model: `ComponentDef`, `PropertyMeta`, `Behavior`, notify semantics, custom-element registry |
-| `crates/uic_macros` | `#[derive(CustomElement)]` |
-| `crates/uic_codegen_web` | Emits the TypeScript/SCSS/manifest web components for `web_modules` builds |
-| `crates/uic_tui` | Terminal runtime (ratatui + taffy + rat-widget) |
-| `crates/uic_tui_web` | Browser host for the terminal runtime: wasm sessions rendered through xterm.js (ADR 0007) |
-| `crates/uic_js` | Boa host running real npm lit elements on the terminal runtime (ADR 0023) |
-| `crates/uic_worker` | The browser worker host for foreign lit elements, published as `@schuhkarton/uic-worker` (ADR 0023) |
-| `crates/uic_sync` | State sync tooling — structured-clone snapshots over one wire seam, serverless QR pairing — published as `@schuhkarton/uic-sync` (ADR 0024) |
-| `crates/ui_components` | The component catalog (inputs plus the `<app-root>` demo composition) |
-| `apps/web-demo` | Browser demo served via axum/`web_modules::Frontend` |
-| `apps/tui-demo` | Terminal demo |
-| `apps/lit-demo` | One hand-written Lit todo app: the terminal runs it on `uic_js`/Boa, `web_modules` serves it to the browser |
+The crate map — every crate's role, the runtime overview and the load-bearing semantics — is [docs/architecture.md](docs/architecture.md).
 
 ## Development
 
@@ -120,15 +119,13 @@ cargo run -p uic_tui_demo             # terminal demo (Enter commits, F4/Down or
 cargo run -p uic_tui_demo input-text  # any registered tag
 cargo run -p uic_tui_demo nav-tabs    # the tab bar standalone (Left/Right or a click switches)
 cargo run -p uic_tui_demo app-root    # the tabbed demo card, incl. the live word-pool typeahead
-cargo run -p uic_lit_demo             # a hand-written Lit todo app in this terminal (uic_js/Boa)
-cargo run -p uic_lit_demo -- serve    # the same app on real lit, http://127.0.0.1:8090
-cargo run -p uic_lit_demo -- live     # terminal + server on one state; scan the QR pane to join
+cargo run -p uic_lit_demo             # the Lit todo app in this terminal — serve/live/p2p in its README
 cargo run -p uic_tui --example screen # print one rendered terminal frame
 cargo run -p uic_dist                 # npm package tree in dist/npm (ADR 0004)
 scripts/build-wasm.sh                 # browser TUI for the web demo's split view (ADR 0007), then restart the demo
 ```
 
-With the wasm build in place the web demo is a gallery (ADR 0022): the root groups `/demo/` (the composed form), `/components/<tag>/` (one page per catalog component) and `/examples/` (maintained end-to-end examples — foreign npm elements whose terminal pane runs on the browser's own engine in a dedicated worker, ADR 0023); each page shows the element twice — the real web component beside the same element in a terminal, rendered by the TUI runtime.
+With the wasm build in place the web demo is a gallery (ADR 0007): the root groups `/demo/` (the composed form), `/components/<tag>/` (one page per catalog component) and `/examples/` (maintained end-to-end examples — foreign npm elements whose terminal pane runs on the browser's own engine in a dedicated worker, ADR 0007); each page shows the element twice — the real web component beside the same element in a terminal, rendered by the TUI runtime.
 The pages are responsive: side by side above the `md` breakpoint following the width slider (the terminal recomputes its columns live), tabs below it.
 The terminal pane follows the page theme — the OS scheme or the toggle choice — in its xterm palette and in the mounted document's cascade alike.
 The form example keeps the one-`state`-object story: both panes synchronize over a BroadcastChannel — edit either pane and the other follows, with the state messages landing in the shared log (ADR 0013); the component pages sync per notify property instead.

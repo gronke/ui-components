@@ -7,6 +7,7 @@
 import { css, html, LitElement } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
+import { terminalTheme } from './theme.js';
 
 // Editing swaps the label for a real input — the browser's native caret
 // and outline, the terminal's rat widget twin by element type. The parent
@@ -24,24 +25,27 @@ export class TodoItem extends LitElement {
     // colors. The browser hides .check via page.css and shows the real
     // checkbox instead; checkbox and button stay browser-only, while the
     // EDIT input is real in both hosts (its rat widget draws the caret).
-    static styles = css`
-        .check {
-            color: #6fb3d2;
-        }
-        .done .check {
-            color: #a3be8c;
-        }
-        .todo-row.done .label {
-            color: #808a93;
-        }
-        .todo-row.editing .label {
-            color: #e5c07b;
-        }
-        input.form-check-input,
-        button {
-            display: none;
-        }
-    `;
+    static styles = [
+        terminalTheme,
+        css`
+            .check {
+                color: var(--tui-info);
+            }
+            .done .check {
+                color: var(--tui-ok);
+            }
+            .todo-row.done .label {
+                color: var(--tui-muted);
+            }
+            .todo-row.editing .label {
+                color: var(--tui-accent);
+            }
+            input.form-check-input,
+            button {
+                display: none;
+            }
+        `,
+    ];
 
     declare text: string;
     declare done: boolean;
@@ -58,6 +62,9 @@ export class TodoItem extends LitElement {
         return this;
     }
 
+    // Checkbox and delete carry tabindex="-1" deliberately: the app-level
+    // key routing owns their actions (Space toggles, Delete removes), and
+    // the app element is the one focus stop of the list.
     render() {
         return html`<div
             class="todo-row d-flex align-items-center gap-2 ${classMap({

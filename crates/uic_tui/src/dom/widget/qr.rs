@@ -1,15 +1,24 @@
-//! The terminal twin of `<qr-code>` (ADR 0030): a native QR widget the
-//! shared pairing panel mounts through the `data-tui="qr"` registry, plus the
-//! half-block renderer the live-mode join pane shares. The browser half of
-//! the same element draws an SVG instead (`web/src/qr-code.ts`).
+//! The terminal twin of `<qr-code>` (ADR 0029): a native QR widget mounted
+//! through the `data-tui="qr"` registry, plus the half-block renderer hosts
+//! reuse for standalone panes (the lit-demo's live-mode join pane). The
+//! browser half of the same element draws an SVG instead.
 
+use crossterm::event::Event;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 use uic_core::Value;
-use uic_tui::crossterm::event::Event;
-use uic_tui::ratatui::layout::Rect;
-use uic_tui::ratatui::style::{Color, Style};
-use uic_tui::ratatui::widgets::Paragraph;
-use uic_tui::ratatui::Frame;
-use uic_tui::{WidgetAdapter, WidgetRegistration};
+
+use super::{WidgetAdapter, WidgetRegistration};
+
+/// Anchors this feature's object code so the `inventory` registration
+/// survives the linker in consuming binaries — the `ui_components::link()`
+/// discipline: without a genuine symbol reference into the object, lazy
+/// archive extraction drops the registration constructor and `data-tui="qr"`
+/// degrades to a generic container.
+#[inline(never)]
+pub fn link() {}
 
 /// The QR's own card, explicit rather than the theme's colors: black
 /// modules on a white ground scan on any terminal.
@@ -129,7 +138,7 @@ mod tests {
         // A short payload fits a low QR version; a long one needs a bigger
         // grid — the module count (and so the cell width) grows with it.
         let (_, short_width, short_height) = render_qr("hi").expect("a short QR");
-        let long = "uics1.".to_string() + &"A".repeat(300);
+        let long = "A".repeat(300);
         let (_, long_width, long_height) = render_qr(&long).expect("a long QR");
         assert!(short_width >= 21, "a QR is at least version 1 (21 modules)");
         assert!(long_width > short_width, "more data widens the grid");
@@ -150,7 +159,7 @@ mod tests {
             area: Rect::default(),
         };
         assert_eq!(adapter.intrinsic_width(), None);
-        adapter.sync(&Value::Str("uics1.abcdef".into()));
+        adapter.sync(&Value::Str("somePairingCode".into()));
         let width = adapter.intrinsic_width().expect("a sized QR after sync");
         assert!(width >= 21);
         assert_eq!(adapter.intrinsic_height(10), adapter.intrinsic_height(1));

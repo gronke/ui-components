@@ -1,80 +1,54 @@
-// The browser's pairing transport controller. It owns the whole exchange —
-// the symmetric swap and the same-browser tab handover — and hands the
-// finished wire to the page through a single 'wire' event. Pairing is a
-// mutual exchange with no third party (ADR 0031): each side sends its invite
-// and opens the other's. The UI itself is the shared <pair-panel> (ADR
-// 0029): this element renders one, feeds it state as properties, and listens
-// for its intent events; the terminal renders the same panel driven by its
-// native peer. Browser-only by nature (WebRTC), so it never runs under the
-// mocked terminal lit — the panel does.
+// The browser's pairing transport controller. It owns the swap lifecycle
+// and hands the finished wire to the page through a single 'wire' event.
+// Its reactive state speaks the panel's own vocabulary (PanelMode et al),
+// so the render below is a plain pass-through — no rename layer;
+// the cross-tab organization — which tab holds a session, how an opened
+// link reaches it, how a session hands over to another tab — lives in
+// @schuhkarton/uic-sync's session module (ADR 0032). Pairing is a mutual
+// exchange with no third party (ADR 0028): each side sends its invite and
+// opens the other's. The UI itself is the shared <pair-panel> (ADR 0029).
+// Browser-only by nature (WebRTC), so it never runs under the mocked
+// terminal lit — the panel does.
+//
+// A tab plays up to three roles in a takeover (ADR 0032): the NEW tab that
+// opened a reply and asks to take the session over; the OLD tab that owns
+// the wire and re-signals a fresh pairing through it; and the REMOTE end
+// that answers a repair request with a fresh swap of its own. Every live
+// wire wears the control plane (ControlWire), because any connected tab
+// can be asked to repair later.
 
 import { html, LitElement } from 'lit';
-import { payloadRole, swap } from '../@schuhkarton/uic-sync/pair.js';
-import type { PairOptions, PairSwap } from '../@schuhkarton/uic-sync/pair.js';
+import {
+    inviteLink,
+    linkPayload,
+    linkReply,
+    replyDigest,
+    swap,
+} from '../@schuhkarton/uic-sync/pair.js';
+import type { PairSwap } from '../@schuhkarton/uic-sync/pair.js';
+import {
+    ControlWire,
+    TabSessions,
+    TakeoverPoint,
+    TAKEOVER_TIMEOUT_MS,
+} from '../@schuhkarton/uic-sync/session.js';
 import type { Wire } from '../@schuhkarton/uic-sync/wire.js';
 import '../@schuhkarton/lit-todo/pair-panel.js';
+import type { PanelMode } from '../@schuhkarton/lit-todo/pair-panel.js';
+import { iceConfig } from './ice.js';
+import { scanFor } from './scan.js';
 
-type Step = 'idle' | 'invite' | 'answering' | 'connected' | 'dropped' | 'failed' | 'handed' | 'nortc';
-
-const CLAIM_WINDOW_MS = 400;
 const SLOW_HINT_MS = 15000;
 
-// The library defaults to no iceServers (one network, mDNS candidates);
-// this page opts into a public STUN server so peers on different networks
-// still find a route, and 'uic-ice' in localStorage appends any further
-// RTCIceServer list — a TURN relay with credentials makes hostile NATs
-// reachable without putting a server in the repo.
-function iceConfig(): PairOptions {
-    const iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
-    const extra = localStorage.getItem('uic-ice');
-    if (extra) {
-        try {
-            const parsed = JSON.parse(extra) as RTCIceServer[];
-            if (Array.isArray(parsed)) {
-                iceServers.push(...parsed);
-            } else {
-                console.warn('[p2p] uic-ice ignored — expected a JSON array of RTCIceServer');
-            }
-        } catch (error) {
-            console.warn('[p2p] uic-ice ignored — not valid JSON:', error);
-        }
-    }
-    return { iceServers };
-}
-
-// A same-browser handover, not a server: a link opened in a fresh tab offers
-// its payload to a tab already waiting. Module-scoped on purpose — Chrome
-// garbage-collects unreferenced BroadcastChannels, listeners and all, so a
-// function-local channel goes silently deaf once its scope ends. Optional
-// because older WebKit lacks the API; without it a link simply always adopts
-// in its own tab.
-const relay = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('uic-pair');
+// Module-scoped on purpose: Chrome garbage-collects unreferenced
+// BroadcastChannels, listeners and all — a function-local channel goes
+// silently deaf once its scope ends.
+const sessions = new TabSessions();
 
 /** Important pairing events go to the console — the hint line shows one
  * state, the log keeps the history (and the payloads, for debugging). */
 function note(...parts: unknown[]): void {
     console.info('[p2p]', ...parts);
-}
-
-/** The payload carried by a link, pasted text or scanned code: the invite is
- * a single `#uics1.…` fragment, so find the prefix and take the base64url
- * run that follows; a bare token passes through unchanged. */
-function payloadOf(text: string): string {
-    const trimmed = text.trim();
-    const at = trimmed.indexOf('uics1.');
-    if (at < 0) {
-        return trimmed;
-    }
-    const rest = trimmed.slice(at);
-    return /^uics1\.[A-Za-z0-9_-]*/.exec(rest)?.[0] ?? rest;
-}
-
-/** The invite link: the payload as a single URL-safe fragment (base64url
- * needs no escaping), so a chat app linkifies the whole URL. */
-function linkFor(payload: string): string {
-    const link = new URL(location.pathname, location.href);
-    link.hash = payload;
-    return link.href;
 }
 
 /** Clipboard with the graceful path: plain http on a LAN address has no
@@ -91,66 +65,56 @@ async function copied(text: string, what: string): Promise<string> {
     }
 }
 
-async function scanFor(video: HTMLVideoElement, own: string): Promise<string> {
-    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-    });
-    video.srcObject = stream;
-    await video.play();
-    try {
-        for (;;) {
-            const codes = await detector.detect(video);
-            // Only the PEER's swap payload ends the scan — this side's own
-            // code (or stray QR noise) keeps the camera looking.
-            const hit = codes.find((code: any) => {
-                const payload = payloadOf(String(code.rawValue));
-                return payloadRole(payload) === 'offer' && payload !== own;
-            });
-            if (hit) {
-                return String(hit.rawValue);
-            }
-            await new Promise((resolve) => setTimeout(resolve, 250));
-        }
-    } finally {
-        stream.getTracks().forEach((track) => track.stop());
-        video.srcObject = null;
-    }
-}
-
 export class PairWizard extends LitElement {
     static properties = {
-        step: { state: true },
-        hint: { state: true },
-        linked: { state: true },
+        mode: { state: true },
+        status: { state: true },
+        connected: { state: true },
         scanning: { state: true },
         starting: { state: true },
         resetLabel: { state: true },
+        actionLabel: { state: true },
     };
 
-    declare step: Step;
-    declare hint: string;
-    declare linked: boolean | null;
+    declare mode: PanelMode;
+    declare status: string;
+    declare connected: boolean | null;
     declare scanning: boolean;
     declare starting: boolean;
     declare resetLabel: string;
+    declare actionLabel: string;
 
     private side: PairSwap | null = null;
     private paired = false;
     private link = '';
-    private token = '';
     private canScan = 'BarcodeDetector' in window && !!navigator.mediaDevices;
     private booted = false;
+    /** The live wire's control plane; null until connected or after retire. */
+    private ctrlWire: ControlWire | null = null;
+    /** The served takeover endpoint while this tab owns the session. */
+    private point: TakeoverPoint | null = null;
+    /** The session digest a reply link named — the takeover channel key,
+     * inherited across a takeover so chained handovers keep working. */
+    private takeDigest: string | null = null;
+    /** True while a deliberate re-wire is in flight: the old wire's close
+     * must not paint "connection closed". */
+    private handingOver = false;
+    /** True once this tab handed its session away. */
+    private retired = false;
+    /** True while this (owning) tab forwards one takeover. */
+    private takingOver = false;
+    private served = false;
 
     constructor() {
         super();
-        this.step = 'idle';
-        this.hint =
+        this.mode = 'idle';
+        this.status =
             'Share this list over WebRTC — no server carries the state. Each side sends one invite; open theirs, they open yours, done.';
-        this.linked = null;
+        this.connected = null;
         this.scanning = false;
         this.starting = false;
         this.resetLabel = '';
+        this.actionLabel = '';
     }
 
     createRenderRoot(): this {
@@ -168,8 +132,8 @@ export class PairWizard extends LitElement {
     private boot(): void {
         if (typeof RTCPeerConnection === 'undefined') {
             // WebKit hides WebRTC from in-app browsers and non-HTTPS pages.
-            this.step = 'nortc';
-            this.hint =
+            this.mode = 'nortc';
+            this.status =
                 'This browser view hides WebRTC — open the page in a regular browser over HTTPS (in-app browsers often offer "Open in Browser").';
             return;
         }
@@ -180,38 +144,63 @@ export class PairWizard extends LitElement {
             // on the clean idle page instead of re-feeding a stale payload,
             // and the payload never lingers in the address bar or history.
             history.replaceState(null, '', location.pathname);
-            this.relayOrAdopt(payloadOf(carried));
+            const peer = linkPayload(carried);
+            const replyTo = linkReply(carried);
+            sessions.offer(peer, replyTo, {
+                handed: (status) => {
+                    note('an open tab claimed the link payload —', status);
+                    this.mode = 'handed';
+                    this.takeDigest = replyTo;
+                    this.status =
+                        status === 'connected'
+                            ? 'Already connected in your other tab.'
+                            : 'Handed to your open tab — the connection continues there.';
+                    this.resetLabel = 'start a fresh pairing here';
+                    if (replyTo) {
+                        this.actionLabel = 'take the session over in this tab';
+                    }
+                },
+                adopt: () => void this.startSide(peer),
+                orphan: () => this.refuseOrphanReply(),
+            });
             return;
         }
         if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-            this.hint = 'Open this page through your LAN address so the links reach other devices.';
+            this.status = 'Open this page through your LAN address so the links reach other devices.';
         }
     }
 
-    /** A link's payload first offers itself to a waiting tab in this
-     * browser; unclaimed, this tab becomes the second side itself. */
-    private relayOrAdopt(peer: string): void {
-        if (!relay) {
-            void this.startSide(peer);
+    /** A reply whose inviting session no open tab holds. */
+    private refuseOrphanReply(): void {
+        note('a reply arrived for an invite no open tab holds');
+        this.mode = 'failed';
+        this.status =
+            'This reply answers an invite this browser no longer holds — the tab that created it was closed or reloaded. Start a fresh pairing and send a new invite.';
+        this.resetLabel = 'start a fresh pairing';
+    }
+
+    /** Serves this tab's session to the handover channel exactly once; the
+     * closures read the live fields, so a takeover replacing the swap keeps
+     * the served identity current. */
+    private ensureServed(): void {
+        if (this.served) {
             return;
         }
-        let claimed = false;
-        relay.addEventListener('message', (event) => {
-            const message = event.data as { type: string; payload?: string };
-            if (message.type === 'claimed' && message.payload === peer) {
-                claimed = true;
-                note('an open tab claimed the link payload — pairing continues there');
-                this.step = 'handed';
-                this.hint = 'Handed to your open tab — the connection continues there.';
-                this.resetLabel = 'start a fresh pairing here';
-            }
+        this.served = true;
+        sessions.serve({
+            payload: () => this.side?.payload ?? '',
+            digests: () => {
+                const own = this.side ? [replyDigest(this.side.payload)] : [];
+                return this.takeDigest ? [...own, this.takeDigest] : own;
+            },
+            spent: () => this.side?.spent() ?? true,
+            connected: () => this.connected === true && !this.retired,
+            onPeer: (peer) => {
+                if (this.side) {
+                    void this.pair(this.side, peer);
+                }
+            },
         });
-        relay.postMessage({ type: 'peer', payload: peer });
-        setTimeout(() => {
-            if (!claimed) {
-                void this.startSide(peer);
-            }
-        }, CLAIM_WINDOW_MS);
     }
 
     private async startSide(peerAtHand: string | null): Promise<void> {
@@ -219,107 +208,230 @@ export class PairWizard extends LitElement {
             return;
         }
         this.starting = true;
-        this.hint = 'Gathering candidates…';
+        this.status = 'Gathering candidates…';
         let side: PairSwap;
         try {
             side = await swap(iceConfig());
         } catch (error) {
-            this.step = 'failed';
-            this.hint = `Pairing failed: ${error}`;
+            this.mode = 'failed';
+            this.status = `Pairing failed: ${error}`;
             this.resetLabel = 'start over';
             return;
         }
         this.side = side;
         note('side ready — own payload:', side.payload);
-        this.link = linkFor(side.payload);
-        this.token = side.payload;
+        // A link built in reply to an opened invite names it: the `.{digest}`
+        // suffix routes the reply to the exact tab that invited (still one
+        // URL-safe token — every parser cuts before the dot).
+        const page = new URL(location.pathname, location.href).href;
+        this.link = inviteLink(page, side.payload, peerAtHand ? replyDigest(peerAtHand) : undefined);
         this.resetLabel = 'start over';
-        this.step = 'invite';
-
-        // A link opened in another tab of this browser lands here over the
-        // BroadcastChannel. A spent side stays silent — the opening tab then
-        // adopts the payload itself instead of handing it to a swap that can
-        // no longer pair. Claiming answers with this side's own payload so
-        // the other tab pairs against it.
-        relay?.addEventListener('message', (event) => {
-            const message = event.data as { type: string; payload?: string };
-            if (
-                message.type === 'peer' &&
-                message.payload &&
-                message.payload !== side.payload &&
-                !side.spent()
-            ) {
-                note('claimed a peer payload a link handed over in this browser');
-                relay.postMessage({ type: 'claimed', payload: message.payload });
-                relay.postMessage({ type: 'peer', payload: side.payload });
-                void this.pair(side, message.payload);
-            }
-        });
+        this.mode = 'invite';
+        this.ensureServed();
 
         if (peerAtHand) {
             // Opened through the peer's link: their payload is already here,
             // so this side connects at once — but the return leg goes by
             // hand, so send your invite back and they connect on opening it.
             void this.pair(side, peerAtHand);
-            this.hint = 'Send your invite back — you connect the moment they open it.';
+            this.status = 'Send your invite back — you connect the moment they open it.';
         } else {
-            this.hint = 'Send your invite, then open theirs below to connect.';
+            this.status = 'Send your invite, then open theirs below to connect.';
         }
     }
 
     /** One side of the swap pairs with the peer payload whenever it FIRST
      * arrives — pasted, scanned, or opened as a link; later arrivals are
      * ignored, the connection stands. Exactly one side greets: the lexically
-     * smaller payload. */
-    private async pair(side: PairSwap, peer: string): Promise<void> {
+     * smaller payload, unless a takeover forces the roles (the remote holds
+     * the canonical state, the fresh tab must not greet with an empty one). */
+    private async pair(side: PairSwap, peer: string, forcedGreet?: boolean): Promise<void> {
         if (this.paired) {
             return;
         }
         if (side.spent()) {
-            this.hint = 'This pairing already ran — start a new one below.';
+            this.status = 'This pairing already ran — start a new one below.';
             this.resetLabel = 'start a new pairing';
             return;
         }
         this.paired = true;
-        this.hint = 'Connecting…';
+        this.status = 'Connecting…';
         // The wait is legitimate — the connection completes only once BOTH
         // sides applied each other's payload, and the peer may take a while
         // to open this side's link. A slow connect gets a hint, not an abort;
         // truly unreachable peers reject with the pairing's message.
         const slow = setTimeout(() => {
-            this.hint =
+            this.status =
                 "Still connecting — the other device must open this side's link too; if it already did, the networks may not allow a direct route.";
         }, SLOW_HINT_MS);
         note('connecting to peer payload:', peer);
         try {
             const wire = await side.connect(peer);
-            this.connect(wire, side.payload < peer);
+            this.connect(wire, forcedGreet ?? side.payload < peer);
         } catch (error) {
             this.paired = false;
             note('pairing failed:', error);
             if (side.spent()) {
-                this.step = 'failed';
+                this.mode = 'failed';
                 this.resetLabel = 'start a new pairing';
             }
-            this.hint = `Pairing failed: ${error}`;
+            this.status = `Pairing failed: ${error}`;
         } finally {
             clearTimeout(slow);
         }
     }
 
-    private connect(wire: Wire, greet: boolean): void {
+    /** A wire opened: wear the control plane, serve the takeover endpoint,
+     * hand the wrapped wire to the page, and show the connected state. */
+    private connect(raw: Wire, greet: boolean): void {
+        const wire = new ControlWire(raw);
+        this.ctrlWire = wire;
+        wire.onControl((message) => {
+            if (message.t === 'repair' && message.payload) {
+                void this.repair(wire, message.payload);
+            } else if (message.t === 'repair-answer' && message.payload) {
+                // The remote's fresh payload, relayed to the requesting tab;
+                // the wire switch follows its takeover-done.
+                this.point?.answer(message.payload);
+            }
+        });
+        this.ensureServed();
+        this.point?.close();
+        this.point = new TakeoverPoint(this.takeDigest ?? replyDigest(this.side!.payload));
+        this.point.onRequest((payload) => this.forwardTakeover(payload));
+        this.point.onDone((byPayload) => {
+            // The new owner serves this same channel — only the OLD one
+            // retires on the cue.
+            if (byPayload !== this.side?.payload) {
+                this.retire();
+            }
+        });
+
         this.dispatchEvent(new CustomEvent('wire', { detail: { wire, greet }, bubbles: true }));
-        this.linked = true;
+        this.connected = true;
         note('connected', greet ? '— this side greets with its state' : '— waiting for their greeting');
-        this.step = 'connected';
-        this.hint = 'Connected — one list, two browsers.';
+        this.mode = 'connected';
+        this.status = 'Connected — one list, two browsers.';
         this.resetLabel = 'invite somebody else';
         wire.onClose(() => {
-            this.linked = false;
+            // Only the CURRENT wire's death is a drop: a handover supersedes
+            // the old wire (and a retire nulls it) before or while it closes,
+            // and its close event must not paint over the live state.
+            if (this.ctrlWire !== wire || this.retired) {
+                return;
+            }
+            this.connected = false;
             note('wire closed');
-            this.step = 'dropped';
-            this.hint = 'Connection closed — invite somebody else.';
+            this.mode = 'dropped';
+            this.status = 'Connection closed — invite somebody else.';
         });
+    }
+
+    /** The OWNING tab's half of a takeover: another tab of this browser
+     * asked for the session; forward its fresh payload to the remote over
+     * the live wire as a repair request. One at a time. */
+    private forwardTakeover(payload: string): void {
+        if (!this.ctrlWire || this.connected !== true || this.takingOver || this.retired) {
+            return;
+        }
+        this.takingOver = true;
+        note('another tab requests this session — re-signaling through the wire');
+        this.ctrlWire.sendControl({ t: 'repair', payload });
+        // A takeover that never completes unblocks the next attempt.
+        setTimeout(() => {
+            this.takingOver = false;
+        }, TAKEOVER_TIMEOUT_MS);
+    }
+
+    /** The REMOTE end's half: the other side moves to a new tab — answer
+     * with a fresh swap and re-form the connection on it. The old wire
+     * stays up until the new one opened, so a failed handover loses
+     * nothing. */
+    private async repair(ctrl: ControlWire, peer: string): Promise<void> {
+        if (this.handingOver) {
+            return;
+        }
+        this.handingOver = true;
+        note('the other side moves to a new tab — re-pairing through the wire');
+        let fresh: PairSwap;
+        try {
+            fresh = await swap(iceConfig());
+        } catch (error) {
+            note('re-pairing setup failed:', error);
+            this.handingOver = false;
+            return;
+        }
+        ctrl.sendControl({ t: 'repair-answer', payload: fresh.payload });
+        try {
+            // This side holds the canonical state: it greets the fresh tab.
+            const wire = await fresh.connect(peer);
+            const previous = this.ctrlWire;
+            this.side = fresh;
+            this.connect(wire, true);
+            previous?.close();
+            this.status = 'The other side moved to a new tab — reconnected.';
+        } catch (error) {
+            note('the re-pairing failed, the old wire stands:', error);
+            this.status = `The handover failed (${error}) — still on the previous connection.`;
+        } finally {
+            this.handingOver = false;
+        }
+    }
+
+    /** The NEW tab's half: mint a fresh swap and ask the owning tab to
+     * re-signal it through the session's own wire. */
+    private async takeOver(): Promise<void> {
+        if (!this.takeDigest || this.starting) {
+            return;
+        }
+        this.starting = true;
+        this.actionLabel = '';
+        this.status = 'Taking the session over — re-signaling through your other tab…';
+        let side: PairSwap;
+        try {
+            side = await swap(iceConfig());
+        } catch (error) {
+            this.mode = 'failed';
+            this.status = `Takeover failed: ${error}`;
+            this.starting = false;
+            return;
+        }
+        const point = new TakeoverPoint(this.takeDigest);
+        try {
+            const answer = await point.request(side.payload);
+            this.side = side;
+            // The remote greets with the canonical state; this fresh tab
+            // must not greet with its empty one.
+            await this.pair(side, answer, false);
+            point.done(side.payload);
+        } catch (error) {
+            note('the takeover did not complete:', error);
+            this.status =
+                'The takeover timed out — the other side may not support handover, or the tabs lost each other. The session stays in your other tab.';
+            this.actionLabel = 'take the session over in this tab';
+            this.starting = false;
+            side.close();
+        } finally {
+            point.close();
+        }
+    }
+
+    /** This tab handed its session to another one. */
+    private retire(): void {
+        if (this.retired) {
+            return;
+        }
+        this.retired = true;
+        note('the session moved to another tab');
+        this.point?.close();
+        this.point = null;
+        this.ctrlWire?.close();
+        this.ctrlWire = null;
+        this.connected = null;
+        this.mode = 'moved';
+        this.status = 'Session moved to your other tab — this one is done.';
+        this.actionLabel = '';
+        this.resetLabel = 'start a fresh pairing here';
     }
 
     private invite(): void {
@@ -327,9 +439,9 @@ export class PairWizard extends LitElement {
     }
 
     private reset(): void {
-        // The way out of any session — waiting, connected, dropped or spent
-        // — is a fresh page: links are consumed once, so a reload lands on
-        // the clean invite page and everything starts over.
+        // The way out of any session — waiting, connected, dropped, spent or
+        // moved — is a fresh page: links are consumed once, so a reload
+        // lands on the clean invite page and everything starts over.
         location.reload();
     }
 
@@ -337,26 +449,24 @@ export class PairWizard extends LitElement {
         // The panel already cancels the anchor's navigation; here we just
         // put the link on the clipboard.
         void copied(this.link, 'Link').then((outcome) => {
-            this.hint = outcome;
+            this.status = outcome;
         });
     }
 
-    private onCopyToken(): void {
-        void copied(this.token, 'Token').then((outcome) => {
-            this.hint = outcome;
-        });
+    private onAction(): void {
+        void this.takeOver();
     }
 
     private async scan(): Promise<void> {
         const side = this.side!;
         try {
-            this.hint = 'Point the camera at their code…';
+            this.status = 'Point the camera at their code…';
             this.scanning = true;
             await this.updateComplete;
             const raw = await scanFor(this.querySelector('video')!, side.payload);
-            void this.pair(side, payloadOf(raw));
+            void this.pair(side, linkPayload(raw));
         } catch (error) {
-            this.hint = `Camera unavailable (${error}) — paste their link instead.`;
+            this.status = `Camera unavailable (${error}) — paste their link instead.`;
         } finally {
             this.scanning = false;
         }
@@ -365,31 +475,30 @@ export class PairWizard extends LitElement {
     private onConnect(event: CustomEvent<string>): void {
         const pasted = (event.detail ?? '').trim();
         if (!pasted) {
-            this.hint = 'Paste their link (or token) first.';
+            this.status = 'Paste their link (or token) first.';
             return;
         }
         const side = this.side!;
-        void this.pair(side, payloadOf(pasted));
+        void this.pair(side, linkPayload(pasted));
     }
 
     render() {
         // The shared panel is the whole UI; this element only feeds it state
         // and answers its intents. The camera video stays here — a
-        // browser-only surface the panel does not carry (the QR now lives
-        // inside the panel as <qr-code>).
+        // browser-only surface the panel does not carry.
         return html`<pair-panel
-                .mode=${this.step}
+                .mode=${this.mode}
                 .link=${this.link}
-                .token=${this.token}
-                .status=${this.hint}
-                .connected=${this.linked}
+                .status=${this.status}
+                .connected=${this.connected}
                 .resetLabel=${this.resetLabel}
+                .actionLabel=${this.actionLabel}
                 .canScan=${this.canScan}
                 @invite=${this.invite}
                 @reset=${this.reset}
                 @connect=${this.onConnect}
                 @copy-link=${this.onCopyLink}
-                @copy-token=${this.onCopyToken}
+                @action=${this.onAction}
                 @scan=${this.scan}
             ></pair-panel>
             <video ?hidden=${!this.scanning} playsinline></video>`;
