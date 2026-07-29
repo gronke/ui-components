@@ -226,6 +226,52 @@ pub(crate) fn register_natives(context: &mut Context) -> Result<(), Error> {
     #[cfg(feature = "storage")]
     register_storage_natives(context)?;
 
+    #[cfg(feature = "dialogs")]
+    register_dialog_natives(context)?;
+
+    Ok(())
+}
+
+// The dialog native (src/dialogs.rs): the runtime's alert/confirm/prompt
+// queue their questions for the host; answers travel back through the
+// JS-side __uicDialogAnswer, so this stays a one-way door.
+#[cfg(feature = "dialogs")]
+fn register_dialog_natives(context: &mut Context) -> Result<(), Error> {
+    use crate::dialogs::{DialogKind, DialogRequest};
+
+    context.register_global_callable(
+        js_string!("__uic_dialog_request"),
+        4,
+        NativeFunction::from_fn_ptr(|_this, args, context| {
+            let id = arg_number(args, 0)? as u32;
+            let kind = arg_string(args, 1, context)?;
+            let kind = match kind.as_str() {
+                "alert" => DialogKind::Alert,
+                "confirm" => DialogKind::Confirm,
+                "prompt" => DialogKind::Prompt,
+                other => {
+                    return Err(JsNativeError::typ()
+                        .with_message(format!("unknown dialog kind {other:?}"))
+                        .into())
+                }
+            };
+            let message = arg_string(args, 2, context)?;
+            let default = match args.get(3) {
+                Some(value) if !value.is_null_or_undefined() => {
+                    Some(value.clone().to_string(context)?.to_std_string_escaped())
+                }
+                _ => None,
+            };
+            crate::dialogs::push(DialogRequest {
+                id,
+                kind,
+                message,
+                default,
+            });
+            Ok(JsValue::undefined())
+        }),
+    )?;
+
     Ok(())
 }
 

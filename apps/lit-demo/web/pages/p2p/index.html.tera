@@ -22,8 +22,11 @@
 </head>
 <body class="py-4">
 <main class="container">
-<todo-app class="d-block mb-4"></todo-app>
-<pair-wizard></pair-wizard>
+<!-- Pairing-first: the wrappers are the screen gates (plain divs, so the
+     UA [hidden] rule wins) — the page glue flips them on the wizard's mode. -->
+<div class="bar mb-3" hidden><status-navbar></status-navbar></div>
+<div class="todo-pane" hidden><todo-app class="d-block mb-4"></todo-app></div>
+<div class="pairing-pane"><pair-wizard></pair-wizard></div>
 <footer class="text-center small mt-3">
 <a class="link-secondary" href="./">← share through the server instead</a>
 </footer>

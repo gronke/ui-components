@@ -15,6 +15,7 @@
 //! # }
 //! ```
 
+pub mod dialog;
 pub mod dom;
 pub mod keys;
 pub mod lint;

@@ -517,6 +517,36 @@ pub fn link_payload(text: &str) -> String {
     rest[..end].to_string()
 }
 
+/// The reply-routing digest riding a return link (`#<payload>.<digest>`) —
+/// the invite it answers, distinguishing a reply from a plain invite; the
+/// pairing wizard reads it against `reply_digest(own_payload)` to know
+/// whether a pasted link answers our invite (connect at once) or opens a
+/// fresh one (send our reply back). `None` on a plain invite. Mirrors the
+/// TS twin `web/pair.ts` `linkReply` exactly — a literal `#`, a base64url
+/// payload run, a dot, then a 4–16 char base64url digest; a bare
+/// `payload.digest` with no `#` yields `None`, as it does there.
+pub fn link_reply(text: &str) -> Option<String> {
+    let hash = text.find('#')?;
+    let rest = &text[hash + 1..];
+    let base64url = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
+    // The payload run after `#`, then the dot.
+    let payload_end = rest.find(|c: char| !base64url(c))?;
+    if payload_end == 0 || rest.as_bytes()[payload_end] != b'.' {
+        return None;
+    }
+    // The digest run after the dot, capped like the regex's {4,16}.
+    let after_dot = &rest[payload_end + 1..];
+    let digest_end = after_dot
+        .find(|c: char| !base64url(c))
+        .unwrap_or(after_dot.len());
+    let digest = &after_dot[..digest_end];
+    if (4..=16).contains(&digest.len()) {
+        Some(digest.to_string())
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -692,6 +722,29 @@ mod tests {
             link_payload(&invite_link("p/", "abc", Some("1a2b3c4d"))),
             "abc"
         );
+    }
+
+    #[test]
+    fn link_reply_tells_a_reply_from_a_fresh_invite() {
+        // A reply link carries the digest after the payload's dot.
+        assert_eq!(
+            link_reply("https://host/p2p/#abc123.1a2b3c4d").as_deref(),
+            Some("1a2b3c4d")
+        );
+        // A plain invite has none.
+        assert_eq!(link_reply("https://host/p2p/#abc123"), None);
+        // The `#` is required (the TS regex's own shape): a bare
+        // payload.digest is not a reply link.
+        assert_eq!(link_reply("abc123.1a2b3c4d"), None);
+        // The digest window is 4..=16 base64url chars — shorter and longer
+        // runs are not digests.
+        assert_eq!(link_reply("p/#abc.1a2"), None);
+        assert_eq!(link_reply("p/#abc.0123456789abcdef01"), None);
+        assert_eq!(link_reply("p/#abc.abcd").as_deref(), Some("abcd"));
+        // A round trip against invite_link + reply_digest.
+        let digest = reply_digest("their-payload");
+        let link = invite_link("https://host/p2p/", "own", Some(&digest));
+        assert_eq!(link_reply(&link).as_deref(), Some(digest.as_str()));
     }
 
     #[test]

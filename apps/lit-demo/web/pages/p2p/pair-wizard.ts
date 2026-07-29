@@ -74,6 +74,7 @@ export class PairWizard extends LitElement {
         starting: { state: true },
         resetLabel: { state: true },
         actionLabel: { state: true },
+        step: { state: true },
     };
 
     declare mode: PanelMode;
@@ -83,9 +84,14 @@ export class PairWizard extends LitElement {
     declare starting: boolean;
     declare resetLabel: string;
     declare actionLabel: string;
+    declare step: number;
 
     private side: PairSwap | null = null;
     private paired = false;
+    /** The peer being chased and how it reached us — a fresh invite retries
+     * on its own, a reply to ours cannot (their copy of our payload goes
+     * stale the moment our swap dies). */
+    private pursuit: { peer: string; fresh: boolean; attempts: number } | null = null;
     private link = '';
     private canScan = 'BarcodeDetector' in window && !!navigator.mediaDevices;
     private booted = false;
@@ -115,7 +121,11 @@ export class PairWizard extends LitElement {
         this.starting = false;
         this.resetLabel = '';
         this.actionLabel = '';
+        this.step = 1;
     }
+
+    /** Max connect attempts a fresh-invite pursuit gets before giving up. */
+    private static readonly CONNECT_ATTEMPTS = 2;
 
     createRenderRoot(): this {
         return this;
@@ -126,6 +136,14 @@ export class PairWizard extends LitElement {
         if (!this.booted) {
             this.booted = true;
             this.boot();
+        }
+    }
+
+    // The page owns the screens (pairing card vs navbar + todo) and
+    // branches on the mode — announced here so the glue can just listen.
+    updated(changed: Map<string, unknown>): void {
+        if (changed.has('mode')) {
+            this.dispatchEvent(new CustomEvent('mode-changed', { detail: this.mode, bubbles: true }));
         }
     }
 
@@ -203,7 +221,7 @@ export class PairWizard extends LitElement {
         });
     }
 
-    private async startSide(peerAtHand: string | null): Promise<void> {
+    private async startSide(peerAtHand: string | null, attempts = 0): Promise<void> {
         if (this.starting) {
             return;
         }
@@ -230,12 +248,19 @@ export class PairWizard extends LitElement {
         this.ensureServed();
 
         if (peerAtHand) {
-            // Opened through the peer's link: their payload is already here,
+            // Opened through the peer's fresh invite: their payload is here,
             // so this side connects at once — but the return leg goes by
-            // hand, so send your invite back and they connect on opening it.
+            // hand, so send the reply back and they connect on opening it.
+            this.pursuit = { peer: peerAtHand, fresh: true, attempts };
+            this.step = 2;
             void this.pair(side, peerAtHand);
-            this.status = 'Send your invite back — you connect the moment they open it.';
+            this.status =
+                attempts === 0
+                    ? 'Send your reply back — they connect the moment they open it.'
+                    : `Attempt ${attempts + 1} — a fresh link; send this one back instead.`;
         } else {
+            this.pursuit = null;
+            this.step = 1;
             this.status = 'Send your invite, then open theirs below to connect.';
         }
     }
@@ -271,14 +296,36 @@ export class PairWizard extends LitElement {
         } catch (error) {
             this.paired = false;
             note('pairing failed:', error);
-            if (side.spent()) {
-                this.mode = 'failed';
-                this.resetLabel = 'start a new pairing';
-            }
-            this.status = `Pairing failed: ${error}`;
+            this.retryOrFail(error);
         } finally {
             clearTimeout(slow);
         }
+    }
+
+    /** A connect failed. Retry only what can honestly resume: a fresh-invite
+     * pursuit still holds a valid peer, so mint afresh and offer a new reply
+     * link, bounded; a reply-to-ours failure can't resume — the peer's copy
+     * of our payload went stale — so renew to a plain invite and say so. */
+    private retryOrFail(error: unknown): void {
+        const pursuit = this.pursuit;
+        if (pursuit?.fresh && pursuit.attempts + 1 < PairWizard.CONNECT_ATTEMPTS) {
+            // A fresh mint reconnecting the same peer, the attempt count
+            // carried so the retry is bounded (startSide sets the status).
+            this.starting = false;
+            void this.startSide(pursuit.peer, pursuit.attempts + 1);
+            return;
+        }
+        if (pursuit?.fresh) {
+            this.mode = 'failed';
+            this.status = `Tried ${pursuit.attempts + 1} times (${error}) — check the network and start a new pairing.`;
+            this.resetLabel = 'start a new pairing';
+            return;
+        }
+        // A reply-to-ours failure, or no pursuit at all: renew a plain
+        // invite so a fresh exchange can start.
+        this.starting = false;
+        void this.startSide(null);
+        this.status = `The connect failed (${error}) — that exchange can't resume; share this fresh invite instead.`;
     }
 
     /** A wire opened: wear the control plane, serve the takeover endpoint,
@@ -308,7 +355,10 @@ export class PairWizard extends LitElement {
         });
 
         this.dispatchEvent(new CustomEvent('wire', { detail: { wire, greet }, bubbles: true }));
+        // The wire stands — the pursuit is over, no retry to keep.
+        this.pursuit = null;
         this.connected = true;
+        this.step = 3;
         note('connected', greet ? '— this side greets with its state' : '— waiting for their greeting');
         this.mode = 'connected';
         this.status = 'Connected — one list, two browsers.';
@@ -438,10 +488,35 @@ export class PairWizard extends LitElement {
         void this.startSide(null);
     }
 
+    /** The navbar's way back: close the wire and the spent swap on purpose
+     * and mint a fresh invite — no reload, the pairing screen returns with
+     * a new link (the rows persist either way). Nulling the wire first
+     * keeps its close event from painting "dropped" over the fresh
+     * invite. */
+    disconnect(): void {
+        const wire = this.ctrlWire;
+        this.ctrlWire = null;
+        this.point?.close();
+        this.point = null;
+        wire?.close();
+        this.side?.close();
+        this.side = null;
+        this.paired = false;
+        this.connected = null;
+        this.takeDigest = null;
+        this.link = '';
+        note('disconnected by hand — minting a fresh invite');
+        // startSide's guard latched on the first run; this is a deliberate
+        // second one.
+        this.starting = false;
+        void this.startSide(null);
+    }
+
     private reset(): void {
         // The way out of any session — waiting, connected, dropped, spent or
         // moved — is a fresh page: links are consumed once, so a reload
-        // lands on the clean invite page and everything starts over.
+        // lands on the clean invite page and everything starts over (the
+        // rows persist through localStorage).
         location.reload();
     }
 
@@ -464,7 +539,8 @@ export class PairWizard extends LitElement {
             this.scanning = true;
             await this.updateComplete;
             const raw = await scanFor(this.querySelector('video')!, side.payload);
-            void this.pair(side, linkPayload(raw));
+            this.scanning = false;
+            this.openedPeer(raw);
         } catch (error) {
             this.status = `Camera unavailable (${error}) — paste their link instead.`;
         } finally {
@@ -478,8 +554,39 @@ export class PairWizard extends LitElement {
             this.status = 'Paste their link (or token) first.';
             return;
         }
-        const side = this.side!;
-        void this.pair(side, linkPayload(pasted));
+        this.openedPeer(pasted);
+    }
+
+    /** A link or code reached us — detect what it is and step accordingly.
+     * A reply naming our invite means the peer already applied our payload:
+     * connect at once (step 3). A reply for a different invite is neither
+     * ours to answer nor a fresh invite — say so. No digest is a fresh
+     * invite: the peer initiates, so present the reply link they must open
+     * (step 2) and connect behind it. Shared by paste, scan and boot. */
+    private openedPeer(raw: string): void {
+        const side = this.side;
+        if (!side) {
+            return;
+        }
+        const peer = linkPayload(raw);
+        const reply = linkReply(raw);
+        if (reply !== null && reply !== replyDigest(side.payload)) {
+            this.status = 'That link answers a different invite — ask them to open your current one.';
+            return;
+        }
+        if (reply === replyDigest(side.payload)) {
+            this.pursuit = { peer, fresh: false, attempts: 0 };
+            this.step = 3;
+            this.status = 'They opened your invite — connecting…';
+            void this.pair(side, peer);
+            return;
+        }
+        this.pursuit = { peer, fresh: true, attempts: 0 };
+        this.step = 2;
+        const page = new URL(location.pathname, location.href).href;
+        this.link = inviteLink(page, side.payload, replyDigest(peer));
+        this.status = 'Send this reply back — they connect the moment they open it.';
+        void this.pair(side, peer);
     }
 
     render() {
@@ -494,6 +601,7 @@ export class PairWizard extends LitElement {
                 .resetLabel=${this.resetLabel}
                 .actionLabel=${this.actionLabel}
                 .canScan=${this.canScan}
+                .step=${this.step}
                 @invite=${this.invite}
                 @reset=${this.reset}
                 @connect=${this.onConnect}

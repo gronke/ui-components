@@ -96,6 +96,7 @@ fn npm_tree(src: &Path, out: &Path) {
             "./pair-panel.js": "./pair-panel.js",
             "./qr-code.js": "./qr-code.js",
             "./p2p-deck.js": "./p2p-deck.js",
+            "./status-navbar.js": "./status-navbar.js",
             "./theme.js": "./theme.js"
         }),
     );

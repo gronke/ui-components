@@ -16,6 +16,10 @@ storage = []
 # The file-backed backend: a location selected by the app survives
 # restarts. Implies storage.
 sqlite = ["storage", "dep:rusqlite"]
+# alert/confirm/prompt on the mocked DOM: the questions queue for the host,
+# the answers resolve JS-side promises — `await confirm(…)` reads the same
+# in both hosts.
+dialogs = []
 
 [dependencies]
 boa_engine = "0.21"
@@ -45,3 +49,7 @@ web_modules = { workspace = true, default-features = true }
 [[test]]
 name = "storage"
 required-features = ["storage"]
+
+[[test]]
+name = "dialogs"
+required-features = ["dialogs"]

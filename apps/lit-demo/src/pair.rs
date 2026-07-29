@@ -280,13 +280,31 @@ impl Swap {
 }
 
 /// Everything the session loop is wired to: the panel view it presents,
-/// the commands it obeys and the state pumps its wires share.
+/// the commands it obeys, the state pumps its wires share, and the slot
+/// carrying the live wire's endpoints for the navbar.
 pub(crate) struct Wiring {
     pub panel_state: Arc<Mutex<PanelState>>,
     pub commands: mpsc::UnboundedReceiver<Command>,
     pub inbound: mpsc::UnboundedSender<String>,
     pub outbound: broadcast::Sender<String>,
     pub latest: Arc<Mutex<String>>,
+    pub endpoints: Arc<Mutex<Option<String>>>,
+}
+
+/// The wire's real route once ICE nominated it — the relay-free story the
+/// navbar tells: this peer's address ⇄ the other side's.
+async fn selected_pair(swap: &Swap) -> Option<String> {
+    let pair = swap
+        .pc
+        .sctp()
+        .transport()
+        .ice_transport()
+        .get_selected_candidate_pair()
+        .await?;
+    Some(format!(
+        "{}:{} ⇄ {}:{}",
+        pair.local.address, pair.local.port, pair.remote.address, pair.remote.port
+    ))
 }
 
 /// Drives a pairing [`Session`] with this module's swaps: the pure machine
@@ -302,6 +320,7 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
         inbound,
         outbound,
         latest,
+        endpoints,
     } = wiring;
     // Control frames (ADR 0032) split off the data channel into this pair;
     // unsolicited transport closes report their wire's gen through the
@@ -342,7 +361,10 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
                         let _ = notice.send(gen);
                     });
                     let event = match swap.connect(&peer, greet, bridge.clone(), closed).await {
-                        Ok(()) => SessionEvent::Connected { gen },
+                        Ok(()) => {
+                            *endpoints.lock().expect("endpoints slot") = selected_pair(swap).await;
+                            SessionEvent::Connected { gen }
+                        }
                         Err(error) => SessionEvent::ConnectFailed { gen, error },
                     };
                     queue.extend(session.on(event));
@@ -460,6 +482,14 @@ mod tests {
         );
         ra.expect("side a opens");
         rb.expect("side b opens");
+
+        // The nominated route is readable once the wire stands — the
+        // navbar's address line rides this.
+        let route = selected_pair(&a).await;
+        assert!(
+            route.as_deref().is_some_and(|r| r.contains(" ⇄ ")),
+            "the selected pair reports: {route:?}"
+        );
 
         // Exactly one side greets: the lexically smaller payload announces
         // its snapshot on open (ADR 0013).

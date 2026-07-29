@@ -43,6 +43,7 @@ export class PairPanel extends LitElement {
         canScan: { type: Boolean },
         command: {},
         peer: {},
+        step: { type: Number },
     };
 
     // The terminal's look: the mapped Bootstrap subset draws the card and
@@ -82,6 +83,8 @@ export class PairPanel extends LitElement {
     declare canScan: boolean;
     declare command: string | null;
     declare peer: string;
+    /** The pairing wizard's active step (1..3); future steps mute. */
+    declare step: number;
 
     constructor() {
         super();
@@ -94,6 +97,7 @@ export class PairPanel extends LitElement {
         this.canScan = false;
         this.command = null;
         this.peer = '';
+        this.step = 1;
     }
 
     createRenderRoot(): this {
@@ -184,9 +188,14 @@ export class PairPanel extends LitElement {
     }
 
     render() {
+        // The invite is a three-step wizard; every other mode is the plain
+        // card the status line, badge and buttons carry.
+        if (this.mode === 'invite') {
+            return this.renderWizard();
+        }
         return html`<section class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
-                pair another browser
+                pair another device
                 ${this.connected === null
                     ? ''
                     : html`<span
@@ -196,7 +205,11 @@ export class PairPanel extends LitElement {
             </div>
             <div class="card-body">
                 <p class="status text-body-secondary">${this.status}</p>
-                ${this.renderBody()}
+                ${this.mode === 'idle'
+                    ? html`<button class="invite btn btn-primary" @click=${this.onInvite}>
+                          create an invite
+                      </button>`
+                    : ''}
                 ${this.actionLabel
                     ? html`<button class="action btn btn-primary d-block mt-3" @click=${this.onAction}>
                           ${this.actionLabel}
@@ -211,54 +224,73 @@ export class PairPanel extends LitElement {
         </section>`;
     }
 
-    private renderBody() {
-        switch (this.mode) {
-            case 'idle':
-                return html`<button class="invite btn btn-primary" @click=${this.onInvite}>
-                    create an invite
-                </button>`;
-            case 'invite':
-                // Pairing is a mutual exchange (ADR 0028): both halves are
-                // first-class — share your invite, and open theirs. The
-                // invite shows once per host: the compact copy-link in the
-                // browser, the wrapped link text in the terminal. The QR
-                // trails the controls in the browser card; the terminal
-                // hides this inline copy and docks the QR beside the panes
-                // instead (the p2p deck, ADR 0029).
-                return html`<h3 class="h6">share your invite</h3>
-                    <a
-                        class="copy-link"
-                        href=${this.link}
-                        title="copy the invite link"
-                        @click=${this.onCopyLink}
-                        >🔗 copy link</a
-                    >
-                    <p class="link-text">${this.link}</p>
-                    <h3 class="h6 mt-3">open their invite</h3>
-                    ${this.canScan
-                        ? html`<button class="scan btn btn-outline-secondary mb-2" @click=${this.onScan}>
-                              scan their code
-                          </button>`
-                        : ''}
-                    <textarea
-                        name="peer"
-                        data-path="peer"
-                        class="peer-input form-control font-monospace"
-                        placeholder="their link or code…"
-                        @input=${this.onPeerInput}
-                    ></textarea>
-                    <button class="connect btn btn-primary mt-2" @click=${this.onConnect}>
-                        connect
-                    </button>
-                    <h3 class="h6 qr-lead mt-3">or show this code</h3>
-                    <qr-code data=${this.link}></qr-code>`;
-            default:
-                // Every other mode — connected, dropped, failed, the
-                // takeover roles — renders no body on purpose: the status
-                // line, the badge and the action/reset buttons outside
-                // this switch carry those states.
-                return html``;
-        }
+    // The wizard: three step cards over the narration line, only the
+    // reachable one lit. Future and done steps render a muted summary with
+    // no controls — the terminal has no pointer-events, so a card with no
+    // buttons is a card that cannot be clicked into.
+    private renderWizard() {
+        return html`<p class="status text-body-secondary">${this.status}</p>
+            ${this.renderStep(1, 'start a pairing', this.renderStart(), 'share your invite, open theirs')}
+            ${this.renderStep(2, 'acknowledge', this.renderAcknowledge(), 'send your reply so they can connect')}
+            ${this.renderStep(3, 'connect', this.renderConnect(), 'connects automatically, and says why if it cannot')}
+            ${this.resetLabel
+                ? html`<button class="reset btn btn-outline-secondary d-block mt-2" @click=${this.onReset}>
+                      ${this.resetLabel}
+                  </button>`
+                : ''}`;
+    }
+
+    private renderStep(n: number, title: string, body: unknown, summary: string) {
+        const active = this.step === n;
+        const done = this.step > n;
+        return html`<section class="step card mb-2">
+            <div class="card-header ${active ? '' : 'text-muted'}">${done ? '✓' : n} · ${title}</div>
+            <div class="card-body ${active ? '' : 'small text-muted'}">${active ? body : summary}</div>
+        </section>`;
+    }
+
+    // Step 1: share your invite and open theirs — the mutual exchange
+    // (ADR 0028). The copy-link and QR are browser-only (the terminal hides
+    // them and docks its own QR beside the panes); the wrapped link text is
+    // the terminal's share surface.
+    private renderStart() {
+        return html`<h3 class="h6">share your invite</h3>
+            <a class="copy-link" href=${this.link} title="copy the invite link" @click=${this.onCopyLink}
+                >🔗 copy link</a
+            >
+            <p class="link-text">${this.link}</p>
+            <h3 class="h6 mt-3">open their invite</h3>
+            ${this.canScan
+                ? html`<button class="scan btn btn-outline-secondary mb-2" @click=${this.onScan}>
+                      scan their code
+                  </button>`
+                : ''}
+            <textarea
+                name="peer"
+                data-path="peer"
+                class="peer-input form-control font-monospace"
+                placeholder="their link or code…"
+                @input=${this.onPeerInput}
+            ></textarea>
+            <button class="connect btn btn-primary mt-2" @click=${this.onConnect}>connect</button>
+            <h3 class="h6 qr-lead mt-3">or show this code</h3>
+            <qr-code data=${this.link}></qr-code>`;
+    }
+
+    // Step 2: the peer opened a fresh invite, so the link is now our reply
+    // for them to open back — the connect already rides behind it.
+    private renderAcknowledge() {
+        return html`<a class="copy-link" href=${this.link} title="copy the reply link" @click=${this.onCopyLink}
+                >🔗 copy reply</a
+            >
+            <p class="link-text">${this.link}</p>
+            <qr-code data=${this.link}></qr-code>`;
+    }
+
+    // Step 3: connecting — the narration line above carries the live word,
+    // so the active body stays quiet.
+    private renderConnect() {
+        return html``;
     }
 }
 customElements.define('pair-panel', PairPanel);

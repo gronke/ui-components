@@ -25,3 +25,11 @@ declare function __uic_storage_remove(key: string): void;
 declare function __uic_storage_clear(): void;
 declare function __uic_storage_key(index: number): string | null;
 declare function __uic_storage_length(): number;
+// The dialogs feature's native — absent without it; the runtime probes
+// with typeof before installing alert/confirm/prompt.
+declare function __uic_dialog_request(
+    id: number,
+    kind: string,
+    message: string,
+    defaultValue: string | null,
+): void;

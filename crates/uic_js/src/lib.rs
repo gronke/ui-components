@@ -7,6 +7,8 @@
 //! into the retained `uic_tui::dom::DomDocument`; the existing taffy layout
 //! and ratatui paint consume that document unchanged.
 
+#[cfg(feature = "dialogs")]
+mod dialogs;
 mod error;
 mod host;
 mod loader;
@@ -15,6 +17,8 @@ mod state;
 #[cfg(feature = "storage")]
 mod storage;
 
+#[cfg(feature = "dialogs")]
+pub use dialogs::{DialogKind, DialogRequest};
 pub use error::Error;
 pub use host::JsHost;
 pub use state::HostState;

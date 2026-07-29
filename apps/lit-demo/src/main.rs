@@ -14,7 +14,11 @@
 //!   and listens on every interface so phones on the network can join.
 //! - `cargo run -p uic_lit_demo -- p2p [link-or-code]` → a serverless peer:
 //!   the terminal pairs with a browser over WebRTC through the shared
-//!   `<pair-panel>`, no server between them (ADR 0028).
+//!   `<pair-panel>`, no server between them (ADR 0028). Pairing first: the
+//!   todo appears once connected, under a navbar whose disconnect (`^D` or
+//!   a click) returns to a fresh invite. `--serve` hosts the pairing page
+//!   from this process and points its invites at this machine, so one
+//!   command stands the whole demo up on a LAN.
 //! - `--backend memory://` (default) keeps the terminal's localStorage in
 //!   memory; an SQLite location (`sqlite://todos.db` or a bare path)
 //!   persists it between runs. `serve` ignores it — the browser has the
@@ -66,6 +70,10 @@ enum Mode {
     P2p {
         /// The invite link or pairing code from the other side
         link: Option<String>,
+        /// Host the pairing page from this process and point invites at
+        /// this machine — one command instead of a separate `serve`.
+        #[arg(long)]
+        serve: bool,
     },
 }
 
@@ -118,7 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => terminal_app(&cli.backend),
         Some(Mode::Serve) => serve_web(),
         Some(Mode::Live) => live(&cli.backend),
-        Some(Mode::P2p { link }) => p2p(link, &cli.backend),
+        Some(Mode::P2p { link, serve }) => p2p(link, serve, &cli.backend),
     }
 }
 
@@ -140,6 +148,17 @@ fn mounted_host(backend: &BackendArg) -> Result<(JsHost, NodeId), Box<dyn std::e
 fn node_by_tag(host: &JsHost, tag: &str) -> Option<NodeId> {
     let state = host.state.borrow();
     state.doc.descendant_by_tag(state.doc.root(), tag)
+}
+
+/// The first element carrying a class below the document root — the deck's
+/// plain wrapper divs, the pairing-first screen gates, resolve this way.
+fn node_by_class(host: &JsHost, class: &str) -> Option<NodeId> {
+    let state = host.state.borrow();
+    let root = state.doc.root();
+    state.doc.find_element(root, |el| {
+        el.attr("class")
+            .is_some_and(|value| value.split_whitespace().any(|c| c == class))
+    })
 }
 
 fn terminal_app(backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
@@ -205,7 +224,43 @@ fn live(backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
 /// `UIC_LIT_DEMO_P2P_PAGE` points it elsewhere (the dev server).
 const P2P_PAGE: &str = "https://schuhkarton.github.io/ui-components/lit-demo/p2p/";
 
-fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
+/// Where a p2p invite links, resolved before the screen is taken: an
+/// explicit `UIC_LIT_DEMO_P2P_PAGE` wins; `--serve` hosts the page here and
+/// points invites at this machine (binding the server on a thread, failing
+/// fast on a taken port); otherwise the published page.
+fn p2p_page(serve: bool) -> Result<String, Box<dyn std::error::Error>> {
+    if let Ok(url) = std::env::var("UIC_LIT_DEMO_P2P_PAGE") {
+        return Ok(url);
+    }
+    if !serve {
+        return Ok(P2P_PAGE.into());
+    }
+    let addr = listen_addr(SocketAddr::from(([0, 0, 0, 0], 8090)))?;
+    // Fail before the alt screen: a taken port must not leave a dead URL in
+    // the invite. (The probe closes before the server binds — a benign race.)
+    drop(std::net::TcpListener::bind(addr).map_err(|err| format!("bind {addr}: {err}"))?);
+    let web = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
+    std::thread::spawn(move || match tokio::runtime::Runtime::new() {
+        Ok(runtime) => {
+            if let Err(err) = runtime.block_on(web_modules::serve(live::frontend(&web), addr)) {
+                eprintln!("p2p page server ended: {err}");
+            }
+        }
+        Err(err) => eprintln!("p2p page server runtime: {err}"),
+    });
+    let host = if addr.ip().is_unspecified() {
+        lan_ip()
+    } else {
+        addr.ip()
+    };
+    Ok(format!("http://{host}:{}/p2p/", addr.port()))
+}
+
+fn p2p(
+    invite: Option<String>,
+    serve: bool,
+    backend: &BackendArg,
+) -> Result<(), Box<dyn std::error::Error>> {
     // One mounted root, the p2p deck: the todo card and the shared pairing
     // panel (ADR 0029) stack in a column, the QR (ADR 0029) docks beside
     // them — responsive flexbox from the deck's own styles, no rect math.
@@ -214,7 +269,13 @@ fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::
     // mount upgrades the whole composition.
     let mut host = JsHost::with_storage(storage_backend(backend)?)?;
     host.load_package(Path::new(env!("UIC_LIT_DEMO_NPM_ROOT")), PACKAGE)?;
-    for module in ["theme.js", "qr-code.js", "pair-panel.js", "p2p-deck.js"] {
+    for module in [
+        "theme.js",
+        "qr-code.js",
+        "pair-panel.js",
+        "status-navbar.js",
+        "p2p-deck.js",
+    ] {
         let src = std::fs::read_to_string(
             Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
                 .join(PACKAGE)
@@ -229,6 +290,20 @@ fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::
     // has not rendered its (terminal-hidden) inline copy; the deck never
     // re-commits, so the node stays put.
     let qr = node_by_tag(&host, "qr-code").ok_or("the deck mounts a qr-code")?;
+    // The connected screen's chrome and the wrapper divs the screens gate
+    // through (pairing-first: the deck boots with the todo hidden).
+    let navbar = node_by_tag(&host, "status-navbar").ok_or("the deck mounts a status-navbar")?;
+    let bar = node_by_class(&host, "bar").ok_or("the deck wraps the navbar in .bar")?;
+    let todo_pane = node_by_class(&host, "todo-pane").ok_or("the deck wraps the todo")?;
+    let pairing_pane = node_by_class(&host, "pairing-pane").ok_or("the deck wraps the panel")?;
+    // The navbar's static face: where this peer can be reached, and the
+    // keyboard way back to the pairing screen.
+    host.set_prop(
+        navbar,
+        "address",
+        &serde_json::to_string(&lan_ip().to_string())?,
+    )?;
+    host.set_prop(navbar, "hint", "\"^D disconnect\"")?;
 
     // Fail on garbage before taking over the screen.
     let opener = invite.as_deref().map(uic_sync::pair::link_payload);
@@ -241,18 +316,24 @@ fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::
         }
     }
 
+    // Resolve (and, under --serve, start hosting) the invite page before
+    // the screen is taken.
+    let page = p2p_page(serve)?;
     let runtime = tokio::runtime::Runtime::new()?;
-    let page = std::env::var("UIC_LIT_DEMO_P2P_PAGE").unwrap_or_else(|_| P2P_PAGE.into());
 
     let (mut bridge, (inbound_tx, outbound_tx, latest)) = live_bridge(&mut host, node)?;
-    let status: StatusLine = Arc::new(Mutex::new("lit-todo p2p · Esc quits".to_string()));
+    let status: StatusLine = Arc::new(Mutex::new(
+        "lit-todo p2p · ^D disconnects · Esc quits".to_string(),
+    ));
     let panel_state = Arc::new(Mutex::new(uic_sync::session::PanelState::default()));
+    let endpoints = Arc::new(Mutex::new(None));
     let (command_tx, command_rx) = mpsc::unbounded_channel();
 
     // The pairing machine (uic_sync::session) runs beside the terminal
     // loop — live()'s threading pattern — and drives the panel through
     // `panel_state`.
     let thread_state = panel_state.clone();
+    let thread_endpoints = endpoints.clone();
     std::thread::spawn(move || {
         runtime.block_on(pair::drive_session(
             page,
@@ -263,6 +344,7 @@ fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::
                 inbound: inbound_tx,
                 outbound: outbound_tx,
                 latest,
+                endpoints: thread_endpoints,
             },
         ));
     });
@@ -278,8 +360,14 @@ fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::
             Some(PanelDriver {
                 node: panel,
                 qr,
+                navbar,
+                bar,
+                todo_pane,
+                pairing_pane,
                 state: &panel_state,
                 commands: &command_tx,
+                endpoints: &endpoints,
+                lan: lan_ip().to_string(),
             }),
         )
     })
@@ -319,11 +407,45 @@ mod cli_tests {
         // Global: the flag parses after a subcommand too.
         let cli = Cli::try_parse_from(["demo", "p2p", "--backend", "sqlite://x.db"]).unwrap();
         assert_eq!(cli.backend, BackendArg::Sqlite(PathBuf::from("x.db")));
-        assert!(matches!(cli.mode, Some(Mode::P2p { link: None })));
+        assert!(matches!(
+            cli.mode,
+            Some(Mode::P2p {
+                link: None,
+                serve: false
+            })
+        ));
 
         let cli = Cli::try_parse_from(["demo", "p2p", "https://x/#code"]).unwrap();
-        assert!(matches!(cli.mode, Some(Mode::P2p { link: Some(_) })));
+        assert!(matches!(cli.mode, Some(Mode::P2p { link: Some(_), .. })));
 
         assert!(Cli::try_parse_from(["demo", "--backend", "redis://x"]).is_err());
+    }
+
+    #[test]
+    fn p2p_serve_is_an_opt_in_flag() {
+        let cli = Cli::try_parse_from(["demo", "p2p"]).unwrap();
+        assert!(matches!(cli.mode, Some(Mode::P2p { serve: false, .. })));
+
+        let cli = Cli::try_parse_from(["demo", "p2p", "--serve"]).unwrap();
+        assert!(matches!(cli.mode, Some(Mode::P2p { serve: true, .. })));
+
+        // --serve rides beside an opened link and the global backend.
+        let cli = Cli::try_parse_from([
+            "demo",
+            "p2p",
+            "https://x/#code",
+            "--serve",
+            "--backend",
+            "m.db",
+        ])
+        .unwrap();
+        assert!(matches!(
+            cli.mode,
+            Some(Mode::P2p {
+                link: Some(_),
+                serve: true
+            })
+        ));
+        assert_eq!(cli.backend, BackendArg::Sqlite(PathBuf::from("m.db")));
     }
 }

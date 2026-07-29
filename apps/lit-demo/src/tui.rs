@@ -23,12 +23,78 @@ pub(crate) type StatusLine = Arc<Mutex<String>>;
 
 /// The terminal loop's handle on the mounted panel: mirror its state in,
 /// forward its commands out. The deck's QR element rides along — the panel
-/// state's link is its data (ADR 0029).
+/// state's link is its data (ADR 0029) — and so do the navbar and the
+/// deck's wrapper divs, the pairing-first screen gates.
 pub(crate) struct PanelDriver<'a> {
     pub node: NodeId,
     pub qr: NodeId,
+    pub navbar: NodeId,
+    pub bar: NodeId,
+    pub todo_pane: NodeId,
+    pub pairing_pane: NodeId,
     pub state: &'a Arc<Mutex<PanelState>>,
     pub commands: &'a mpsc::UnboundedSender<Command>,
+    /// The live wire's nominated route, written by the pairing thread —
+    /// shown while the todo screen stands; the LAN address otherwise.
+    pub endpoints: &'a Arc<Mutex<Option<String>>>,
+    pub lan: String,
+}
+
+/// The pairing-first screen rule: the todo (with the navbar) shows while a
+/// wire stands or just dropped — the badge goes red on a blip and the
+/// disconnect control offers the way back — and the pairing card owns every
+/// other mode.
+fn todo_screen(mode: uic_sync::session::PanelMode) -> bool {
+    use uic_sync::session::PanelMode;
+    matches!(mode, PanelMode::Connected | PanelMode::Dropped)
+}
+
+fn set_hidden(host: &JsHost, node: NodeId, hidden: bool) {
+    let mut state = host.state.borrow_mut();
+    let handle = state.handle(node);
+    if hidden {
+        state.set_attribute(handle, "hidden", "");
+    } else {
+        state.remove_attribute(handle, "hidden");
+    }
+}
+
+/// The first descendant matching a selector, resolved on the live document
+/// — how the screen swap finds the input to hand focus to.
+fn descendant_matching(host: &JsHost, root: NodeId, selector: &str) -> Option<NodeId> {
+    let mut state = host.state.borrow_mut();
+    let handle = state.handle(root);
+    let first = state.query(handle, selector).ok()?.first().copied()?;
+    state.node(first)
+}
+
+/// Swaps the deck between its two screens by toggling `hidden` on the plain
+/// wrapper divs (attribute writes only — nothing re-commits, the todo's
+/// live state stays put) and hands focus to the screen's input: keys go to
+/// the focused node whether or not it is visible, so the handoff is what
+/// keeps typing meaningful. Runs on every mode change — the pairing card
+/// swaps its body per mode, so the focus target has to re-resolve anyway.
+fn apply_screen(
+    host: &mut JsHost,
+    panel: &PanelDriver,
+    todo: NodeId,
+    mode: uic_sync::session::PanelMode,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let todo_screen = todo_screen(mode);
+    set_hidden(host, panel.bar, !todo_screen);
+    set_hidden(host, panel.todo_pane, !todo_screen);
+    set_hidden(host, panel.pairing_pane, todo_screen);
+    let target = if todo_screen {
+        descendant_matching(host, todo, "input.draft")
+    } else {
+        // Invite renders the reply textarea; other pairing bodies have no
+        // input — focus stays where it is until one appears.
+        descendant_matching(host, panel.node, "textarea")
+    };
+    if let Some(target) = target {
+        host.focus(target)?;
+    }
+    Ok(())
 }
 
 /// Mirrors a session view onto the mounted panel — the terminal's half of
@@ -45,6 +111,7 @@ fn apply_panel(
         ("status", serde_json::to_string(&state.status)?),
         ("connected", serde_json::to_string(&state.connected)?),
         ("resetLabel", serde_json::to_string(&state.reset_label)?),
+        ("step", state.step.as_u8().to_string()),
     ];
     for (name, json) in &props {
         host.set_prop(node, name, json)?;
@@ -146,11 +213,39 @@ fn app_area(frame_area: ratatui::layout::Rect, qr: Option<&QrPane>) -> ratatui::
     area
 }
 
+/// A dialog the loop shows modally and who asked for it: a JS component's
+/// alert/confirm/prompt (answered back through the runtime by id). A
+/// host-initiated variant (the conflict prompt) joins it with the
+/// clipboard work.
+struct ActiveDialog {
+    dialog: uic_tui::dialog::Dialog,
+    source: DialogSource,
+}
+
+enum DialogSource {
+    /// A runtime request; the id routes the answer to its parked promise.
+    Js(u32),
+}
+
+/// The JSON a JS dialog answers with — the browser's own return shapes.
+fn dialog_answer(dialog: &uic_tui::dialog::Dialog, ok: bool) -> String {
+    use uic_tui::dialog::DialogKind;
+    match dialog.kind {
+        DialogKind::Alert => "null".to_string(),
+        DialogKind::Confirm => ok.to_string(),
+        DialogKind::Prompt if ok => {
+            serde_json::to_string(&dialog.input).unwrap_or_else(|_| "null".into())
+        }
+        DialogKind::Prompt => "null".to_string(),
+    }
+}
+
 fn draw(
     host: &JsHost,
     terminal: &mut Terminal,
     status: &StatusLine,
     qr: Option<&QrPane>,
+    dialog: Option<&uic_tui::dialog::Dialog>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let state = host.state.clone();
     let status = status.lock().expect("status line").clone();
@@ -192,6 +287,11 @@ fn draw(
             );
         }
         uic_tui::dom::paint_document(frame, area, &mut s.doc, focused);
+        // Painted last so it overlays the document, the QR pane and the
+        // status line — the buffer's last write wins (the popup rule).
+        if let Some(dialog) = dialog {
+            uic_tui::dialog::paint_dialog(frame, full, dialog);
+        }
     })?;
     Ok(())
 }
@@ -237,7 +337,11 @@ pub(crate) fn run(
     let mut last_click: Option<(u16, u16, std::time::Instant)> = None;
     let mut last_status = status.lock().expect("status line").clone();
     let mut last_panel = PanelState::default();
-    draw(host, terminal, status, qr)?;
+    // A modal dialog — a component's alert/confirm/prompt, or a host
+    // question. While one shows, every key is its own and clicks are
+    // swallowed; the session keeps mirroring beneath it.
+    let mut dialog: Option<ActiveDialog> = None;
+    draw(host, terminal, status, qr, None)?;
     loop {
         let changed = match next_input(bridge.as_deref_mut())? {
             Input::Idle => false,
@@ -245,8 +349,44 @@ pub(crate) fn run(
                 apply_state(host, node, &state)?;
                 true
             }
+            // A dialog owns the keyboard first — before is_quit, or Escape
+            // would quit the app instead of closing the box. Ctrl+C still
+            // hard-quits; ^D and the page never see these keys.
+            Input::Terminal(Event::Key(key)) if dialog.is_some() => {
+                match KeyStroke::from_crossterm(&key) {
+                    Some(stroke) if stroke.ctrl && stroke.key == "c" => return Ok(()),
+                    Some(stroke) => {
+                        use uic_tui::dialog::DialogOutcome;
+                        let active = dialog.as_mut().expect("a shown dialog");
+                        match active.dialog.key(&stroke) {
+                            DialogOutcome::Open => {}
+                            outcome => {
+                                let ok = outcome == DialogOutcome::Ok;
+                                let ActiveDialog {
+                                    dialog: box_,
+                                    source,
+                                } = dialog.take().expect("a shown dialog");
+                                let DialogSource::Js(id) = source;
+                                host.answer_dialog(id, &dialog_answer(&box_, ok))?;
+                            }
+                        }
+                        true
+                    }
+                    None => false,
+                }
+            }
             Input::Terminal(Event::Key(key)) => match KeyStroke::from_crossterm(&key) {
                 Some(stroke) if stroke.is_quit() => return Ok(()),
+                // ^D disconnects app-globally: control chords never reach
+                // the focused widget, so typing cannot collide with it. The
+                // session answers with a close and a fresh invite — the
+                // pairing screen comes back on the mode mirror below.
+                Some(stroke) if stroke.ctrl && stroke.key == "d" && panel.is_some() => {
+                    if let Some(panel) = panel.as_ref() {
+                        let _ = panel.commands.send(Command::Renew);
+                    }
+                    false
+                }
                 Some(stroke) => match app_key(stroke) {
                     Some(stroke) => {
                         host.dispatch(&stroke)?;
@@ -256,6 +396,9 @@ pub(crate) fn run(
                 },
                 None => false,
             },
+            // A dialog swallows clicks — it is keyboard-driven; nothing
+            // beneath it takes the pointer.
+            Input::Terminal(Event::Mouse(_)) if dialog.is_some() => false,
             Input::Terminal(Event::Mouse(MouseEvent {
                 kind: MouseEventKind::Down(MouseButton::Left),
                 column,
@@ -315,6 +458,14 @@ pub(crate) fn run(
                         _ => {}
                     }
                 }
+                // The navbar speaks the same polled-command seam; its
+                // disconnect is ^D's pointer twin.
+                if let Some(name) = prop_string(host, panel.navbar, "command")? {
+                    host.set_prop(panel.navbar, "command", "null")?;
+                    if name == "disconnect" {
+                        let _ = panel.commands.send(Command::Renew);
+                    }
+                }
             }
         }
         // The p2p pairing thread narrates into the shared status line —
@@ -337,6 +488,28 @@ pub(crate) fn run(
                 // The deck's QR shows the same invite; an unchanged link is
                 // a no-op re-set (the property dirty check absorbs it).
                 host.set_prop(panel.qr, "data", &serde_json::to_string(&now.link)?)?;
+                // The navbar wears the same view: the badge off `connected`,
+                // the narration off `status`, and the wire's real route
+                // while one stands.
+                host.set_prop(
+                    panel.navbar,
+                    "connected",
+                    &serde_json::to_string(&now.connected)?,
+                )?;
+                host.set_prop(panel.navbar, "status", &serde_json::to_string(&now.status)?)?;
+                let address = panel
+                    .endpoints
+                    .lock()
+                    .expect("endpoints slot")
+                    .clone()
+                    .filter(|_| todo_screen(now.mode))
+                    .unwrap_or_else(|| panel.lan.clone());
+                host.set_prop(panel.navbar, "address", &serde_json::to_string(&address)?)?;
+                // A mode move swaps the screen (and the focus with it) —
+                // after apply_panel, so the new body exists to focus into.
+                if now.mode != last_panel.mode {
+                    apply_screen(host, panel, node, now.mode)?;
+                }
                 last_panel = now;
                 true
             } else {
@@ -345,9 +518,41 @@ pub(crate) fn run(
         } else {
             false
         };
-        if changed || status_changed || panel_changed {
-            draw(host, terminal, status, qr)?;
+        // A component may have asked a question this iteration; show the
+        // oldest waiting one when the box is free (one at a time — the
+        // queue holds the rest).
+        let dialog_opened = if dialog.is_none() {
+            match host.take_dialog_request() {
+                Some(request) => {
+                    dialog = Some(ActiveDialog {
+                        dialog: dialog_from(&request),
+                        source: DialogSource::Js(request.id),
+                    });
+                    true
+                }
+                None => false,
+            }
+        } else {
+            false
+        };
+        if changed || status_changed || panel_changed || dialog_opened {
+            let shown = dialog.as_ref().map(|active| &active.dialog);
+            draw(host, terminal, status, qr, shown)?;
         }
+    }
+}
+
+/// The dialog box for a runtime request — the browser's own default
+/// button focus (confirm and prompt land on ok).
+fn dialog_from(request: &uic_js::DialogRequest) -> uic_tui::dialog::Dialog {
+    use uic_js::DialogKind;
+    match request.kind {
+        DialogKind::Alert => uic_tui::dialog::Dialog::alert(&request.message),
+        DialogKind::Confirm => uic_tui::dialog::Dialog::confirm(&request.message),
+        DialogKind::Prompt => uic_tui::dialog::Dialog::prompt(
+            &request.message,
+            request.default.as_deref().unwrap_or(""),
+        ),
     }
 }
 
@@ -355,7 +560,52 @@ pub(crate) fn run(
 mod tests {
     use super::*;
     use ratatui::layout::Rect;
-    use uic_sync::session::PanelMode;
+    use uic_sync::session::{PanelMode, Step};
+    use uic_tui::dialog::Dialog;
+
+    #[test]
+    fn dialog_answers_carry_the_browser_return_shapes() {
+        assert_eq!(dialog_answer(&Dialog::alert("done"), true), "null");
+        assert_eq!(dialog_answer(&Dialog::confirm("sure?"), true), "true");
+        assert_eq!(dialog_answer(&Dialog::confirm("sure?"), false), "false");
+        let mut prompt = Dialog::prompt("who?", "");
+        prompt.input = "world".into();
+        assert_eq!(dialog_answer(&prompt, true), "\"world\"");
+        assert_eq!(dialog_answer(&prompt, false), "null");
+    }
+
+    // A component's confirm rides the queue, the loop's dialog box answers
+    // it, and the awaiting component continues — the whole JS-dialog path
+    // minus the terminal I/O.
+    #[test]
+    fn a_component_confirm_answers_through_the_dialog_box() {
+        let mut host = JsHost::new().unwrap();
+        host.load_module(
+            "test:asks",
+            r#"
+            import { html, LitElement } from 'lit';
+            class AsksDialog extends LitElement {
+                static properties = { verdict: {} };
+                constructor() {
+                    super();
+                    this.verdict = 'undecided';
+                    void confirm('accept?').then((v) => { this.verdict = v ? 'yes' : 'no'; });
+                }
+                render() { return html`<span>${this.verdict}</span>`; }
+            }
+            customElements.define('asks-dialog', AsksDialog);
+            "#,
+        )
+        .unwrap();
+        let node = host.mount("asks-dialog", &[]).unwrap();
+
+        let request = host.take_dialog_request().expect("the component asked");
+        let dialog = dialog_from(&request);
+        assert_eq!(dialog.kind, uic_tui::dialog::DialogKind::Confirm);
+        host.answer_dialog(request.id, &dialog_answer(&dialog, true))
+            .unwrap();
+        assert_eq!(host.prop_json(node, "verdict").unwrap(), "\"yes\"");
+    }
 
     fn pane() -> QrPane {
         QrPane {
@@ -381,6 +631,192 @@ mod tests {
         // Too short for the pane: same.
         let short = app_area(Rect::new(0, 0, 180, 20), Some(&pane()));
         assert_eq!(short.width, 180);
+    }
+
+    fn deck_host() -> (JsHost, PanelDriverNodes) {
+        let mut host = JsHost::new().unwrap();
+        host.load_package(
+            std::path::Path::new(env!("UIC_LIT_DEMO_NPM_ROOT")),
+            crate::PACKAGE,
+        )
+        .unwrap();
+        for module in [
+            "theme.js",
+            "qr-code.js",
+            "pair-panel.js",
+            "status-navbar.js",
+            "p2p-deck.js",
+        ] {
+            let src = std::fs::read_to_string(
+                std::path::Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
+                    .join(crate::PACKAGE)
+                    .join(module),
+            )
+            .unwrap();
+            host.load_module(&format!("{}/{module}", crate::PACKAGE), &src)
+                .unwrap();
+        }
+        host.mount("p2p-deck", &[]).unwrap();
+        let nodes = PanelDriverNodes {
+            todo: crate::node_by_tag(&host, "todo-app").unwrap(),
+            panel: crate::node_by_tag(&host, "pair-panel").unwrap(),
+            qr: crate::node_by_tag(&host, "qr-code").unwrap(),
+            navbar: crate::node_by_tag(&host, "status-navbar").unwrap(),
+            bar: crate::node_by_class(&host, "bar").unwrap(),
+            todo_pane: crate::node_by_class(&host, "todo-pane").unwrap(),
+            pairing_pane: crate::node_by_class(&host, "pairing-pane").unwrap(),
+        };
+        (host, nodes)
+    }
+
+    struct PanelDriverNodes {
+        todo: NodeId,
+        panel: NodeId,
+        qr: NodeId,
+        navbar: NodeId,
+        bar: NodeId,
+        todo_pane: NodeId,
+        pairing_pane: NodeId,
+    }
+
+    fn hidden(host: &JsHost, node: NodeId) -> bool {
+        let mut state = host.state.borrow_mut();
+        let handle = state.handle(node);
+        state.has_attribute(handle, "hidden")
+    }
+
+    #[test]
+    fn the_screens_swap_on_mode_and_focus_follows() {
+        let (mut host, nodes) = deck_host();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let state = Arc::new(Mutex::new(PanelState::default()));
+        let endpoints = Arc::new(Mutex::new(None));
+        let driver = PanelDriver {
+            node: nodes.panel,
+            qr: nodes.qr,
+            navbar: nodes.navbar,
+            bar: nodes.bar,
+            todo_pane: nodes.todo_pane,
+            pairing_pane: nodes.pairing_pane,
+            state: &state,
+            commands: &tx,
+            endpoints: &endpoints,
+            lan: "192.0.2.1".into(),
+        };
+
+        // Boot: pairing-first — the deck ships the todo and the bar hidden.
+        assert!(hidden(&host, nodes.todo_pane), "todo hidden at boot");
+        assert!(hidden(&host, nodes.bar), "bar hidden at boot");
+        assert!(
+            !hidden(&host, nodes.pairing_pane),
+            "pairing visible at boot"
+        );
+
+        // The invite arrives: the pairing screen stays and the focus lands
+        // in the reply textarea (after apply_panel rendered the body).
+        let invite = PanelState {
+            mode: PanelMode::Invite,
+            link: "https://host/p2p/#abc".into(),
+            status: "share the invite".into(),
+            connected: None,
+            reset_label: "start over".into(),
+            step: Step::Init,
+        };
+        apply_panel(&invite, &mut host, driver.node).unwrap();
+        apply_screen(&mut host, &driver, nodes.todo, invite.mode).unwrap();
+        let textarea = descendant_matching(&host, driver.node, "textarea").unwrap();
+        assert_eq!(host.state.borrow().focused, Some(textarea));
+
+        // Connected: the screens flip, the navbar mirrors, the draft takes
+        // the keyboard.
+        let connected = PanelState {
+            mode: PanelMode::Connected,
+            link: String::new(),
+            status: "paired — one list, two ends".into(),
+            connected: Some(true),
+            reset_label: "invite somebody else".into(),
+            step: Step::Connect,
+        };
+        apply_panel(&connected, &mut host, driver.node).unwrap();
+        host.set_prop(
+            driver.navbar,
+            "connected",
+            &serde_json::to_string(&connected.connected).unwrap(),
+        )
+        .unwrap();
+        apply_screen(&mut host, &driver, nodes.todo, connected.mode).unwrap();
+        assert!(!hidden(&host, nodes.todo_pane), "todo shows connected");
+        assert!(!hidden(&host, nodes.bar), "bar shows connected");
+        assert!(hidden(&host, nodes.pairing_pane), "pairing hides connected");
+        let draft = descendant_matching(&host, nodes.todo, "input.draft").unwrap();
+        assert_eq!(host.state.borrow().focused, Some(draft));
+        let navbar_html = host.state.borrow().doc.inner_html(driver.navbar);
+        assert!(
+            navbar_html.contains("text-bg-success"),
+            "the badge turns green: {navbar_html}"
+        );
+
+        // Back to pairing (a disconnect renewed): flip again, textarea back.
+        apply_panel(&invite, &mut host, driver.node).unwrap();
+        apply_screen(&mut host, &driver, nodes.todo, invite.mode).unwrap();
+        assert!(hidden(&host, nodes.todo_pane));
+        assert!(!hidden(&host, nodes.pairing_pane));
+        let textarea = descendant_matching(&host, driver.node, "textarea").unwrap();
+        assert_eq!(host.state.borrow().focused, Some(textarea));
+    }
+
+    #[test]
+    fn typing_after_the_focus_handoff_lands_in_the_reply_box() {
+        let (mut host, nodes) = deck_host();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let state = Arc::new(Mutex::new(PanelState::default()));
+        let endpoints = Arc::new(Mutex::new(None));
+        let driver = PanelDriver {
+            node: nodes.panel,
+            qr: nodes.qr,
+            navbar: nodes.navbar,
+            bar: nodes.bar,
+            todo_pane: nodes.todo_pane,
+            pairing_pane: nodes.pairing_pane,
+            state: &state,
+            commands: &tx,
+            endpoints: &endpoints,
+            lan: "192.0.2.1".into(),
+        };
+        let invite = PanelState {
+            mode: PanelMode::Invite,
+            link: "https://host/p2p/#abc".into(),
+            status: "share the invite".into(),
+            connected: None,
+            reset_label: "start over".into(),
+            step: Step::Init,
+        };
+        apply_panel(&invite, &mut host, driver.node).unwrap();
+        apply_screen(&mut host, &driver, nodes.todo, invite.mode).unwrap();
+
+        for key in ["a", "b", "c"] {
+            host.dispatch_key(key).unwrap();
+        }
+        assert_eq!(host.prop_json(driver.node, "peer").unwrap(), "\"abc\"");
+    }
+
+    #[test]
+    fn the_navbar_disconnect_writes_the_polled_command() {
+        let (mut host, nodes) = deck_host();
+        let button = {
+            let state = host.state.borrow();
+            state
+                .doc
+                .find_element(nodes.navbar, |el| {
+                    el.attr("class").is_some_and(|c| c.contains("disconnect"))
+                })
+                .expect("the disconnect button")
+        };
+        host.click(button).unwrap();
+        assert_eq!(
+            host.prop_json(nodes.navbar, "command").unwrap(),
+            "\"disconnect\""
+        );
     }
 
     #[test]
@@ -409,6 +845,7 @@ mod tests {
             status: "share the invite".into(),
             connected: None,
             reset_label: "start over".into(),
+            step: Step::Acknowledge,
         };
         apply_panel(&view, &mut host, panel).unwrap();
         let html = host.state.borrow().doc.inner_html(panel);
@@ -419,5 +856,10 @@ mod tests {
             "the link mirrors: {html}"
         );
         assert_eq!(host.prop_json(panel, "connected").unwrap(), "null");
+        assert_eq!(
+            host.prop_json(panel, "step").unwrap(),
+            "2",
+            "the step mirrors"
+        );
     }
 }

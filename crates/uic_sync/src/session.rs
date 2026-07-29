@@ -45,6 +45,27 @@ impl PanelMode {
     }
 }
 
+/// The pairing wizard's three steps: start one, acknowledge the peer,
+/// connect. The panel lights the reachable step and mutes the rest; the
+/// `as_u8` value is the prop both hosts read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Step {
+    #[default]
+    Init,
+    Acknowledge,
+    Connect,
+}
+
+impl Step {
+    pub fn as_u8(self) -> u8 {
+        match self {
+            Step::Init => 1,
+            Step::Acknowledge => 2,
+            Step::Connect => 3,
+        }
+    }
+}
+
 /// The `<pair-panel>` view: what a host mirrors onto the mounted panel.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PanelState {
@@ -53,6 +74,7 @@ pub struct PanelState {
     pub status: String,
     pub connected: Option<bool>,
     pub reset_label: String,
+    pub step: Step,
 }
 
 /// A panel intent the host reads off the component and feeds back in as
@@ -134,13 +156,42 @@ struct Pending {
     peer: String,
 }
 
+/// How a peer payload reached us — the detection that shapes step 2 and
+/// the retry. A fresh invite means the peer is initiating and waits on our
+/// reply (retrying re-mints and offers a fresh reply link); a reply to our
+/// own invite means the peer already applied our payload (a failed connect
+/// cannot resume — their copy is stale the moment our swap dies).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PeerCase {
+    FreshInvite,
+    ReplyToOurs,
+}
+
+/// The peer this session is chasing: their payload, how it reached us, and
+/// how many times we have tried — retained across a failed connect so the
+/// retry knows what it can honestly attempt.
+#[derive(Debug, Clone)]
+struct Pursuit {
+    peer: String,
+    case: PeerCase,
+    attempts: u8,
+}
+
+/// How many connect attempts a fresh-invite pursuit gets before giving up.
+const CONNECT_ATTEMPTS: u8 = 2;
+
 /// The pairing session: create an invite, wait for the peer (pairing is a
 /// mutual exchange — ADR 0028), connect, stand ready to renew, and answer
 /// repair rounds (ADR 0032) with a fresh wire that replaces the old one
 /// only after it opened.
 pub struct Session {
     page: String,
-    opener: Option<String>,
+    /// The peer being chased, if any — replaces the old bare opener so a
+    /// retry keeps the case and the attempt count.
+    pursuit: Option<Pursuit>,
+    /// A one-shot status the next plain invite carries — the honest word
+    /// after a pairing that could not resume.
+    carry_status: Option<String>,
     phase: Phase,
     counter: u64,
     /// The primary wire: its gen and, once minted, its payload.
@@ -154,9 +205,17 @@ impl Session {
     /// payload when an invite link launched this host. The first effect
     /// mints the own swap.
     pub fn start(page: String, opener: Option<String>) -> (Session, Vec<Effect>) {
+        // A CLI opener is a fresh invite we are answering — we hold their
+        // payload and must send our reply back.
+        let pursuit = opener.map(|peer| Pursuit {
+            peer,
+            case: PeerCase::FreshInvite,
+            attempts: 0,
+        });
         let mut session = Session {
             page,
-            opener,
+            pursuit,
+            carry_status: None,
             phase: Phase::Minting,
             counter: 0,
             current: None,
@@ -236,39 +295,60 @@ impl Session {
         }
         self.current = Some((gen, payload.clone()));
         // Pairing is a mutual exchange (ADR 0028): each side sends its
-        // invite and opens the other's. An opener already holds the peer's
-        // payload from the link; an inviter waits for the pasted token.
-        let reply_to = self.opener.as_deref().map(pair::reply_digest);
-        let answering = self.opener.is_some();
-        let link = pair::invite_link(&self.page, &payload, reply_to.as_deref());
-        let invite = PanelState {
-            mode: PanelMode::Invite,
-            link,
-            status: if answering {
-                "opened their invite — send yours back so they connect too".into()
-            } else {
-                "the card and the code carry the same invite — you connect when a peer answers"
-                    .into()
-            },
-            connected: None,
-            reset_label: "start over".into(),
-        };
-        let mut effects = vec![self.present(invite)];
-        if let Some(peer) = self.opener.take() {
-            effects.push(self.present_status("connecting…".into()));
-            self.phase = Phase::Connecting;
-            effects.push(Effect::Connect {
-                gen,
-                // Exactly one side greets: the lexically smaller payload
-                // (the plain rule of ADR 0013) — a fresh pairing has no
-                // canonical-state holder yet.
-                greet: payload < peer,
-                peer,
-            });
-        } else {
-            self.phase = Phase::Inviting;
+        // invite and opens the other's. A pursuit means we already hold
+        // the peer's fresh invite (ReplyToOurs connects directly from
+        // Inviting and never re-mints), so step 2 shows the reply link the
+        // peer must open and the connect rides in the background.
+        match self.pursuit.clone() {
+            Some(pursuit) => {
+                let reply_to = pair::reply_digest(&pursuit.peer);
+                let link = pair::invite_link(&self.page, &payload, Some(&reply_to));
+                let status = if pursuit.attempts == 0 {
+                    "opened their invite — send this reply back; you connect the moment they open it"
+                        .to_string()
+                } else {
+                    format!(
+                        "attempt {} — a fresh link; send this one back instead",
+                        pursuit.attempts + 1
+                    )
+                };
+                self.phase = Phase::Connecting;
+                vec![
+                    self.present(PanelState {
+                        mode: PanelMode::Invite,
+                        link,
+                        status,
+                        connected: None,
+                        reset_label: "start over".into(),
+                        step: Step::Acknowledge,
+                    }),
+                    Effect::Connect {
+                        gen,
+                        // Exactly one side greets: the lexically smaller
+                        // payload (ADR 0013) — a fresh pairing has no
+                        // canonical-state holder yet.
+                        greet: payload < pursuit.peer,
+                        peer: pursuit.peer,
+                    },
+                ]
+            }
+            None => {
+                let link = pair::invite_link(&self.page, &payload, None);
+                self.phase = Phase::Inviting;
+                let status = self.carry_status.take().unwrap_or_else(|| {
+                    "the card and the code carry the same invite — you connect when a peer answers"
+                        .into()
+                });
+                vec![self.present(PanelState {
+                    mode: PanelMode::Invite,
+                    link,
+                    status,
+                    connected: None,
+                    reset_label: "start over".into(),
+                    step: Step::Init,
+                })]
+            }
         }
-        effects
     }
 
     fn mint_failed(&mut self, gen: Gen, error: &str) -> Vec<Effect> {
@@ -311,12 +391,15 @@ impl Session {
         if !self.is_current(gen) {
             return Vec::new();
         }
+        // The wire stands — the pursuit is over, no retry to keep.
+        self.pursuit = None;
         self.phase = Phase::Standing;
         vec![self.present(PanelState {
             mode: PanelMode::Connected,
             status: "paired — one list, two ends".into(),
             connected: Some(true),
             reset_label: "invite somebody else".into(),
+            step: Step::Connect,
             ..PanelState::default()
         })]
     }
@@ -334,13 +417,63 @@ impl Session {
         if !self.is_current(gen) {
             return Vec::new();
         }
-        self.phase = Phase::Down;
-        vec![self.present(PanelState {
-            mode: PanelMode::Failed,
-            status: format!("pairing failed: {error}"),
-            reset_label: "start a new pairing".into(),
-            ..PanelState::default()
-        })]
+        // Retry only what can honestly resume. A fresh-invite pursuit still
+        // holds a valid peer payload — mint afresh and offer a new reply
+        // link, bounded. A reply-to-ours failure cannot resume: the peer's
+        // copy of our payload went stale with our swap, so renew to a plain
+        // invite and say the exchange must restart.
+        match self.pursuit.take() {
+            Some(Pursuit {
+                peer,
+                case: PeerCase::FreshInvite,
+                attempts,
+            }) if attempts + 1 < CONNECT_ATTEMPTS => {
+                self.pursuit = Some(Pursuit {
+                    peer,
+                    case: PeerCase::FreshInvite,
+                    attempts: attempts + 1,
+                });
+                // recycle mints afresh; minted re-presents step 2 with the
+                // new reply link and reconnects the same peer.
+                self.recycle()
+            }
+            Some(Pursuit {
+                case: PeerCase::FreshInvite,
+                attempts,
+                ..
+            }) => {
+                self.phase = Phase::Down;
+                self.current = None;
+                vec![self.present(PanelState {
+                    mode: PanelMode::Failed,
+                    status: format!(
+                        "tried {} times ({error}) — check the network and start a new pairing",
+                        attempts + 1
+                    ),
+                    reset_label: "start a new pairing".into(),
+                    ..PanelState::default()
+                })]
+            }
+            Some(Pursuit {
+                case: PeerCase::ReplyToOurs,
+                ..
+            }) => {
+                // The next plain invite carries the honest word.
+                self.carry_status = Some(format!(
+                    "the connect failed ({error}) — that exchange can't resume; share this fresh invite instead"
+                ));
+                self.recycle()
+            }
+            None => {
+                self.phase = Phase::Down;
+                vec![self.present(PanelState {
+                    mode: PanelMode::Failed,
+                    status: format!("pairing failed: {error}"),
+                    reset_label: "start a new pairing".into(),
+                    ..PanelState::default()
+                })]
+            }
+        }
     }
 
     fn closed(&mut self, gen: Gen) -> Vec<Effect> {
@@ -364,28 +497,85 @@ impl Session {
     fn command(&mut self, command: Command) -> Vec<Effect> {
         match command {
             Command::Renew => {
-                self.opener = None;
+                self.pursuit = None;
+                self.carry_status = None;
                 self.recycle()
             }
             Command::Connect(text) => {
                 let peer = pair::link_payload(&text);
+                let reply = pair::link_reply(&text);
                 if let (Phase::Inviting, Some((gen, payload))) = (&self.phase, self.current.clone())
                 {
-                    // The presented invite's own swap is fresh — connect it
-                    // directly, the mutual exchange completing.
-                    self.phase = Phase::Connecting;
-                    return vec![
-                        self.present_status("connecting…".into()),
-                        Effect::Connect {
-                            gen,
-                            greet: payload < peer,
-                            peer,
-                        },
-                    ];
+                    // A reply naming OUR invite means the peer already
+                    // applied our payload — connecting completes at once
+                    // (step 3). A reply naming a DIFFERENT invite is neither
+                    // ours to answer nor a fresh invite — say so, touch
+                    // nothing. No digest is a fresh invite: the peer is
+                    // initiating and waits on our reply, so step 2 shows the
+                    // reply link they must open while the connect rides
+                    // behind it.
+                    match reply {
+                        Some(ref digest) if *digest == pair::reply_digest(&payload) => {
+                            self.pursuit = Some(Pursuit {
+                                peer: peer.clone(),
+                                case: PeerCase::ReplyToOurs,
+                                attempts: 0,
+                            });
+                            self.phase = Phase::Connecting;
+                            let mut view = self.view.clone();
+                            view.status = "they opened your invite — connecting…".into();
+                            view.step = Step::Connect;
+                            return vec![
+                                self.present(view),
+                                Effect::Connect {
+                                    gen,
+                                    greet: payload < peer,
+                                    peer,
+                                },
+                            ];
+                        }
+                        Some(_) => {
+                            return vec![self.present_status(
+                                "that link answers a different invite — ask them to open your current one"
+                                    .into(),
+                            )];
+                        }
+                        None => {
+                            self.pursuit = Some(Pursuit {
+                                peer: peer.clone(),
+                                case: PeerCase::FreshInvite,
+                                attempts: 0,
+                            });
+                            self.phase = Phase::Connecting;
+                            let reply_to = pair::reply_digest(&peer);
+                            let link = pair::invite_link(&self.page, &payload, Some(&reply_to));
+                            return vec![
+                                self.present(PanelState {
+                                    mode: PanelMode::Invite,
+                                    link,
+                                    status:
+                                        "send this reply back — they connect the moment they open it"
+                                            .into(),
+                                    connected: None,
+                                    reset_label: "start over".into(),
+                                    step: Step::Acknowledge,
+                                }),
+                                Effect::Connect {
+                                    gen,
+                                    greet: payload < peer,
+                                    peer,
+                                },
+                            ];
+                        }
+                    }
                 }
                 // Standing or down: the next mint consumes the peer like an
-                // opened link would.
-                self.opener = Some(peer);
+                // opened invite would — a paste here starts a fresh chase.
+                self.pursuit = Some(Pursuit {
+                    peer,
+                    case: PeerCase::FreshInvite,
+                    attempts: 0,
+                });
                 self.recycle()
             }
         }
@@ -463,31 +653,32 @@ mod tests {
     }
 
     #[test]
-    fn a_fresh_session_mints_and_presents_the_invite() {
+    fn a_fresh_session_mints_and_presents_step_one() {
         let (mut session, effects) = Session::start("https://host/p2p/".into(), None);
         let effects = minted(&mut session, &effects, "bbb");
         let view = presented(&effects);
         assert_eq!(view.mode, PanelMode::Invite);
+        assert_eq!(view.step, Step::Init);
         assert_eq!(view.link, "https://host/p2p/#bbb");
         assert!(view.status.contains("you connect when a peer answers"));
         assert_eq!(view.reset_label, "start over");
-        // No opener: the session waits — no connect yet.
+        // No pursuit: the session waits — no connect yet.
         assert!(!effects.iter().any(|e| matches!(e, Effect::Connect { .. })));
     }
 
     #[test]
-    fn an_opener_connects_at_once_and_its_link_carries_the_reply_digest() {
+    fn an_opener_lands_on_step_two_with_the_reply_link() {
         let (mut session, effects) =
             Session::start("https://host/p2p/".into(), Some("peerPayload".into()));
         let effects = minted(&mut session, &effects, "own");
-        let (gen, peer, greet) = connect_of(&effects);
+        let (_, peer, greet) = connect_of(&effects);
         assert_eq!(peer, "peerPayload");
         // Lexical greet: "own" < "peerPayload".
         assert!(greet);
-        assert_eq!(gen, mint_gen(&[Effect::Mint { gen }]));
         let view = presented(&effects);
         assert_eq!(view.mode, PanelMode::Invite);
-        assert_eq!(view.status, "connecting…");
+        assert_eq!(view.step, Step::Acknowledge);
+        assert!(view.status.contains("send this reply back"));
         assert_eq!(
             view.link,
             format!(
@@ -498,25 +689,61 @@ mod tests {
     }
 
     #[test]
-    fn the_pasted_token_connects_the_presented_invite() {
+    fn a_fresh_invite_paste_moves_to_step_two_and_upgrades_the_link() {
         let (mut session, effects) = Session::start("https://host/p2p/".into(), None);
         let _ = minted(&mut session, &effects, "zzz");
-        let gen = {
-            // The invite stands; a pasted link connects the same swap.
-            let effects = session.on(Event::Command(Command::Connect(
-                "https://host/p2p/#aaa.12345678".into(),
-            )));
-            let (gen, peer, greet) = connect_of(&effects);
-            assert_eq!(peer, "aaa", "the link grammar reduces to the payload");
-            assert!(!greet, "\"zzz\" is not the lexically smaller payload");
-            assert_eq!(presented(&effects).status, "connecting…");
-            gen
-        };
+        // A bare invite (no digest) is a fresh invite: the peer initiates,
+        // so we go to step 2 and present the reply link they must open.
+        let effects = session.on(Event::Command(Command::Connect(
+            "https://host/p2p/#aaa".into(),
+        )));
+        let (gen, peer, greet) = connect_of(&effects);
+        assert_eq!(peer, "aaa");
+        assert!(!greet, "\"zzz\" is not the lexically smaller payload");
+        let view = presented(&effects);
+        assert_eq!(view.step, Step::Acknowledge);
+        assert_eq!(
+            view.link,
+            format!("https://host/p2p/#zzz.{}", crate::pair::reply_digest("aaa")),
+            "the presented link becomes the reply the peer opens"
+        );
         let effects = session.on(Event::Connected { gen });
         let view = presented(&effects);
         assert_eq!(view.mode, PanelMode::Connected);
-        assert_eq!(view.connected, Some(true));
         assert_eq!(view.link, "", "the consumed invite leaves the card");
+    }
+
+    #[test]
+    fn a_reply_to_our_invite_skips_to_step_three() {
+        let (mut session, effects) = Session::start("https://host/p2p/".into(), None);
+        let _ = minted(&mut session, &effects, "own");
+        // A reply naming our own invite: the peer already applied our
+        // payload, so we connect at once at step 3, the link unchanged.
+        let reply = format!(
+            "https://host/p2p/#peer.{}",
+            crate::pair::reply_digest("own")
+        );
+        let effects = session.on(Event::Command(Command::Connect(reply)));
+        let (_, peer, _) = connect_of(&effects);
+        assert_eq!(peer, "peer");
+        let view = presented(&effects);
+        assert_eq!(view.step, Step::Connect);
+        assert!(view.status.contains("they opened your invite"));
+    }
+
+    #[test]
+    fn a_reply_for_a_different_invite_is_refused_without_connecting() {
+        let (mut session, effects) = Session::start("https://host/p2p/".into(), None);
+        let _ = minted(&mut session, &effects, "own");
+        // A reply whose digest names some other invite — neither ours to
+        // answer nor a fresh invite. Say so, connect nothing.
+        let effects = session.on(Event::Command(Command::Connect(
+            "https://host/p2p/#peer.deadbeef".into(),
+        )));
+        assert!(!effects.iter().any(|e| matches!(e, Effect::Connect { .. })));
+        assert!(presented(&effects).status.contains("a different invite"));
+        // The invite still stands — a correct paste next still works.
+        assert_eq!(presented(&effects).mode, PanelMode::Invite);
     }
 
     #[test]
@@ -595,6 +822,75 @@ mod tests {
         // The standing wire still owns the session: its close still counts.
         let effects = session.on(Event::Closed { gen: old_gen });
         assert_eq!(presented(&effects).mode, PanelMode::Dropped);
+    }
+
+    #[test]
+    fn a_fresh_invite_connect_retries_then_gives_up() {
+        let (mut session, effects) =
+            Session::start("https://host/p2p/".into(), Some("peer".into()));
+        let first = minted(&mut session, &effects, "own");
+        let (gen, ..) = connect_of(&first);
+
+        // First failure: a fresh-invite pursuit still holds a valid peer,
+        // so it mints afresh and offers a new reply link — still step 2.
+        let effects = session.on(Event::ConnectFailed {
+            gen,
+            error: "ice failed".into(),
+        });
+        let retry_gen = mint_gen(&effects);
+        assert_ne!(retry_gen, gen, "a retry mints a fresh swap");
+        let effects = session.on(Event::Minted {
+            gen: retry_gen,
+            payload: "own2".into(),
+        });
+        let (gen2, peer2, _) = connect_of(&effects);
+        assert_eq!(peer2, "peer", "the same peer, a fresh swap");
+        let view = presented(&effects);
+        assert_eq!(view.step, Step::Acknowledge);
+        assert!(view.status.contains("attempt 2"));
+
+        // Second failure exhausts the cap: Failed, honest about the network.
+        let effects = session.on(Event::ConnectFailed {
+            gen: gen2,
+            error: "ice failed".into(),
+        });
+        let view = presented(&effects);
+        assert_eq!(view.mode, PanelMode::Failed);
+        assert!(view.status.contains("tried 2 times"));
+        assert!(!effects.iter().any(|e| matches!(e, Effect::Mint { .. })));
+    }
+
+    #[test]
+    fn a_reply_to_ours_connect_failure_renews_a_plain_invite() {
+        let (mut session, effects) = Session::start("https://host/p2p/".into(), None);
+        let _ = minted(&mut session, &effects, "own");
+        let reply = format!(
+            "https://host/p2p/#peer.{}",
+            crate::pair::reply_digest("own")
+        );
+        let effects = session.on(Event::Command(Command::Connect(reply)));
+        let (gen, ..) = connect_of(&effects);
+
+        // Their copy of our payload is stale the moment our swap dies —
+        // no self-serving retry. Renew to a plain invite (step 1), honestly.
+        let effects = session.on(Event::ConnectFailed {
+            gen,
+            error: "ice failed".into(),
+        });
+        let fresh = mint_gen(&effects);
+        let effects = session.on(Event::Minted {
+            gen: fresh,
+            payload: "own2".into(),
+        });
+        let view = presented(&effects);
+        assert_eq!(view.mode, PanelMode::Invite);
+        assert_eq!(view.step, Step::Init);
+        assert!(view.status.contains("can't resume"));
+        assert_eq!(view.link, "https://host/p2p/#own2");
+        assert!(
+            !effects.iter().any(|e| matches!(e, Effect::Connect { .. })),
+            "a plain invite waits for a peer — no auto-connect"
+        );
     }
 
     #[test]

@@ -9,9 +9,9 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-# The storage features back the runtime's localStorage — the in-memory
-# default and the SQLite location the --backend flag selects.
-uic_js = { workspace = true, features = ["storage", "sqlite"] }
+# storage backs the runtime's localStorage (the --backend flag), dialogs
+# the mocked alert/confirm/prompt the loop paints as overlays.
+uic_js = { workspace = true, features = ["storage", "sqlite", "dialogs"] }
 uic_dom.workspace = true
 clap.workspace = true
 # The crossterm/ratatui re-exports drive the terminal loop and paint; the

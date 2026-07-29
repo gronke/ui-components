@@ -50,6 +50,8 @@ impl JsHost {
             .map_err(|err| Error::Js(err.to_string()))?;
         let state = Rc::new(RefCell::new(HostState::new()));
         state::install(state.clone());
+        #[cfg(feature = "dialogs")]
+        crate::dialogs::reset();
         register_natives(&mut context)?;
         let mut host = JsHost {
             context,
@@ -188,6 +190,23 @@ impl JsHost {
     pub fn focus(&mut self, node: NodeId) -> Result<(), Error> {
         let handle = self.state.borrow_mut().handle(node);
         self.eval(&format!("__uicFocus({handle})"))?;
+        self.run_jobs()
+    }
+
+    /// One queued dialog question, oldest first — the runtime's
+    /// alert/confirm/prompt land here for the host to present.
+    #[cfg(feature = "dialogs")]
+    pub fn take_dialog_request(&mut self) -> Option<crate::dialogs::DialogRequest> {
+        crate::dialogs::take()
+    }
+
+    /// Answers a dialog: resolves its promise (a JSON value — alert `null`,
+    /// confirm `true`/`false`, prompt a string or `null`) and drains the
+    /// jobs so the awaiting component continues; a bare eval would leave
+    /// the continuation parked on the microtask queue.
+    #[cfg(feature = "dialogs")]
+    pub fn answer_dialog(&mut self, id: u32, answer_json: &str) -> Result<(), Error> {
+        self.eval(&format!("__uicDialogAnswer({id}, {answer_json})"))?;
         self.run_jobs()
     }
 

@@ -43,6 +43,7 @@ Behind the channels, `runtime.ts` is a pure re-export barrel over one module per
 | `focus` | focusout/focusin in WHATWG order | `tests/focus.rs` |
 | `custom-elements` | define/upgrade over the retained tree | `tests/composition.rs` |
 | `storage` | Web Storage over the backend natives (feature `storage`) | `tests/storage.rs` |
+| `dialogs` | alert/confirm/prompt over the question queue (feature `dialogs`) | `tests/dialogs.rs` |
 
 ## Directives
 
@@ -75,6 +76,14 @@ A component's `static styles` reach the terminal too: `customElements.define` ha
 The `sqlite` feature (implies `storage`) adds `SqliteBackend`: one `kv` table at a path the app selects, `rusqlite` bundled — the lit-demo's `--backend` flag rides it.
 Without the feature the runtime is unchanged and `typeof localStorage` stays `'undefined'`, so the guard idiom components already use for the browser's storage-less modes applies verbatim.
 A refused write throws like the browser's quota error; the backend lives in a thread-local beside the document state, so one host per thread — a second host on the same thread replaces both.
+
+## Dialogs (feature `dialogs`)
+
+`alert`, `confirm` and `prompt` on the mocked DOM.
+The runtime creates a Promise per call, keeps the resolver in a JS-side map, and queues the question through one thin native; the host drains the queue (`JsHost::take_dialog_request`), presents the dialog however it likes — the lit-demo paints a centered overlay — and settles the promise with `JsHost::answer_dialog(id, json)` (alert `null`, confirm `true`/`false`, prompt a string or `null`).
+The cross-host contract: in a real browser these globals are native and synchronous, so `await confirm(…)` is the one spelling with identical semantics in both hosts.
+There are no timers in the runtime — a dialog promise settles only through the host, and `tests/boa_quirks.rs` pins the cross-eval job-queue continuity this rides on.
+Without the feature the globals stay undefined.
 
 ## The pinned test component
 

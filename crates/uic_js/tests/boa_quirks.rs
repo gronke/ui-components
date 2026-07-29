@@ -58,6 +58,37 @@ fn ctor_loop_capture_still_panics_boa() {
     );
 }
 
+// The dialogs feature parks a Promise in one eval and resolves it in a
+// later one; the continuation must fire on the following job drain. This
+// canary pins that Boa's job queue survives across evals on one context —
+// if it starts failing, dialog promises (and anything else resolved by a
+// host eval) break with it.
+#[test]
+fn promises_resolve_across_evals() {
+    use uic_js::JsHost;
+    let mut host = JsHost::new().unwrap();
+    host.eval(
+        "globalThis.__settled = 'pending'; \
+         new Promise((resolve) => { globalThis.__resolve = resolve; })\
+             .then((value) => { globalThis.__settled = value; });",
+    )
+    .unwrap();
+    let parked = host.eval("__settled").unwrap();
+    assert_eq!(
+        parked.as_string().unwrap().to_std_string_escaped(),
+        "pending",
+        "nothing settles before the resolver runs"
+    );
+    host.eval("__resolve('answered')").unwrap();
+    host.run_jobs().unwrap();
+    let settled = host.eval("__settled").unwrap();
+    assert_eq!(
+        settled.as_string().unwrap().to_std_string_escaped(),
+        "answered",
+        "the continuation fires on the job drain after a later eval resolves"
+    );
+}
+
 // The runtime's polyfill modules import each other in a cycle (element →
 // focus → events → element) with every cross-call deferred into function
 // bodies — ESM-legal, and Boa must serve it. This canary proves the module

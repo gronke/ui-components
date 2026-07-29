@@ -5,6 +5,7 @@
 import {
     deliver,
     focusNode,
+    installDialogs,
     installStorage,
     instances,
     mountAt,
@@ -63,3 +64,4 @@ function collectStyles(styles: unknown): string {
 (globalThis as any).__uicQueryAll = queryAllNodes;
 
 installStorage();
+installDialogs();
