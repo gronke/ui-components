@@ -42,6 +42,7 @@ Behind the channels, `runtime.ts` is a pure re-export barrel over one module per
 | `events` | bubbling dispatch, the stop family, preventDefault | `tests/events.rs` |
 | `focus` | focusout/focusin in WHATWG order | `tests/focus.rs` |
 | `custom-elements` | define/upgrade over the retained tree | `tests/composition.rs` |
+| `storage` | Web Storage over the backend natives (feature `storage`) | `tests/storage.rs` |
 
 ## Directives
 
@@ -66,6 +67,14 @@ There is no `dispatchEvent` under Boa, so a component signals intent OUT to the 
 
 A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — no Bootstrap assumed, the element's own stylesheet drives colors, indentation and generated content (json-viewer's `.collapsable::before` marker renders as a generated box, ▶ turning ▼ through `transform: rotate(90deg)`).
 `overflow-wrap: anywhere` is honored: an unbreakable token — a long URL — wraps mid-word across lines instead of pinning its box one clipped line wide (min-content drops to one cell; `tests/overflow_wrap.rs`).
+
+## Storage (feature `storage`)
+
+`localStorage` on the mocked DOM, behind the crate's first feature.
+`JsHost::new` installs an in-memory backend (process lifetime, sorted keys); `JsHost::with_storage(Box<dyn StorageBackend>)` takes any implementation of the six-method sync trait — Web Storage semantics: string keys and values, last write wins, `key(n)` enumerates sorted, `getItem` past the data is `null`.
+The `sqlite` feature (implies `storage`) adds `SqliteBackend`: one `kv` table at a path the app selects, `rusqlite` bundled — the lit-demo's `--backend` flag rides it.
+Without the feature the runtime is unchanged and `typeof localStorage` stays `'undefined'`, so the guard idiom components already use for the browser's storage-less modes applies verbatim.
+A refused write throws like the browser's quota error; the backend lives in a thread-local beside the document state, so one host per thread — a second host on the same thread replaces both.
 
 ## The pinned test component
 

@@ -12,7 +12,13 @@ mod host;
 mod loader;
 mod natives;
 mod state;
+#[cfg(feature = "storage")]
+mod storage;
 
 pub use error::Error;
 pub use host::JsHost;
 pub use state::HostState;
+#[cfg(feature = "sqlite")]
+pub use storage::SqliteBackend;
+#[cfg(feature = "storage")]
+pub use storage::{MemoryBackend, StorageBackend, StorageError};

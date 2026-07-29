@@ -6,6 +6,9 @@ pub enum Error {
     Js(String),
     #[error("unknown module specifier {0}")]
     UnknownModule(String),
+    #[cfg(feature = "sqlite")]
+    #[error("storage error: {0}")]
+    Storage(String),
 }
 
 impl From<boa_engine::JsError> for Error {

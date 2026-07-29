@@ -19,6 +19,8 @@ Delete removes the selected row (the browser also offers a close button per row)
 A caret marks the insertion point in both hosts; the browser blinks it exactly while keys land in the list.
 Esc quits the terminal.
 
+The rows persist between runs under one `uic-todos` key — the browser through its native localStorage, the terminal through the runtime's storage feature (`crates/uic_js/README.md`, Storage); `--backend` picks where the terminal keeps it.
+
 The components render light DOM and carry Bootstrap classes — the house style: the browser shows a regular Bootstrap card and list group, and the terminal maps the same classes through its filtered Bootstrap sheet (the card's border, the list rows, the active highlight).
 The components' `static styles` are the terminal-only layer — real lit never adopts them without a shadow root — adding what the map cannot say, like the `[x]`/`[ ]` markers as generated content.
 
@@ -35,6 +37,7 @@ Module names must not shadow the terminal runtime's specifiers — never name ap
 ## Two sync harnesses around the same app
 
 The app itself knows nothing about either; the glue rides `@schuhkarton/uic-sync` (ADR 0013), baked beside the app's tree.
+On connect the lexical greet winner replaces the other side's rows and both ends then persist the winner — the pairing decides, storage remembers.
 
 **`live` — the terminal is the server.** Every browser mirrors the terminal's state over `/ws`: type in one place and the letters land everywhere, including the terminal running the process.
 The terminal shows the join URL as a scannable QR pane beside the app (dropped on narrow terminals — the status line keeps the URL) and listens on `0.0.0.0`, so phones on the network join by scanning; mind that this exposes the shared list to the LAN.
@@ -62,6 +65,7 @@ The terminal runs as an ICE-lite agent (host candidates only, so it pairs on a s
 
 ## Knobs
 
+- `--backend memory://` (default) keeps the terminal's localStorage in memory; `--backend sqlite://todos.db` (or a bare path) persists it between runs. Every terminal mode takes it; `serve` ignores it — the browser has the real thing.
 - `UIC_LIT_DEMO_ADDR=host:port` moves the server (default `127.0.0.1:8090`; `live` defaults to `0.0.0.0:8090`).
 - `WEB_MODULES_EMBEDDED=1` forces the fully-embedded dist (no filesystem reads).
 - Dev serving recompiles `web/pages/` live; a change under `web/src/` re-bakes through cargo — restart the server.

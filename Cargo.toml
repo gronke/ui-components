@@ -77,6 +77,10 @@ base64 = "0.22"
 # The terminal's WebRTC peer (ADR 0028). 0.17 is the final tokio-coupled
 # line — master is a sans-io rewrite with a different API.
 webrtc = "0.17"
+# The storage feature's file backend: one kv table behind the sync API it
+# mirrors. bundled compiles SQLite in, keeping builds hermetic.
+rusqlite = { version = "0.40", features = ["bundled"] }
+clap = { version = "4.6", features = ["derive"] }
 
 # The browser TUI build (scripts/build-wasm.sh). One codegen unit per crate:
 # wasm-ld extracts archive members lazily, and the element registry's

@@ -23,6 +23,26 @@ pub struct JsHost {
 
 impl JsHost {
     pub fn new() -> Result<Self, Error> {
+        #[cfg(feature = "storage")]
+        {
+            Self::with_storage(Box::new(crate::storage::MemoryBackend::default()))
+        }
+        #[cfg(not(feature = "storage"))]
+        {
+            Self::build()
+        }
+    }
+
+    /// Boots the engine over the given storage backend: the runtime's
+    /// `localStorage` reads and writes through it. [`new`](Self::new)
+    /// defaults to the in-memory backend.
+    #[cfg(feature = "storage")]
+    pub fn with_storage(backend: Box<dyn crate::storage::StorageBackend>) -> Result<Self, Error> {
+        crate::storage::install(backend);
+        Self::build()
+    }
+
+    fn build() -> Result<Self, Error> {
         let loader = Rc::new(MapLoader::new());
         let mut context = Context::builder()
             .module_loader(loader.clone())

@@ -242,6 +242,7 @@ export class PairPanel extends LitElement {
                         : ''}
                     <textarea
                         name="peer"
+                        data-path="peer"
                         class="peer-input form-control font-monospace"
                         placeholder="their link or code…"
                         @input=${this.onPeerInput}

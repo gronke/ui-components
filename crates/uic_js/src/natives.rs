@@ -223,5 +223,86 @@ pub(crate) fn register_natives(context: &mut Context) -> Result<(), Error> {
         }),
     )?;
 
+    #[cfg(feature = "storage")]
+    register_storage_natives(context)?;
+
+    Ok(())
+}
+
+// localStorage over the backend seam (src/storage.rs): get and key return
+// null past the data, set surfaces a refused write as a thrown error — the
+// browser's quota behavior.
+#[cfg(feature = "storage")]
+fn register_storage_natives(context: &mut Context) -> Result<(), Error> {
+    use crate::storage::with_backend;
+
+    context.register_global_callable(
+        js_string!("__uic_storage_get"),
+        1,
+        NativeFunction::from_fn_ptr(|_this, args, context| {
+            let key = arg_string(args, 0, context)?;
+            let value = with_backend(|backend| backend.get(&key))?;
+            Ok(value.map_or(JsValue::null(), |v| js_string!(v).into()))
+        }),
+    )?;
+
+    context.register_global_callable(
+        js_string!("__uic_storage_set"),
+        2,
+        NativeFunction::from_fn_ptr(|_this, args, context| {
+            let key = arg_string(args, 0, context)?;
+            let value = arg_string(args, 1, context)?;
+            with_backend(|backend| backend.set(&key, &value))?
+                .map_err(|err| JsNativeError::error().with_message(err.0))?;
+            Ok(JsValue::undefined())
+        }),
+    )?;
+
+    context.register_global_callable(
+        js_string!("__uic_storage_remove"),
+        1,
+        NativeFunction::from_fn_ptr(|_this, args, context| {
+            let key = arg_string(args, 0, context)?;
+            with_backend(|backend| backend.remove(&key))?;
+            Ok(JsValue::undefined())
+        }),
+    )?;
+
+    context.register_global_callable(
+        js_string!("__uic_storage_clear"),
+        0,
+        NativeFunction::from_fn_ptr(|_this, _args, _context| {
+            with_backend(|backend| backend.clear())?;
+            Ok(JsValue::undefined())
+        }),
+    )?;
+
+    // A negative index never indexes — the browser's unsigned coercion
+    // lands past the data and yields null.
+    context.register_global_callable(
+        js_string!("__uic_storage_key"),
+        1,
+        NativeFunction::from_fn_ptr(|_this, args, _context| {
+            let index = arg_number(args, 0)?;
+            let key = with_backend(|backend| {
+                if index < 0.0 {
+                    None
+                } else {
+                    backend.key(index as usize)
+                }
+            })?;
+            Ok(key.map_or(JsValue::null(), |k| js_string!(k).into()))
+        }),
+    )?;
+
+    context.register_global_callable(
+        js_string!("__uic_storage_length"),
+        0,
+        NativeFunction::from_fn_ptr(|_this, _args, _context| {
+            let length = with_backend(|backend| backend.len())?;
+            Ok(JsValue::from(length as f64))
+        }),
+    )?;
+
     Ok(())
 }

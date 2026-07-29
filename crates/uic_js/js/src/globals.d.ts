@@ -17,3 +17,11 @@ declare function __uic_widget_value(handle: number): string | null;
 declare function __uic_set_widget_value(handle: number, text: string): void;
 declare function __uic_adopt_styles(tag: string, cssText: string): number;
 declare function __uic_log(message: string): void;
+// The storage feature's natives — absent without it; the runtime probes
+// with typeof before installing localStorage.
+declare function __uic_storage_get(key: string): string | null;
+declare function __uic_storage_set(key: string, value: string): void;
+declare function __uic_storage_remove(key: string): void;
+declare function __uic_storage_clear(): void;
+declare function __uic_storage_key(index: number): string | null;
+declare function __uic_storage_length(): number;

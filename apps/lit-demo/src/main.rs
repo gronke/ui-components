@@ -15,6 +15,10 @@
 //! - `cargo run -p uic_lit_demo -- p2p [link-or-code]` → a serverless peer:
 //!   the terminal pairs with a browser over WebRTC through the shared
 //!   `<pair-panel>`, no server between them (ADR 0028).
+//! - `--backend memory://` (default) keeps the terminal's localStorage in
+//!   memory; an SQLite location (`sqlite://todos.db` or a bare path)
+//!   persists it between runs. `serve` ignores it — the browser has the
+//!   real thing.
 //! - `UIC_LIT_DEMO_ADDR=host:port` moves the listener (default
 //!   `127.0.0.1:8090`; live defaults to `0.0.0.0:8090`).
 //!
@@ -26,6 +30,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use clap::{Parser, Subcommand};
 use tokio::sync::mpsc;
 use uic_dom::NodeId;
 use uic_js::JsHost;
@@ -39,24 +44,86 @@ use tui::{qr_pane, run, with_terminal, PanelDriver, StatusLine};
 
 const PACKAGE: &str = "@schuhkarton/lit-todo";
 
+/// One Lit todo app, two hosts — no mode runs it in this terminal.
+#[derive(Parser)]
+struct Cli {
+    /// Where the terminal's localStorage lives: memory:// or an SQLite
+    /// location (sqlite://<path> or a bare path). serve ignores it — the
+    /// browser has the real thing.
+    #[arg(long, global = true, default_value = "memory://")]
+    backend: BackendArg,
+    #[command(subcommand)]
+    mode: Option<Mode>,
+}
+
+#[derive(Subcommand)]
+enum Mode {
+    /// The same sources on real lit, served to the browser
+    Serve,
+    /// Terminal and browsers editing one state over a WebSocket
+    Live,
+    /// A serverless WebRTC peer pairing with a browser
+    P2p {
+        /// The invite link or pairing code from the other side
+        link: Option<String>,
+    },
+}
+
+/// The storage backend behind the runtime's localStorage.
+#[derive(Clone, Debug, PartialEq)]
+enum BackendArg {
+    Memory,
+    Sqlite(PathBuf),
+}
+
+impl std::str::FromStr for BackendArg {
+    type Err = String;
+
+    fn from_str(raw: &str) -> Result<Self, Self::Err> {
+        if raw == "memory://" || raw == "memory" {
+            return Ok(BackendArg::Memory);
+        }
+        if let Some(path) = raw.strip_prefix("sqlite://") {
+            if path.is_empty() {
+                return Err("sqlite:// needs a path".into());
+            }
+            return Ok(BackendArg::Sqlite(PathBuf::from(path)));
+        }
+        if raw.is_empty() || raw.contains("://") {
+            return Err(format!(
+                "unknown backend {raw:?}: memory:// or sqlite://<path> (a bare path is sqlite)"
+            ));
+        }
+        Ok(BackendArg::Sqlite(PathBuf::from(raw)))
+    }
+}
+
+/// The backend the flag selected — sqlite opens (and creates) its file
+/// here, before any mode takes over the screen.
+fn storage_backend(
+    arg: &BackendArg,
+) -> Result<Box<dyn uic_js::StorageBackend>, Box<dyn std::error::Error>> {
+    Ok(match arg {
+        BackendArg::Memory => Box::new(uic_js::MemoryBackend::default()),
+        BackendArg::Sqlite(path) => Box::new(uic_js::SqliteBackend::open(path)?),
+    })
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The QR widget registration lives in uic_tui's qr feature — the
     // anchor keeps its object (and the inventory constructor) linked.
     uic_tui::qr::link();
-    match std::env::args().nth(1).as_deref() {
-        None => terminal_app(),
-        Some("serve") => serve_web(),
-        Some("live") => live(),
-        Some("p2p") => p2p(std::env::args().nth(2)),
-        Some(other) => Err(format!(
-            "unknown mode {other:?}: no arguments runs the terminal app, `serve` the browser host, `live` both on one state, `p2p [link-or-token]` a serverless peer"
-        )
-        .into()),
+    let cli = Cli::parse();
+    match cli.mode {
+        None => terminal_app(&cli.backend),
+        Some(Mode::Serve) => serve_web(),
+        Some(Mode::Live) => live(&cli.backend),
+        Some(Mode::P2p { link }) => p2p(link, &cli.backend),
     }
 }
 
-fn mounted_host() -> Result<(JsHost, NodeId), Box<dyn std::error::Error>> {
-    let mut host = JsHost::new()?;
+fn mounted_host(backend: &BackendArg) -> Result<(JsHost, NodeId), Box<dyn std::error::Error>> {
+    let mut host = JsHost::with_storage(storage_backend(backend)?)?;
     host.load_package(Path::new(env!("UIC_LIT_DEMO_NPM_ROOT")), PACKAGE)?;
     // The terminal is a dark surface: the mounted root opts into Bootstrap's
     // dark theme, and the mapped sheet's variables flip with it (the browser
@@ -75,8 +142,8 @@ fn node_by_tag(host: &JsHost, tag: &str) -> Option<NodeId> {
     state.doc.descendant_by_tag(state.doc.root(), tag)
 }
 
-fn terminal_app() -> Result<(), Box<dyn std::error::Error>> {
-    let (mut host, node) = mounted_host()?;
+fn terminal_app(backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
+    let (mut host, node) = mounted_host(backend)?;
     let status: StatusLine = Arc::new(Mutex::new(
         "lit-todo via Boa · typing lands in the input · Enter adds/edits · Space toggles · F5/F6 reorder · Del removes · Esc quits".into(),
     ));
@@ -90,8 +157,8 @@ fn serve_web() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn live() -> Result<(), Box<dyn std::error::Error>> {
-    let (mut host, node) = mounted_host()?;
+fn live(backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
+    let (mut host, node) = mounted_host(backend)?;
 
     // Live listens on every interface so the QR reaches phones on the
     // network; UIC_LIT_DEMO_ADDR narrows it back down.
@@ -138,14 +205,14 @@ fn live() -> Result<(), Box<dyn std::error::Error>> {
 /// `UIC_LIT_DEMO_P2P_PAGE` points it elsewhere (the dev server).
 const P2P_PAGE: &str = "https://schuhkarton.github.io/ui-components/lit-demo/p2p/";
 
-fn p2p(invite: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+fn p2p(invite: Option<String>, backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
     // One mounted root, the p2p deck: the todo card and the shared pairing
     // panel (ADR 0029) stack in a column, the QR (ADR 0029) docks beside
     // them — responsive flexbox from the deck's own styles, no rect math.
     // The extra modules are baked in the package but off the todo-app entry
     // graph, so they load explicitly, import order inside-out; then the
     // mount upgrades the whole composition.
-    let mut host = JsHost::new()?;
+    let mut host = JsHost::with_storage(storage_backend(backend)?)?;
     host.load_package(Path::new(env!("UIC_LIT_DEMO_NPM_ROOT")), PACKAGE)?;
     for module in ["theme.js", "qr-code.js", "pair-panel.js", "p2p-deck.js"] {
         let src = std::fs::read_to_string(
@@ -216,4 +283,47 @@ fn p2p(invite: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
             }),
         )
     })
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn backends_parse_by_scheme() {
+        assert_eq!("memory://".parse(), Ok(BackendArg::Memory));
+        assert_eq!("memory".parse(), Ok(BackendArg::Memory));
+        assert_eq!(
+            "sqlite://todos.db".parse(),
+            Ok(BackendArg::Sqlite(PathBuf::from("todos.db")))
+        );
+        assert_eq!(
+            "todos.db".parse(),
+            Ok(BackendArg::Sqlite(PathBuf::from("todos.db")))
+        );
+        assert!("sqlite://".parse::<BackendArg>().is_err());
+        assert!("redis://x".parse::<BackendArg>().is_err());
+        assert!("".parse::<BackendArg>().is_err());
+    }
+
+    #[test]
+    fn the_flag_rides_any_mode() {
+        let cli = Cli::try_parse_from(["demo"]).unwrap();
+        assert_eq!(cli.backend, BackendArg::Memory);
+        assert!(cli.mode.is_none());
+
+        let cli = Cli::try_parse_from(["demo", "--backend", "todos.db"]).unwrap();
+        assert_eq!(cli.backend, BackendArg::Sqlite(PathBuf::from("todos.db")));
+
+        // Global: the flag parses after a subcommand too.
+        let cli = Cli::try_parse_from(["demo", "p2p", "--backend", "sqlite://x.db"]).unwrap();
+        assert_eq!(cli.backend, BackendArg::Sqlite(PathBuf::from("x.db")));
+        assert!(matches!(cli.mode, Some(Mode::P2p { link: None })));
+
+        let cli = Cli::try_parse_from(["demo", "p2p", "https://x/#code"]).unwrap();
+        assert!(matches!(cli.mode, Some(Mode::P2p { link: Some(_) })));
+
+        assert!(Cli::try_parse_from(["demo", "--backend", "redis://x"]).is_err());
+    }
 }

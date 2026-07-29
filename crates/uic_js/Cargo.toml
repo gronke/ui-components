@@ -8,8 +8,18 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+# localStorage on the mocked DOM: the sync StorageBackend seam, the
+# in-memory default and the __uic_storage_* natives. Off by default —
+# consumers opt into the global.
+storage = []
+# The file-backed backend: a location selected by the app survives
+# restarts. Implies storage.
+sqlite = ["storage", "dep:rusqlite"]
+
 [dependencies]
 boa_engine = "0.21"
+rusqlite = { workspace = true, optional = true }
 # load_package derives a vendored package's ESM entry from its manifest.
 serde_json.workspace = true
 thiserror.workspace = true
@@ -31,3 +41,7 @@ axum = { version = "0.8", features = ["ws"] }
 tokio.workspace = true
 uic_tui_web.workspace = true
 web_modules = { workspace = true, default-features = true }
+
+[[test]]
+name = "storage"
+required-features = ["storage"]

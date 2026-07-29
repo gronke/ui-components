@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn snapshots_are_canonical_and_unknown_fields_stay_out() {
-        let (mut host, node) = crate::mounted_host().unwrap();
+        let (mut host, node) = crate::mounted_host(&crate::BackendArg::Memory).unwrap();
 
         // The snapshot sorts keys at every depth: draft < editing < items
         // < selected, and the row objects spell done < id < text.

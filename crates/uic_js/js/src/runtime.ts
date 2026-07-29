@@ -28,3 +28,4 @@ export { closestFrom, queryAllNodes, wrapNode } from './runtime/element.js';
 export { deliver } from './runtime/events.js';
 export { focusNode } from './runtime/focus.js';
 export { mountAt, upgradeDescendants } from './runtime/custom-elements.js';
+export { installStorage } from './runtime/storage.js';

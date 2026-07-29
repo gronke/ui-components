@@ -23,6 +23,10 @@ interface TodoRow {
  * `STATE_FIELDS` in the demo's main.rs. */
 export const STATE_FIELDS: string[] = ['draft', 'editing', 'items', 'selected'];
 
+// Where the rows live between runs — the browser's own localStorage and
+// the terminal's storage feature speak the same API.
+const STORE_KEY = 'uic-todos';
+
 export class TodoApp extends LitElement {
     static properties = {
         items: { state: true },
@@ -60,9 +64,13 @@ export class TodoApp extends LitElement {
     // Transient drag source — plain field, neither reactive nor synced.
     private dragFrom = -1;
 
+    // The last snapshot written to storage. The mocked lit calls updated
+    // with an empty map, so saves dedupe by content, not by changed keys.
+    private lastSaved: string | null = null;
+
     constructor() {
         super();
-        this.items = [
+        this.items = this.loadItems() ?? [
             { id: 1, text: 'render a web app in the terminal', done: true },
             { id: 2, text: 'type a todo of your own', done: false },
         ];
@@ -95,6 +103,50 @@ export class TodoApp extends LitElement {
     updated(changed: Map<string, unknown>): void {
         if (STATE_FIELDS.some((name) => changed.has(name))) {
             this.dispatchEvent(new Event('state-changed'));
+        }
+        this.persist();
+    }
+
+    // Rows persisted by an earlier run. A stored empty list is honored;
+    // only absence or garbage falls back to the seed rows. On connect the
+    // lexical greet winner still overwrites (ADR 0013) and both ends then
+    // persist the winning list: the pairing decides, storage remembers.
+    private loadItems(): TodoRow[] | null {
+        if (typeof localStorage === 'undefined') {
+            return null;
+        }
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw === null) {
+            return null;
+        }
+        try {
+            const rows = JSON.parse(raw);
+            if (!Array.isArray(rows)) {
+                return null;
+            }
+            this.lastSaved = raw;
+            return rows;
+        } catch {
+            return null;
+        }
+    }
+
+    // Items only: resurrecting a half-typed draft, a selection or an open
+    // edit would be stranger than losing them.
+    private persist(): void {
+        if (typeof localStorage === 'undefined') {
+            return;
+        }
+        const snapshot = JSON.stringify(this.items);
+        if (snapshot === this.lastSaved) {
+            return;
+        }
+        try {
+            localStorage.setItem(STORE_KEY, snapshot);
+            this.lastSaved = snapshot;
+        } catch {
+            // A refused write (quota, disk) keeps the previous snapshot;
+            // the next change retries.
         }
     }
 
