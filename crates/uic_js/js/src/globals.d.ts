@@ -33,3 +33,7 @@ declare function __uic_dialog_request(
     message: string,
     defaultValue: string | null,
 ): void;
+// The clipboard feature's natives — absent without it; the runtime probes
+// with typeof before installing navigator.clipboard.
+declare function __uic_clipboard_read(): string | null;
+declare function __uic_clipboard_write(text: string): boolean;

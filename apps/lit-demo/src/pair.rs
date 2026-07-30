@@ -9,6 +9,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tokio::sync::{broadcast, mpsc, oneshot};
 use uic_sync::pair::{
@@ -308,11 +309,12 @@ async fn selected_pair(swap: &Swap) -> Option<String> {
 }
 
 /// Drives a pairing [`Session`] with this module's swaps: the pure machine
-/// decides, this loop performs — mints and connects awaited inline
-/// (commands queue meanwhile, the deliberate blocking semantics of a
-/// one-pairing-at-a-time terminal), closes, control frames and panel views
-/// where the effects say. Wires are keyed by the machine's [`Gen`], so a
-/// superseded wire's close notice dies as a stale event inside the machine.
+/// decides, this loop performs — mints, closes, control frames and panel
+/// views where the effects say. Connects are SPAWNED, not awaited: the wait
+/// for both sides to apply each other's payload can be long, and commands
+/// (a disconnect, a conflict-modal accept) must not queue behind it. Each
+/// completion reports its wire's [`Gen`]; superseded wires' completions and
+/// close notices die as stale events inside the machine.
 pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: Wiring) {
     let Wiring {
         panel_state,
@@ -328,15 +330,24 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
     // fresh wire pumps the same channels.
     let (ctrl_tx, mut ctrl_rx) = mpsc::unbounded_channel::<String>();
     let (closed_tx, mut closed_rx) = mpsc::unbounded_channel::<Gen>();
+    // A spawned connect reports here: Ok carries the nominated route for the
+    // navbar, Err the failure. Gen-tagged so the machine drops stale ones.
+    let (done_tx, mut done_rx) = mpsc::unbounded_channel::<(Gen, PairResult<Option<String>>)>();
     let bridge = Bridge {
         inbound,
         ctrl: ctrl_tx,
         outbound: outbound.clone(),
         latest,
     };
-    let mut swaps: HashMap<Gen, Swap> = HashMap::new();
+    let mut swaps: HashMap<Gen, Arc<Swap>> = HashMap::new();
     let (mut session, effects) = Session::start(page, opener);
     let mut queue: VecDeque<Effect> = effects.into();
+    // A connect started here; while it stands, a one-second ticker feeds the
+    // machine the elapsed seconds so the pairing screen counts up (the pure
+    // machine has no clock of its own). Cleared when the connect resolves.
+    let mut connecting_since: Option<Instant> = None;
+    let mut ticker = tokio::time::interval(Duration::from_secs(1));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
         while let Some(effect) = queue.pop_front() {
             match effect {
@@ -345,7 +356,7 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
                     let event = match Swap::new().await {
                         Ok(swap) => {
                             let payload = swap.payload.clone();
-                            swaps.insert(gen, swap);
+                            swaps.insert(gen, Arc::new(swap));
                             SessionEvent::Minted { gen, payload }
                         }
                         Err(error) => SessionEvent::MintFailed { gen, error },
@@ -353,27 +364,37 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
                     queue.extend(session.on(event));
                 }
                 Effect::Connect { gen, peer, greet } => {
-                    let Some(swap) = swaps.get(&gen) else {
+                    let Some(swap) = swaps.get(&gen).cloned() else {
                         continue;
                     };
+                    // Start the connecting clock; the machine shows it only
+                    // while it stays in its connecting phase.
+                    connecting_since = Some(Instant::now());
                     let notice = closed_tx.clone();
                     let closed: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
                         let _ = notice.send(gen);
                     });
-                    let event = match swap.connect(&peer, greet, bridge.clone(), closed).await {
-                        Ok(()) => {
-                            *endpoints.lock().expect("endpoints slot") = selected_pair(swap).await;
-                            SessionEvent::Connected { gen }
-                        }
-                        Err(error) => SessionEvent::ConnectFailed { gen, error },
-                    };
-                    queue.extend(session.on(event));
+                    let bridge = bridge.clone();
+                    let done = done_tx.clone();
+                    // The connect runs off the loop; its completion arrives
+                    // as an event. A Close on this gen tears the swap down
+                    // meanwhile, so a superseded connect errors out and its
+                    // stale-gen event is a no-op.
+                    tokio::spawn(async move {
+                        let outcome = match swap.connect(&peer, greet, bridge, closed).await {
+                            Ok(()) => Ok(selected_pair(&swap).await),
+                            Err(error) => Err(error),
+                        };
+                        let _ = done.send((gen, outcome));
+                    });
                 }
                 Effect::SendCtrl(ctrl) => {
                     let _ = bridge.outbound.send(encode_ctrl(&ctrl));
                 }
                 Effect::Close { gen } => {
                     if let Some(swap) = swaps.remove(&gen) {
+                        // The in-flight connect (if any) holds its own Arc;
+                        // closing the pc makes it error and report stale.
                         swap.close().await;
                     }
                 }
@@ -395,9 +416,35 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
                 let Some(peer) = message.payload else { continue };
                 SessionEvent::Repair { peer }
             }
+            done = done_rx.recv() => {
+                let Some((gen, outcome)) = done else { continue };
+                // The connect resolved — stop the clock (whichever way it went).
+                connecting_since = None;
+                match outcome {
+                    Ok(route) => {
+                        // The navbar shows the route only while connected
+                        // (the loop filters on mode), so a stale success
+                        // writing here is harmless — the next Present wins.
+                        *endpoints.lock().expect("endpoints slot") = route;
+                        SessionEvent::Connected { gen }
+                    }
+                    Err(error) => SessionEvent::ConnectFailed { gen, error },
+                }
+            }
             gen = closed_rx.recv() => {
                 let Some(gen) = gen else { continue };
                 SessionEvent::Closed { gen }
+            }
+            _ = ticker.tick() => {
+                // The pairing screen counts the seconds while a connect stands;
+                // idle otherwise (the immediate first tick and any tick between
+                // connects carries no clock).
+                match connecting_since {
+                    Some(since) => SessionEvent::Command(Command::Tick {
+                        secs: since.elapsed().as_secs(),
+                    }),
+                    None => continue,
+                }
             }
         };
         queue.extend(session.on(event));

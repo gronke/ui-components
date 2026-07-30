@@ -18,7 +18,8 @@
 //!   todo appears once connected, under a navbar whose disconnect (`^D` or
 //!   a click) returns to a fresh invite. `--serve` hosts the pairing page
 //!   from this process and points its invites at this machine, so one
-//!   command stands the whole demo up on a LAN.
+//!   command stands the whole demo up on a LAN; `--clipboard` opts into
+//!   watching the system clipboard to auto-continue a step.
 //! - `--backend memory://` (default) keeps the terminal's localStorage in
 //!   memory; an SQLite location (`sqlite://todos.db` or a bare path)
 //!   persists it between runs. `serve` ignores it — the browser has the
@@ -39,6 +40,7 @@ use tokio::sync::mpsc;
 use uic_dom::NodeId;
 use uic_js::JsHost;
 
+mod clipboard;
 mod live;
 mod pair;
 mod tui;
@@ -56,6 +58,11 @@ struct Cli {
     /// browser has the real thing.
     #[arg(long, global = true, default_value = "memory://")]
     backend: BackendArg,
+    /// Watch the system clipboard in p2p to auto-continue a pairing step,
+    /// and expose it to the page as navigator.clipboard. Off unless asked —
+    /// a pasted or scanned link always pairs regardless.
+    #[arg(long, global = true)]
+    clipboard: bool,
     #[command(subcommand)]
     mode: Option<Mode>,
 }
@@ -126,7 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => terminal_app(&cli.backend),
         Some(Mode::Serve) => serve_web(),
         Some(Mode::Live) => live(&cli.backend),
-        Some(Mode::P2p { link, serve }) => p2p(link, serve, &cli.backend),
+        Some(Mode::P2p { link, serve }) => p2p(link, serve, &cli.backend, cli.clipboard),
     }
 }
 
@@ -260,6 +267,7 @@ fn p2p(
     invite: Option<String>,
     serve: bool,
     backend: &BackendArg,
+    watch_clipboard: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // One mounted root, the p2p deck: the todo card and the shared pairing
     // panel (ADR 0029) stack in a column, the QR (ADR 0029) docks beside
@@ -349,6 +357,11 @@ fn p2p(
         ));
     });
 
+    // The mocked DOM's navigator.clipboard and the loop's auto-continue
+    // share this backend; inert when disabled or headless.
+    host.install_clipboard(std::rc::Rc::new(clipboard::SystemClipboard::new(
+        watch_clipboard,
+    )));
     with_terminal(|terminal| {
         run(
             &mut host,
@@ -368,6 +381,7 @@ fn p2p(
                 commands: &command_tx,
                 endpoints: &endpoints,
                 lan: lan_ip().to_string(),
+                clipboard: clipboard::ClipboardWatch::default(),
             }),
         )
     })
@@ -447,5 +461,24 @@ mod cli_tests {
             })
         ));
         assert_eq!(cli.backend, BackendArg::Sqlite(PathBuf::from("m.db")));
+    }
+
+    #[test]
+    fn the_clipboard_is_opt_in() {
+        // Off unless asked — reading a user's clipboard is not a default.
+        assert!(!Cli::try_parse_from(["demo", "p2p"]).unwrap().clipboard);
+        assert!(
+            Cli::try_parse_from(["demo", "p2p", "--clipboard"])
+                .unwrap()
+                .clipboard
+        );
+        // Global, like --backend: it parses before a subcommand too.
+        assert!(
+            Cli::try_parse_from(["demo", "--clipboard", "p2p"])
+                .unwrap()
+                .clipboard
+        );
+        // The old opt-out spelling is gone now that off is the default.
+        assert!(Cli::try_parse_from(["demo", "p2p", "--no-clipboard"]).is_err());
     }
 }

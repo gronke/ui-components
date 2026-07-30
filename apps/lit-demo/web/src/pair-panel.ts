@@ -41,6 +41,7 @@ export class PairPanel extends LitElement {
         resetLabel: {},
         actionLabel: {},
         canScan: { type: Boolean },
+        canPaste: { type: Boolean },
         command: {},
         peer: {},
         step: { type: Number },
@@ -81,6 +82,7 @@ export class PairPanel extends LitElement {
     declare resetLabel: string;
     declare actionLabel: string;
     declare canScan: boolean;
+    declare canPaste: boolean;
     declare command: string | null;
     declare peer: string;
     /** The pairing wizard's active step (1..3); future steps mute. */
@@ -95,6 +97,7 @@ export class PairPanel extends LitElement {
         this.resetLabel = '';
         this.actionLabel = '';
         this.canScan = false;
+        this.canPaste = false;
         this.command = null;
         this.peer = '';
         this.step = 1;
@@ -187,6 +190,10 @@ export class PairPanel extends LitElement {
         this.emit('scan');
     }
 
+    private onPaste(): void {
+        this.emit('paste');
+    }
+
     render() {
         // The invite is a three-step wizard; every other mode is the plain
         // card the status line, badge and buttons carry.
@@ -204,7 +211,11 @@ export class PairPanel extends LitElement {
                       >`}
             </div>
             <div class="card-body">
-                <p class="status text-body-secondary">${this.status}</p>
+                ${this.mode === 'failed'
+                    ? html`<div class="status alert alert-danger text-danger" role="alert">
+                          ${this.status}
+                      </div>`
+                    : html`<p class="status text-body-secondary">${this.status}</p>`}
                 ${this.mode === 'idle'
                     ? html`<button class="invite btn btn-primary" @click=${this.onInvite}>
                           create an invite
@@ -224,13 +235,14 @@ export class PairPanel extends LitElement {
         </section>`;
     }
 
-    // The wizard: three step cards over the narration line, only the
-    // reachable one lit. Future and done steps render a muted summary with
-    // no controls — the terminal has no pointer-events, so a card with no
-    // buttons is a card that cannot be clicked into.
+    // The wizard: three step cards, only the reachable one lit. The live
+    // status rides inside the active card (renderStep prepends it), so the
+    // narration always sits with the step it describes — step 3 included,
+    // which would otherwise read as a dead box. Future and done steps render
+    // a muted summary with no controls — the terminal has no pointer-events,
+    // so a card with no buttons is a card that cannot be clicked into.
     private renderWizard() {
-        return html`<p class="status text-body-secondary">${this.status}</p>
-            ${this.renderStep(1, 'start a pairing', this.renderStart(), 'share your invite, open theirs')}
+        return html`${this.renderStep(1, 'start a pairing', this.renderStart(), 'share your invite, open theirs')}
             ${this.renderStep(2, 'acknowledge', this.renderAcknowledge(), 'send your reply so they can connect')}
             ${this.renderStep(3, 'connect', this.renderConnect(), 'connects automatically, and says why if it cannot')}
             ${this.resetLabel
@@ -245,7 +257,12 @@ export class PairPanel extends LitElement {
         const done = this.step > n;
         return html`<section class="step card mb-2">
             <div class="card-header ${active ? '' : 'text-muted'}">${done ? '✓' : n} · ${title}</div>
-            <div class="card-body ${active ? '' : 'small text-muted'}">${active ? body : summary}</div>
+            <div class="card-body ${active ? '' : 'small text-muted'}">
+                ${active
+                    ? html`<p class="status text-body-secondary">${this.status}</p>
+                          ${body}`
+                    : summary}
+            </div>
         </section>`;
     }
 
@@ -263,6 +280,11 @@ export class PairPanel extends LitElement {
             ${this.canScan
                 ? html`<button class="scan btn btn-outline-secondary mb-2" @click=${this.onScan}>
                       scan their code
+                  </button>`
+                : ''}
+            ${this.canPaste
+                ? html`<button class="paste btn btn-outline-secondary mb-2" @click=${this.onPaste}>
+                      paste from clipboard
                   </button>`
                 : ''}
             <textarea
@@ -287,8 +309,12 @@ export class PairPanel extends LitElement {
             <qr-code data=${this.link}></qr-code>`;
     }
 
-    // Step 3: connecting — the narration line above carries the live word,
-    // so the active body stays quiet.
+    // Step 3: connecting. The step's own body is the live status the active
+    // card already carries — "Connecting…", the bounded retry attempt, or the
+    // honest reason it stopped — so it adds nothing of its own; the reset
+    // control below is the way to bail. It is only ever shown while a connect
+    // is in flight: success leaves invite mode for the todo screen, and a
+    // failure that cannot resume renews an invite back at step 1.
     private renderConnect() {
         return html``;
     }

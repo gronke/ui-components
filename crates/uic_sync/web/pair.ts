@@ -8,10 +8,17 @@
 import { DataChannelWire } from './wire.js';
 import type { Wire } from './wire.js';
 
-// The payload wears no prefix: in a link the fragment position is the
-// discriminator, and the binary layout self-validates — structural checks
-// replace a marker.
+// A four-byte `uic1` magic head prefixes the payload, so any reader tells a
+// uic:p2p credential for certain; the binary layout self-validates, and in a
+// link the fragment position is the discriminator.
 const GATHER_TIMEOUT_MS = 3000;
+
+// How long a connect waits for the channel to open before giving up. The
+// return link travels by hand, so the peer may take many seconds to open it;
+// a transient `failed` along the way is not the end (the browser can report
+// it just before the channel comes up), so the wait is bounded by this clock
+// rather than by the first `failed`.
+const CONNECT_TIMEOUT_MS = 45000;
 
 /** The reply-routing digest (fnv1a-32, 8 hex chars) of an invite payload. A
  * return link answering an invite carries `.{digest}` after its own payload,
@@ -179,30 +186,70 @@ function gatheringComplete(pc: RTCPeerConnection): Promise<void> {
 const UNREACHABLE =
     'uic-sync pair: the peers could not reach each other — on one network, check that devices may talk to each other; across networks this demo ships no TURN relay';
 
-/** Resolves when the channel opens; rejects when the connection gives up —
- * a forever-hanging "Connecting…" tells nobody anything. The listener
- * outlives the promise on purpose: a transport that dies LATER (the peer's
- * tab closed, the network went away) closes the channel, because the
- * browser leaves an abruptly abandoned channel dangling "open" and the
- * wire's onClose would otherwise never hear the end. */
+/** Resolves when the channel opens; rejects on a bounded timeout so a
+ * forever-hanging "Connecting…" cannot happen. A transient `failed` is
+ * tolerated on the way up — the peer opens the return link by hand, and a
+ * browser (Safari especially) can flag `failed` a moment before the channel
+ * comes up — so the clock bounds the wait, not the first `failed`; only a
+ * deliberate `close()` (`connectionState === 'closed'`) is terminal at once.
+ * The state listener outlives the promise on purpose: a transport that dies
+ * AFTER we connected (the peer's tab closed, the network went away) closes
+ * the channel, because the browser leaves an abruptly abandoned channel
+ * dangling "open" and the wire's onClose would otherwise never hear the end. */
 function openOrFail(pc: RTCPeerConnection, channel: RTCDataChannel): Promise<void> {
     return new Promise((resolve, reject) => {
-        if (channel.readyState === 'open') {
-            resolve();
-        } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        let settled = false;
+        // A dead transport never finishes close()'s procedure, so its close
+        // event would never fire on its own — dispatch it so the wire hears
+        // the end either way.
+        const shutTheChannel = () => {
+            channel.close();
+            channel.dispatchEvent(new Event('close'));
+        };
+        const timer = setTimeout(() => {
+            if (settled) {
+                return;
+            }
+            settled = true;
             reject(new Error(UNREACHABLE));
+            shutTheChannel();
+        }, CONNECT_TIMEOUT_MS);
+        const succeed = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timer);
+            resolve();
+        };
+
+        if (channel.readyState === 'open') {
+            succeed();
+        } else if (pc.connectionState === 'closed') {
+            settled = true;
+            clearTimeout(timer);
+            reject(new Error(UNREACHABLE));
+            shutTheChannel();
             return;
         } else {
-            channel.addEventListener('open', () => resolve(), { once: true });
+            channel.addEventListener('open', succeed, { once: true });
         }
+
         pc.addEventListener('connectionstatechange', () => {
-            if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            if (pc.connectionState !== 'failed' && pc.connectionState !== 'closed') {
+                return;
+            }
+            if (settled) {
+                // Already connected — a LATER death, so close the channel and
+                // let the wire hear it.
+                shutTheChannel();
+            } else if (pc.connectionState === 'closed') {
+                // A deliberate teardown before we connected is terminal; a
+                // bare `failed` is not — the timer bounds that wait.
+                settled = true;
+                clearTimeout(timer);
                 reject(new Error(UNREACHABLE));
-                // close() on a dead transport never finishes its closing
-                // procedure, so the close event would never fire on its
-                // own — dispatch it so the wire hears the end either way.
-                channel.close();
-                channel.dispatchEvent(new Event('close'));
+                shutTheChannel();
             }
         });
     });
@@ -285,8 +332,14 @@ const ADDR_V6 = 1;
 const ADDR_MDNS = 2;
 const ADDR_NAME = 3;
 
+// The payload's magic head ("uic1") — four bytes so any reader tells a
+// uic:p2p credential for certain instead of guessing from structure;
+// decodePayload rejects anything without it. Rust twin: `MAGIC` in
+// `src/pair.rs`.
+const MAGIC = [0x75, 0x69, 0x63, 0x31];
+
 function encodePayload(compact: Compact): string {
-    const out: number[] = [];
+    const out: number[] = [...MAGIC];
     for (const entry of LAYOUT) {
         const [name, kind] = entry;
         const value = compact[name];
@@ -333,6 +386,11 @@ function decodePayload(text: string): Compact {
     };
     const byte = (): number => take(1)[0]!;
     const short = (): string => new TextDecoder().decode(take(byte()));
+
+    const head = take(MAGIC.length);
+    if (!MAGIC.every((expected, i) => head[i] === expected)) {
+        throw new Error('uic-sync pair: not a uic:p2p payload');
+    }
 
     const fields: Record<string, unknown> = {};
     for (const entry of LAYOUT) {

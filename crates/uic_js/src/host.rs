@@ -52,6 +52,8 @@ impl JsHost {
         state::install(state.clone());
         #[cfg(feature = "dialogs")]
         crate::dialogs::reset();
+        #[cfg(feature = "clipboard")]
+        crate::clipboard::reset();
         register_natives(&mut context)?;
         let mut host = JsHost {
             context,
@@ -191,6 +193,21 @@ impl JsHost {
         let handle = self.state.borrow_mut().handle(node);
         self.eval(&format!("__uicFocus({handle})"))?;
         self.run_jobs()
+    }
+
+    /// Installs the clipboard backend `navigator.clipboard` reads and the
+    /// host's own [`clipboard_read`](Self::clipboard_read) shares. Callable
+    /// any time before the first read — the natives register regardless.
+    #[cfg(feature = "clipboard")]
+    pub fn install_clipboard(&self, backend: std::rc::Rc<dyn crate::clipboard::ClipboardBackend>) {
+        crate::clipboard::install(backend);
+    }
+
+    /// The installed clipboard's text (the loop's auto-continue reads it) —
+    /// `None` with no backend or an empty clipboard.
+    #[cfg(feature = "clipboard")]
+    pub fn clipboard_read(&self) -> Option<String> {
+        crate::clipboard::read()
     }
 
     /// One queued dialog question, oldest first — the runtime's

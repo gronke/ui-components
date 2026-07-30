@@ -38,6 +38,8 @@ pub(crate) struct PanelDriver<'a> {
     /// shown while the todo screen stands; the LAN address otherwise.
     pub endpoints: &'a Arc<Mutex<Option<String>>>,
     pub lan: String,
+    /// The clipboard read throttle — p2p rides beside the panel it drives.
+    pub clipboard: crate::clipboard::ClipboardWatch,
 }
 
 /// The pairing-first screen rule: the todo (with the navbar) shows while a
@@ -214,17 +216,80 @@ fn app_area(frame_area: ratatui::layout::Rect, qr: Option<&QrPane>) -> ratatui::
 }
 
 /// A dialog the loop shows modally and who asked for it: a JS component's
-/// alert/confirm/prompt (answered back through the runtime by id). A
-/// host-initiated variant (the conflict prompt) joins it with the
-/// clipboard work.
+/// alert/confirm/prompt (answered back through the runtime by id) or the
+/// host's own question, whose verdict drives a [`HostIntent`].
 struct ActiveDialog {
     dialog: uic_tui::dialog::Dialog,
     source: DialogSource,
+    /// The step the host question belongs to; when the session leaves it,
+    /// the question is moot and the dialog auto-dismisses.
+    step: u8,
 }
 
 enum DialogSource {
     /// A runtime request; the id routes the answer to its parked promise.
     Js(u32),
+    /// The host's own question and what an accept does.
+    Host(HostIntent),
+}
+
+/// What a host dialog's "accept" carries out — today, connecting to a
+/// pairing credential that arrived mid-pairing (the conflict prompt).
+enum HostIntent {
+    AcceptPeer(String),
+}
+
+/// One clipboard read, routed. While the pairing screen shows, a peer
+/// credential that is not the one we already dial continues the step: step
+/// 1 (or a reply naming our current invite) dials it straight, anything
+/// else mid-pairing raises the conflict prompt. Returns whether the screen
+/// needs a repaint (a dialog opened). Contents are never logged.
+fn clipboard_tick(
+    host: &JsHost,
+    panel: &mut PanelDriver,
+    last_panel: &PanelState,
+    last_peer: &mut Option<String>,
+    dialog: &mut Option<ActiveDialog>,
+) -> bool {
+    if !matches!(last_panel.mode, uic_sync::session::PanelMode::Invite) {
+        return false;
+    }
+    // The read goes through the mocked DOM's clipboard backend — the same
+    // one navigator.clipboard exposes to JS. `clipboard` and `commands` are
+    // disjoint fields, so the throttle borrows mutably while the send stays.
+    let Some(text) = panel
+        .clipboard
+        .poll(std::time::Instant::now(), || host.clipboard_read())
+    else {
+        return false;
+    };
+    let own = uic_sync::pair::link_payload(&last_panel.link);
+    let Some(find) = crate::clipboard::classify(&text, &own) else {
+        return false;
+    };
+    if last_peer.as_deref() == Some(find.payload.as_str()) {
+        return false; // already dialing this one
+    }
+    let step = last_panel.step.as_u8();
+    if step <= 1 || find.reply_to_us {
+        *last_peer = Some(find.payload);
+        let _ = panel.commands.send(Command::Connect(text));
+        return false;
+    }
+    if dialog.is_some() {
+        return false; // one question at a time
+    }
+    let mut prompt = uic_tui::dialog::Dialog::confirm(
+        "a different pairing link arrived — accept the new pairing?",
+    );
+    prompt.ok_label = "accept".into();
+    prompt.cancel_label = "keep waiting".into();
+    *dialog = Some(ActiveDialog {
+        dialog: prompt,
+        source: DialogSource::Host(HostIntent::AcceptPeer(text)),
+        step,
+    });
+    true
 }
 
 /// The JSON a JS dialog answers with — the browser's own return shapes.
@@ -330,13 +395,16 @@ pub(crate) fn run(
     status: &StatusLine,
     qr: Option<&QrPane>,
     mut bridge: Option<&mut LiveBridge>,
-    panel: Option<PanelDriver>,
+    mut panel: Option<PanelDriver>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Double clicks detect by cell, not node: a click's re-render swaps
     // the subtree, so node identities never survive between the two.
     let mut last_click: Option<(u16, u16, std::time::Instant)> = None;
     let mut last_status = status.lock().expect("status line").clone();
     let mut last_panel = PanelState::default();
+    // The last peer the loop dialed — a clipboard find or paste matching it
+    // is not a conflict, just the credential we already expect.
+    let mut last_peer: Option<String> = None;
     // A modal dialog — a component's alert/confirm/prompt, or a host
     // question. While one shows, every key is its own and clicks are
     // swallowed; the session keeps mirroring beneath it.
@@ -344,7 +412,15 @@ pub(crate) fn run(
     draw(host, terminal, status, qr, None)?;
     loop {
         let changed = match next_input(bridge.as_deref_mut())? {
-            Input::Idle => false,
+            // The idle tick is where the clipboard watch reads: a matching
+            // credential continues the step, a different one mid-pairing
+            // asks first. Only while the pairing screen shows.
+            Input::Idle => match panel.as_mut() {
+                Some(driver) => {
+                    clipboard_tick(host, driver, &last_panel, &mut last_peer, &mut dialog)
+                }
+                None => false,
+            },
             Input::Web(state) => {
                 apply_state(host, node, &state)?;
                 true
@@ -365,9 +441,25 @@ pub(crate) fn run(
                                 let ActiveDialog {
                                     dialog: box_,
                                     source,
+                                    ..
                                 } = dialog.take().expect("a shown dialog");
-                                let DialogSource::Js(id) = source;
-                                host.answer_dialog(id, &dialog_answer(&box_, ok))?;
+                                match source {
+                                    DialogSource::Js(id) => {
+                                        host.answer_dialog(id, &dialog_answer(&box_, ok))?;
+                                    }
+                                    // The conflict prompt: accepting dials the
+                                    // credential that arrived mid-pairing.
+                                    DialogSource::Host(HostIntent::AcceptPeer(text)) => {
+                                        if ok {
+                                            if let Some(panel) = panel.as_ref() {
+                                                let _ = panel
+                                                    .commands
+                                                    .send(Command::Connect(text.clone()));
+                                            }
+                                            last_peer = Some(uic_sync::pair::link_payload(&text));
+                                        }
+                                    }
+                                }
                             }
                         }
                         true
@@ -451,6 +543,9 @@ pub(crate) fn run(
                         }
                         "connect" => {
                             let peer = prop_string(host, panel.node, "peer")?.unwrap_or_default();
+                            // The connect control lives only on step 1, so a
+                            // paste is always the peer we mean to dial.
+                            last_peer = Some(uic_sync::pair::link_payload(&peer));
                             let _ = panel.commands.send(Command::Connect(peer));
                         }
                         // copy-* / scan have no terminal effect (the link is
@@ -510,6 +605,15 @@ pub(crate) fn run(
                 if now.mode != last_panel.mode {
                     apply_screen(host, panel, node, now.mode)?;
                 }
+                // A conflict prompt outlives its moment when the step it
+                // asked about moves on — the question is moot, drop it.
+                if let Some(active) = &dialog {
+                    if matches!(active.source, DialogSource::Host(_))
+                        && active.step != now.step.as_u8()
+                    {
+                        dialog = None;
+                    }
+                }
                 last_panel = now;
                 true
             } else {
@@ -527,6 +631,7 @@ pub(crate) fn run(
                     dialog = Some(ActiveDialog {
                         dialog: dialog_from(&request),
                         source: DialogSource::Js(request.id),
+                        step: last_panel.step.as_u8(),
                     });
                     true
                 }
@@ -702,6 +807,7 @@ mod tests {
             commands: &tx,
             endpoints: &endpoints,
             lan: "192.0.2.1".into(),
+            clipboard: crate::clipboard::ClipboardWatch::default(),
         };
 
         // Boot: pairing-first — the deck ships the todo and the bar hidden.
@@ -782,6 +888,7 @@ mod tests {
             commands: &tx,
             endpoints: &endpoints,
             lan: "192.0.2.1".into(),
+            clipboard: crate::clipboard::ClipboardWatch::default(),
         };
         let invite = PanelState {
             mode: PanelMode::Invite,

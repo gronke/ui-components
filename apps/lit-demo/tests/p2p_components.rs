@@ -234,3 +234,149 @@ fn the_wizard_mutes_the_steps_it_has_not_reached() {
         "muted step bodies render a summary, no controls"
     );
 }
+
+#[test]
+fn the_active_connect_step_carries_the_live_status() {
+    let mut host = JsHost::new().unwrap();
+    host.load_package(npm_root(), PACKAGE).unwrap();
+    module(&mut host, "theme.js");
+    module(&mut host, "qr-code.js");
+    module(&mut host, "pair-panel.js");
+    let panel = host.mount("pair-panel", &[]).unwrap();
+
+    // Step 3 connects on its own — no button — so its body IS the live
+    // status; a blank card here reads as "nothing is happening" even while a
+    // connect is genuinely in flight.
+    host.set_prop(panel, "mode", "\"invite\"").unwrap();
+    host.set_prop(panel, "step", "3").unwrap();
+    host.set_prop(panel, "status", "\"Connecting…\"").unwrap();
+
+    // The three step bodies in order; step 3 is the active one and must not
+    // be the empty box it used to be.
+    let bodies: Vec<(String, String)> = {
+        let state = host.state.borrow();
+        let root = state.doc.root();
+        state
+            .doc
+            .descendants(root)
+            .filter(|&node| {
+                state
+                    .doc
+                    .element(node)
+                    .and_then(|el| el.attr("class"))
+                    .is_some_and(|c| c.split_whitespace().any(|w| w == "card-body"))
+            })
+            .map(|node| {
+                let class = state
+                    .doc
+                    .element(node)
+                    .and_then(|el| el.attr("class"))
+                    .unwrap_or_default()
+                    .to_string();
+                (class, state.doc.inner_html(node))
+            })
+            .collect()
+    };
+    assert_eq!(bodies.len(), 3, "three step bodies: {bodies:?}");
+    assert!(
+        !bodies[2].0.contains("text-muted"),
+        "the connect step is active: {}",
+        bodies[2].0
+    );
+    assert!(
+        bodies[2].1.contains("Connecting…"),
+        "the active connect step shows the live status, not a blank card: {}",
+        bodies[2].1
+    );
+}
+
+#[test]
+fn the_acknowledge_step_shows_the_live_connecting_status() {
+    let mut host = JsHost::new().unwrap();
+    host.load_package(npm_root(), PACKAGE).unwrap();
+    module(&mut host, "theme.js");
+    module(&mut host, "qr-code.js");
+    module(&mut host, "pair-panel.js");
+    let panel = host.mount("pair-panel", &[]).unwrap();
+
+    // The opener owes the reply link AND is connecting; step 2 must show both,
+    // with the live seconds counter — the bug was the reply prompt alone, no
+    // sign a connect was in flight.
+    let reply = "https://example/lit-demo/p2p/#OWN.1a2b3c4d";
+    host.set_prop(panel, "mode", "\"invite\"").unwrap();
+    host.set_prop(panel, "step", "2").unwrap();
+    host.set_prop(panel, "link", &format!("{reply:?}")).unwrap();
+    host.set_prop(
+        panel,
+        "status",
+        "\"connecting 12s — send this reply back; you pair the moment they open it\"",
+    )
+    .unwrap();
+
+    let bodies: Vec<(String, String)> = {
+        let state = host.state.borrow();
+        let root = state.doc.root();
+        state
+            .doc
+            .descendants(root)
+            .filter(|&node| {
+                state
+                    .doc
+                    .element(node)
+                    .and_then(|el| el.attr("class"))
+                    .is_some_and(|c| c.split_whitespace().any(|w| w == "card-body"))
+            })
+            .map(|node| {
+                let class = state
+                    .doc
+                    .element(node)
+                    .and_then(|el| el.attr("class"))
+                    .unwrap_or_default()
+                    .to_string();
+                (class, state.doc.inner_html(node))
+            })
+            .collect()
+    };
+    assert_eq!(bodies.len(), 3, "three step bodies: {bodies:?}");
+    assert!(
+        !bodies[1].0.contains("text-muted"),
+        "the acknowledge step is active: {}",
+        bodies[1].0
+    );
+    assert!(
+        bodies[1].1.contains("connecting"),
+        "the active step shows the live connecting status: {}",
+        bodies[1].1
+    );
+    assert!(
+        bodies[1].1.contains(reply),
+        "the active step still shows the reply link: {}",
+        bodies[1].1
+    );
+}
+
+#[test]
+fn a_failure_renders_as_a_red_alert() {
+    let mut host = JsHost::new().unwrap();
+    host.load_package(npm_root(), PACKAGE).unwrap();
+    module(&mut host, "theme.js");
+    module(&mut host, "qr-code.js");
+    module(&mut host, "pair-panel.js");
+    let panel = host.mount("pair-panel", &[]).unwrap();
+
+    host.set_prop(panel, "mode", "\"failed\"").unwrap();
+    host.set_prop(panel, "status", "\"pairing failed: unreachable\"")
+        .unwrap();
+
+    let html = host.state.borrow().doc.inner_html(panel);
+    // A Bootstrap danger alert in the browser; `text-danger` maps to ansi
+    // light-red in the terminal (tui-overrides.css), so it reads red in both.
+    assert!(
+        html.contains("alert-danger") && html.contains("text-danger"),
+        "the failure is a red alert: {html}"
+    );
+    assert!(
+        html.contains("pairing failed: unreachable"),
+        "the alert carries the status: {html}"
+    );
+}

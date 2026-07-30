@@ -16,7 +16,7 @@ uic_core = { workspace = true, features = ["json"] }
 uic_tui.workspace = true
 ui_components = { workspace = true, features = ["tui"] }
 ratatui.workspace = true
-crossterm = "0.29"
+crossterm.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 serde.workspace = true

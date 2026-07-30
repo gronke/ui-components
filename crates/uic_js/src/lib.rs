@@ -7,6 +7,8 @@
 //! into the retained `uic_tui::dom::DomDocument`; the existing taffy layout
 //! and ratatui paint consume that document unchanged.
 
+#[cfg(feature = "clipboard")]
+mod clipboard;
 #[cfg(feature = "dialogs")]
 mod dialogs;
 mod error;
@@ -17,6 +19,8 @@ mod state;
 #[cfg(feature = "storage")]
 mod storage;
 
+#[cfg(feature = "clipboard")]
+pub use clipboard::ClipboardBackend;
 #[cfg(feature = "dialogs")]
 pub use dialogs::{DialogKind, DialogRequest};
 pub use error::Error;

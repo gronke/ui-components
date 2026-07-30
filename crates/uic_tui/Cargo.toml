@@ -8,13 +8,13 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-chrono = "0.4"
-crossterm = "0.29"
+chrono.workspace = true
+crossterm.workspace = true
 qrcode = { workspace = true, optional = true }
-rat-widget = "=3.2.1"
-ratatui = "0.30"
-taffy = "0.12"
-thiserror = "2"
+rat-widget.workspace = true
+ratatui.workspace = true
+taffy.workspace = true
+thiserror.workspace = true
 uic_core.workspace = true
 uic_css.workspace = true
 uic_dom.workspace = true

@@ -28,6 +28,7 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 |-----|----------|
 | [0007](0007-the-tui-runs-in-the-browser.md) | The TUI runs in the browser |
 | [0026](0026-the-scripted-host-drives-native-widgets.md) | The scripted host drives native widgets |
+| [0033](0033-the-scripted-host-emulates-browser-platform-apis.md) | The scripted host emulates browser platform APIs |
 
 ## State, pairing and sessions
 

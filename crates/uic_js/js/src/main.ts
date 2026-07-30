@@ -5,6 +5,7 @@
 import {
     deliver,
     focusNode,
+    installClipboard,
     installDialogs,
     installStorage,
     instances,
@@ -65,3 +66,4 @@ function collectStyles(styles: unknown): string {
 
 installStorage();
 installDialogs();
+installClipboard();

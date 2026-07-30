@@ -9,10 +9,11 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 
-// The payload wears no prefix: in a link the fragment position is the
-// discriminator, and the binary layout below self-validates (length
-// prefixes must fit, the setup byte and address tags are constrained, the
-// bytes must be fully consumed) — structural checks replace a marker.
+// A four-byte `uic1` magic head prefixes the payload, so any reader tells a
+// uic:p2p credential for certain (the digit is the wire version); the binary
+// layout below then self-validates (length prefixes must fit, the setup byte
+// and address tags are constrained, the bytes must be fully consumed), and in
+// a link the fragment position is the discriminator.
 
 /// The control-frame marker on a state wire (`web/session.ts`'s twin):
 /// protocol messages ride the live data channel as `uicc1.` + JSON, and
@@ -21,9 +22,10 @@ use serde::{Deserialize, Serialize};
 /// wire (ADR 0032).
 pub const CTRL_PREFIX: &str = "uicc1.";
 
-/// A control-plane message: `repair` carries the new tab's fresh payload,
-/// `repair-answer` this side's fresh payload back, `repair-done` the cue to
-/// drop the old wire. Unknown kinds are ignored, forward-compatible.
+/// A control-plane message: `repair` carries the new tab's fresh payload and
+/// `repair-answer` this side's fresh payload back (ADR 0032); the machine
+/// closes the old wire itself once the fresh one stands, so no third frame
+/// rides here. Unknown kinds are ignored, forward-compatible.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ctrl {
     pub t: String,
@@ -157,6 +159,13 @@ const ADDR_V6: u8 = 1;
 const ADDR_MDNS: u8 = 2;
 const ADDR_NAME: u8 = 3;
 
+/// The payload's magic head: four bytes so any reader — a clipboard watch,
+/// a paste box — tells a uic:p2p credential for certain instead of guessing
+/// from structure. `decode_payload` rejects anything without it. The digit
+/// is the wire version; bump it when the layout changes. TS twin: the same
+/// `MAGIC` in `web/pair.ts`.
+const MAGIC: &[u8] = b"uic1";
+
 /// A field's decoded value during a layout walk.
 enum Decoded {
     Text(String),
@@ -179,6 +188,7 @@ fn field<'a>(compact: &'a Compact, name: &str) -> &'a str {
 /// infallible: `Compact` holds no state the layout cannot spell.
 pub fn encode_payload(compact: &Compact) -> String {
     let mut out: Vec<u8> = Vec::with_capacity(96);
+    out.extend_from_slice(MAGIC);
     for (name, kind) in LAYOUT {
         match kind {
             Kind::Str8 => push_short(&mut out, field(compact, name)),
@@ -203,10 +213,10 @@ pub fn encode_payload(compact: &Compact) -> String {
     URL_SAFE_NO_PAD.encode(out)
 }
 
-/// Unpacks a payload text along the declared layout; the structural checks
-/// (fitting length prefixes, constrained enum and tag bytes, full
-/// consumption, at least one candidate) are what classify text as a
-/// payload — there is no prefix marker.
+/// Unpacks a payload text along the declared layout. The [`MAGIC`] head
+/// tells a uic:p2p payload for certain; the structural checks (fitting
+/// length prefixes, constrained enum and tag bytes, full consumption, at
+/// least one candidate) guard the rest.
 pub fn decode_payload(text: &str) -> Result<Compact, PairError> {
     let bytes = URL_SAFE_NO_PAD
         .decode(text.trim())
@@ -215,6 +225,9 @@ pub fn decode_payload(text: &str) -> Result<Compact, PairError> {
         bytes: &bytes,
         at: 0,
     };
+    if at.take(MAGIC.len())? != MAGIC {
+        return Err(PairError::Payload("not a uic:p2p payload".into()));
+    }
     let mut fields = Vec::with_capacity(LAYOUT.len());
     for (name, kind) in LAYOUT {
         fields.push(match kind {
@@ -553,10 +566,11 @@ mod tests {
 
     /// The Chrome-shaped payload — one mDNS host candidate and one STUN
     /// srflx candidate, the server-reflexive address in the RFC 5737
-    /// documentation range — packed in the declared binary layout, no
-    /// prefix. The constant pins the bytes across the twins: `web/pair.ts`
-    /// must produce these exact characters for the same fields.
-    const BROWSER_VECTOR: &str = "BGVVcUwYTE5XUVRja2NWdkZ3UUpKOVV2RlFrSDZHB4ckqsfKi43FnPZegr-pY8GnTh5wbRFCDfMDkmx8WaUAAgIi-Qv8C1tBJbehI9cdO8SB0g8AywBxu9IP";
+    /// documentation range — packed in the declared binary layout behind
+    /// the `MAGIC` head (the leading `dWljMQ` is base64url for "uic1"). The
+    /// constant pins the bytes across the twins: `web/pair.ts` must produce
+    /// these exact characters for the same fields.
+    const BROWSER_VECTOR: &str = "dWljMQRlVXFMGExOV1FUY2tjVnZGd1FKSjlVdkZRa0g2RweHJKrHyouNxZz2XoK_qWPBp04ecG0RQg3zA5JsfFmlAAICIvkL_AtbQSW3oSPXHTvEgdIPAMsAcbvSDw";
 
     fn vector_compact() -> Compact {
         Compact {
@@ -576,9 +590,20 @@ mod tests {
         let decoded = decode_payload(BROWSER_VECTOR).unwrap();
         assert_eq!(decoded, vector_compact());
         // The Rust encoding must reproduce the pinned bytes exactly — the
-        // binary layout, unpadded base64url.
+        // binary layout behind the magic head, unpadded base64url.
         assert_eq!(encode_payload(&decoded), BROWSER_VECTOR);
         assert_eq!(payload_role(BROWSER_VECTOR), Some(Role::Offer));
+    }
+
+    #[test]
+    fn a_payload_without_the_magic_head_is_refused() {
+        // The same layout bytes minus the four-byte head — well-formed
+        // base64url that decodes structurally, yet not a uic:p2p payload.
+        let tagged = URL_SAFE_NO_PAD.decode(BROWSER_VECTOR).unwrap();
+        let headless = URL_SAFE_NO_PAD.encode(&tagged[MAGIC.len()..]);
+        let err = decode_payload(&headless).expect_err("no magic head, no payload");
+        assert!(err.to_string().contains("not a uic:p2p payload"), "{err}");
+        assert_eq!(payload_role(&headless), None);
     }
 
     #[test]

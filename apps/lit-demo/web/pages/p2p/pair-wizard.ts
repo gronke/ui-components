@@ -38,7 +38,30 @@ import type { PanelMode } from '../@schuhkarton/lit-todo/pair-panel.js';
 import { iceConfig } from './ice.js';
 import { scanFor } from './scan.js';
 
-const SLOW_HINT_MS = 15000;
+// Past this many seconds a connect nudges the user to check the peer opened
+// the reply, rather than only counting up. The terminal twin's SLOW_HINT_SECS.
+const SLOW_HINT_SECS = 15;
+
+/** Who is waiting, so the connecting status reads right: an `opener` opened a
+ * fresh invite and still owes the reply link; an `inviter` had its own invite
+ * opened and is simply connecting; `plain` is a cross-tab handover. */
+type ConnectRole = 'opener' | 'inviter' | 'plain';
+
+/** The connecting status with the elapsed seconds folded in, so the wait
+ * shows progress — the return link travels by hand and the peer may take a
+ * while to open it. Past the slow mark the opener is nudged to check they
+ * opened it. Twin of `session.rs` `connecting_status`. */
+function connectingStatus(role: ConnectRole, secs: number): string {
+    if (role === 'opener') {
+        return secs > SLOW_HINT_SECS
+            ? `Still connecting… ${secs}s — make sure they opened your reply link.`
+            : `Connecting… ${secs}s — send this reply back; you pair the moment they open it.`;
+    }
+    if (role === 'inviter') {
+        return `They opened your invite — connecting… ${secs}s.`;
+    }
+    return `Connecting… ${secs}s.`;
+}
 
 // Module-scoped on purpose: Chrome garbage-collects unreferenced
 // BroadcastChannels, listeners and all — a function-local channel goes
@@ -88,12 +111,28 @@ export class PairWizard extends LitElement {
 
     private side: PairSwap | null = null;
     private paired = false;
-    /** The peer being chased and how it reached us — a fresh invite retries
-     * on its own, a reply to ours cannot (their copy of our payload goes
-     * stale the moment our swap dies). */
-    private pursuit: { peer: string; fresh: boolean; attempts: number } | null = null;
+    /** The peer being chased and how it reached us — a fresh invite (the peer
+     * initiates and waits on our reply) or a reply to our own invite. Neither
+     * can honestly retry a failed connect, so this only shapes the status and
+     * the honest failure. */
+    private pursuit: { peer: string; fresh: boolean } | null = null;
+    /** Ticks the seconds a connect has been in flight into the status; null
+     * when no connect stands. */
+    private connectTimer: ReturnType<typeof setInterval> | null = null;
+    /** A message the next fresh invite should show instead of the generic
+     * prompt — the honest reason a connect could not resume — carried across
+     * the mint that would otherwise clobber it (the terminal's
+     * `session.rs` `carry_status`, mirrored). */
+    private carryStatus: string | null = null;
     private link = '';
     private canScan = 'BarcodeDetector' in window && !!navigator.mediaDevices;
+    /** Reading the clipboard needs the async API; the button press is the
+     * permission opt-in, a rejection turns the affordance back off. */
+    private canPaste = !!navigator.clipboard && 'readText' in navigator.clipboard;
+    /** The last clipboard text a focus read acted on — the same content is
+     * not routed again, so dismissing the conflict prompt (which refocuses
+     * the window) cannot re-ask for it in a loop. */
+    private lastClip: string | null = null;
     private booted = false;
     /** The live wire's control plane; null until connected or after retire. */
     private ctrlWire: ControlWire | null = null;
@@ -124,9 +163,6 @@ export class PairWizard extends LitElement {
         this.step = 1;
     }
 
-    /** Max connect attempts a fresh-invite pursuit gets before giving up. */
-    private static readonly CONNECT_ATTEMPTS = 2;
-
     createRenderRoot(): this {
         return this;
     }
@@ -136,6 +172,13 @@ export class PairWizard extends LitElement {
         if (!this.booted) {
             this.booted = true;
             this.boot();
+            // Returning to the tab with a credential already copied
+            // continues the step — the same auto-continue the terminal's
+            // clipboard watch does, behind the browser's permission.
+            window.addEventListener('focus', () => this.readClipboard());
+            // Changing the URL to a peer link mid-session is picked up live,
+            // not just at load.
+            window.addEventListener('hashchange', () => this.onHashChange());
         }
     }
 
@@ -157,35 +200,64 @@ export class PairWizard extends LitElement {
         }
         const carried = location.hash.length > 1 ? location.hash : null;
         if (carried) {
-            note('opened through a peer link');
-            // The link is consumed exactly once — a reload or bookmark lands
-            // on the clean idle page instead of re-feeding a stale payload,
-            // and the payload never lingers in the address bar or history.
-            history.replaceState(null, '', location.pathname);
-            const peer = linkPayload(carried);
-            const replyTo = linkReply(carried);
-            sessions.offer(peer, replyTo, {
-                handed: (status) => {
-                    note('an open tab claimed the link payload —', status);
-                    this.mode = 'handed';
-                    this.takeDigest = replyTo;
-                    this.status =
-                        status === 'connected'
-                            ? 'Already connected in your other tab.'
-                            : 'Handed to your open tab — the connection continues there.';
-                    this.resetLabel = 'start a fresh pairing here';
-                    if (replyTo) {
-                        this.actionLabel = 'take the session over in this tab';
-                    }
-                },
-                adopt: () => void this.startSide(peer),
-                orphan: () => this.refuseOrphanReply(),
-            });
+            this.openCarried(carried);
             return;
         }
         if (['localhost', '127.0.0.1'].includes(location.hostname)) {
             this.status = 'Open this page through your LAN address so the links reach other devices.';
         }
+    }
+
+    /** Opening a peer link (at load or a live hash change): consume it once
+     * — a reload or bookmark lands on the clean idle page, the payload never
+     * lingering in history — and route it through the cross-tab session
+     * machinery (a waiting sibling tab claims it; otherwise this tab pairs). */
+    private openCarried(carried: string): void {
+        note('opened through a peer link');
+        history.replaceState(null, '', location.pathname);
+        const peer = linkPayload(carried);
+        const replyTo = linkReply(carried);
+        sessions.offer(peer, replyTo, {
+            handed: (status) => {
+                note('an open tab claimed the link payload —', status);
+                this.mode = 'handed';
+                this.takeDigest = replyTo;
+                this.status =
+                    status === 'connected'
+                        ? 'Already connected in your other tab.'
+                        : 'Handed to your open tab — the connection continues there.';
+                this.resetLabel = 'start a fresh pairing here';
+                if (replyTo) {
+                    this.actionLabel = 'take the session over in this tab';
+                }
+            },
+            adopt: () => void this.startSide(peer),
+            orphan: () => this.refuseOrphanReply(),
+        });
+    }
+
+    /** A URL hash change while the page is live: pick up the new peer link.
+     * Waiting or standing on a pairing, a different link asks before it drops
+     * the current one; an invite on screen detects and steps; idle adopts. */
+    private onHashChange(): void {
+        const carried = location.hash.length > 1 ? location.hash : null;
+        if (!carried) {
+            return;
+        }
+        if (this.paired) {
+            history.replaceState(null, '', location.pathname);
+            const peer = linkPayload(carried);
+            if (peer !== this.pursuit?.peer) {
+                void this.confirmSwitch(carried);
+            }
+            return;
+        }
+        if (this.side) {
+            history.replaceState(null, '', location.pathname);
+            this.openedPeer(carried);
+            return;
+        }
+        this.openCarried(carried);
     }
 
     /** A reply whose inviting session no open tab holds. */
@@ -221,11 +293,17 @@ export class PairWizard extends LitElement {
         });
     }
 
-    private async startSide(peerAtHand: string | null, attempts = 0): Promise<void> {
+    private async startSide(peerAtHand: string | null): Promise<void> {
         if (this.starting) {
             return;
         }
         this.starting = true;
+        // A renewal supersedes the previous swap — stop its counter and close
+        // it so its RTCPeerConnection does not dangle (the terminal recycle()
+        // twin); every path reaching here with a live wire nulled this.side.
+        this.endConnecting();
+        this.side?.close();
+        this.side = null;
         this.status = 'Gathering candidates…';
         let side: PairSwap;
         try {
@@ -250,18 +328,19 @@ export class PairWizard extends LitElement {
         if (peerAtHand) {
             // Opened through the peer's fresh invite: their payload is here,
             // so this side connects at once — but the return leg goes by
-            // hand, so send the reply back and they connect on opening it.
-            this.pursuit = { peer: peerAtHand, fresh: true, attempts };
+            // hand, so send the reply back and they connect on opening it. The
+            // connecting counter owns the status from here.
+            this.pursuit = { peer: peerAtHand, fresh: true };
             this.step = 2;
-            void this.pair(side, peerAtHand);
-            this.status =
-                attempts === 0
-                    ? 'Send your reply back — they connect the moment they open it.'
-                    : `Attempt ${attempts + 1} — a fresh link; send this one back instead.`;
+            void this.pair(side, peerAtHand, undefined, 'opener');
         } else {
             this.pursuit = null;
             this.step = 1;
-            this.status = 'Send your invite, then open theirs below to connect.';
+            // A carried message — the honest reason a connect could not
+            // resume — wins over the generic prompt, then clears so the next
+            // mint starts fresh.
+            this.status = this.carryStatus ?? 'Send your invite, then open theirs below to connect.';
+            this.carryStatus = null;
         }
     }
 
@@ -270,7 +349,12 @@ export class PairWizard extends LitElement {
      * ignored, the connection stands. Exactly one side greets: the lexically
      * smaller payload, unless a takeover forces the roles (the remote holds
      * the canonical state, the fresh tab must not greet with an empty one). */
-    private async pair(side: PairSwap, peer: string, forcedGreet?: boolean): Promise<void> {
+    private async pair(
+        side: PairSwap,
+        peer: string,
+        forcedGreet?: boolean,
+        role: ConnectRole = 'plain',
+    ): Promise<void> {
         if (this.paired) {
             return;
         }
@@ -280,15 +364,11 @@ export class PairWizard extends LitElement {
             return;
         }
         this.paired = true;
-        this.status = 'Connecting…';
         // The wait is legitimate — the connection completes only once BOTH
-        // sides applied each other's payload, and the peer may take a while
-        // to open this side's link. A slow connect gets a hint, not an abort;
-        // truly unreachable peers reject with the pairing's message.
-        const slow = setTimeout(() => {
-            this.status =
-                "Still connecting — the other device must open this side's link too; if it already did, the networks may not allow a direct route.";
-        }, SLOW_HINT_MS);
+        // sides applied each other's payload, and the peer opens this side's
+        // link by hand. A ticking counter shows the wait is live (the swap
+        // itself stays patient); the counter word owns the status.
+        this.beginConnecting(role);
         note('connecting to peer payload:', peer);
         try {
             const wire = await side.connect(peer);
@@ -298,34 +378,52 @@ export class PairWizard extends LitElement {
             note('pairing failed:', error);
             this.retryOrFail(error);
         } finally {
-            clearTimeout(slow);
+            this.endConnecting();
         }
     }
 
-    /** A connect failed. Retry only what can honestly resume: a fresh-invite
-     * pursuit still holds a valid peer, so mint afresh and offer a new reply
-     * link, bounded; a reply-to-ours failure can't resume — the peer's copy
-     * of our payload went stale — so renew to a plain invite and say so. */
+    /** Counts the seconds a connect has been in flight into the status, once a
+     * second, so the wait shows progress; `beginConnecting` restarts a clean
+     * clock and paints 0s at once. */
+    private beginConnecting(role: ConnectRole): void {
+        this.endConnecting();
+        const started = Date.now();
+        const paint = () => {
+            this.status = connectingStatus(role, Math.floor((Date.now() - started) / 1000));
+        };
+        paint();
+        this.connectTimer = setInterval(paint, 1000);
+    }
+
+    private endConnecting(): void {
+        if (this.connectTimer !== null) {
+            clearInterval(this.connectTimer);
+            this.connectTimer = null;
+        }
+    }
+
+    /** A connect failed. Neither case can honestly retry: a fresh-invite
+     * pursuit would need a fresh swap, whose new reply link the peer — who
+     * opened the first — never sees; a reply-to-ours failure can't resume,
+     * the peer's copy of our payload went stale. Both fail honestly (the raw
+     * error is on the console); a fresh pairing is the way back. */
     private retryOrFail(error: unknown): void {
-        const pursuit = this.pursuit;
-        if (pursuit?.fresh && pursuit.attempts + 1 < PairWizard.CONNECT_ATTEMPTS) {
-            // A fresh mint reconnecting the same peer, the attempt count
-            // carried so the retry is bounded (startSide sets the status).
-            this.starting = false;
-            void this.startSide(pursuit.peer, pursuit.attempts + 1);
-            return;
-        }
-        if (pursuit?.fresh) {
+        void error;
+        if (this.pursuit?.fresh) {
             this.mode = 'failed';
-            this.status = `Tried ${pursuit.attempts + 1} times (${error}) — check the network and start a new pairing.`;
-            this.resetLabel = 'start a new pairing';
+            this.status =
+                "Couldn't confirm the connection — the other side may still show connected; start a fresh pairing on both and exchange new links.";
+            this.resetLabel = 'start a fresh pairing';
             return;
         }
-        // A reply-to-ours failure, or no pursuit at all: renew a plain
-        // invite so a fresh exchange can start.
+        // A reply-to-ours failure, or no pursuit at all: renew a plain invite
+        // so a fresh exchange can start. The honest message rides carryStatus
+        // onto that fresh invite (startSide reads and clears it) — a direct
+        // assignment here loses to the mint's own status a beat later.
         this.starting = false;
+        this.carryStatus =
+            "That exchange can't resume — the peer's copy of your invite went stale; share this fresh invite instead.";
         void this.startSide(null);
-        this.status = `The connect failed (${error}) — that exchange can't resume; share this fresh invite instead.`;
     }
 
     /** A wire opened: wear the control plane, serve the takeover endpoint,
@@ -520,6 +618,32 @@ export class PairWizard extends LitElement {
         location.reload();
     }
 
+    /** A different credential arrived while a pairing was in flight — ask
+     * before dropping the current attempt for it (the browser's `confirm`
+     * is the terminal's host dialog's twin). */
+    private async confirmSwitch(raw: string): Promise<void> {
+        const accept = await confirm(
+            'A different pairing link arrived — accept it and drop the current attempt?',
+        );
+        if (accept) {
+            await this.switchTo(raw);
+        }
+    }
+
+    /** Drops the current attempt and opens the new credential on a fresh
+     * swap — the spent one can never re-pair. */
+    private async switchTo(raw: string): Promise<void> {
+        this.ctrlWire?.close();
+        this.ctrlWire = null;
+        this.side?.close();
+        this.side = null;
+        this.paired = false;
+        this.pursuit = null;
+        this.starting = false;
+        await this.startSide(null);
+        this.openedPeer(raw);
+    }
+
     private onCopyLink(): void {
         // The panel already cancels the anchor's navigation; here we just
         // put the link on the clipboard.
@@ -557,6 +681,37 @@ export class PairWizard extends LitElement {
         this.openedPeer(pasted);
     }
 
+    private onPaste(): void {
+        void this.readClipboard(true);
+    }
+
+    /** Reads the clipboard and routes a credential through the same path a
+     * paste takes. `explicit` (the button) surfaces a rejection and always
+     * acts; a focus read stays quiet and skips content it already handled,
+     * so an ignored prompt is not re-asked when the dialog's dismissal
+     * refocuses the window. */
+    private async readClipboard(explicit = false): Promise<void> {
+        if (!this.canPaste || this.mode !== 'invite') {
+            return;
+        }
+        let text: string;
+        try {
+            text = await navigator.clipboard.readText();
+        } catch (error) {
+            if (explicit) {
+                this.canPaste = false;
+                this.status = `Clipboard unavailable (${error}) — paste their link instead.`;
+            }
+            return;
+        }
+        text = text.trim();
+        if (!text || (!explicit && text === this.lastClip)) {
+            return;
+        }
+        this.lastClip = text;
+        this.openedPeer(text);
+    }
+
     /** A link or code reached us — detect what it is and step accordingly.
      * A reply naming our invite means the peer already applied our payload:
      * connect at once (step 3). A reply for a different invite is neither
@@ -570,23 +725,43 @@ export class PairWizard extends LitElement {
         }
         const peer = linkPayload(raw);
         const reply = linkReply(raw);
+        // Already chasing someone? A different credential asks before it
+        // drops the current attempt; the one we already dial, or a reply to
+        // our own invite, is not a conflict.
+        if (this.paired && peer !== this.pursuit?.peer) {
+            if (reply !== replyDigest(side.payload)) {
+                void this.confirmSwitch(raw);
+            }
+            return;
+        }
         if (reply !== null && reply !== replyDigest(side.payload)) {
             this.status = 'That link answers a different invite — ask them to open your current one.';
             return;
         }
-        if (reply === replyDigest(side.payload)) {
-            this.pursuit = { peer, fresh: false, attempts: 0 };
-            this.step = 3;
-            this.status = 'They opened your invite — connecting…';
-            void this.pair(side, peer);
+        // The swap behind this side already ran (a prior connect consumed it)
+        // and can never re-pair — stepping to connect would strand an inert
+        // card, so renew a fresh invite and say why instead of dialing.
+        if (side.spent()) {
+            this.starting = false;
+            this.carryStatus = 'That pairing already ran — share this fresh invite to try again.';
+            void this.startSide(null);
             return;
         }
-        this.pursuit = { peer, fresh: true, attempts: 0 };
+        if (reply === replyDigest(side.payload)) {
+            // A reply to our own invite: the peer already applied our payload,
+            // so connect at once (step 3). The counter owns the status.
+            this.pursuit = { peer, fresh: false };
+            this.step = 3;
+            void this.pair(side, peer, undefined, 'inviter');
+            return;
+        }
+        // A fresh invite: present the reply link they must open (step 2) and
+        // connect behind it. The counter owns the status.
+        this.pursuit = { peer, fresh: true };
         this.step = 2;
         const page = new URL(location.pathname, location.href).href;
         this.link = inviteLink(page, side.payload, replyDigest(peer));
-        this.status = 'Send this reply back — they connect the moment they open it.';
-        void this.pair(side, peer);
+        void this.pair(side, peer, undefined, 'opener');
     }
 
     render() {
@@ -601,6 +776,7 @@ export class PairWizard extends LitElement {
                 .resetLabel=${this.resetLabel}
                 .actionLabel=${this.actionLabel}
                 .canScan=${this.canScan}
+                .canPaste=${this.canPaste}
                 .step=${this.step}
                 @invite=${this.invite}
                 @reset=${this.reset}
@@ -608,6 +784,7 @@ export class PairWizard extends LitElement {
                 @copy-link=${this.onCopyLink}
                 @action=${this.onAction}
                 @scan=${this.scan}
+                @paste=${this.onPaste}
             ></pair-panel>
             <video ?hidden=${!this.scanning} playsinline></video>`;
     }

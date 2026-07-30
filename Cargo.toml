@@ -60,6 +60,8 @@ serde_json = "1"
 ratatui = "0.30"
 taffy = "0.12"
 rat-widget = "=3.2.1"
+# The terminal backend behind ratatui; the [patch.crates-io] fork pins the source.
+crossterm = "0.29"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 include_dir = "0.7"
 wasm-bindgen = "0.2"
@@ -81,6 +83,10 @@ webrtc = "0.17"
 # mirrors. bundled compiles SQLite in, keeping builds hermetic.
 rusqlite = { version = "0.40", features = ["bundled"] }
 clap = { version = "4.6", features = ["derive"] }
+# The p2p clipboard watch: text only (the image stack is the trim qrcode
+# takes too), with the Wayland data-control path beside X11/mac/Windows. A
+# headless session errs on construction and the watch degrades to inert.
+arboard = { version = "3.6", default-features = false, features = ["wayland-data-control"] }
 
 # The browser TUI build (scripts/build-wasm.sh). One codegen unit per crate:
 # wasm-ld extracts archive members lazily, and the element registry's

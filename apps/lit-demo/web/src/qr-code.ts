@@ -2,7 +2,7 @@
 // draws an SVG with an external library; on the terminal the same element
 // mounts a native Rust widget by the `data-tui="qr"` marker, reading the
 // value off the attribute. One element, two renderers — the QR the shared
-// pairing panel needed but ADR 0029 had to leave out, the browser having an
+// pairing panel renders (ADR 0029 now specifies it), the browser having an
 // SVG path the terminal's Boa runtime does not.
 import { html, LitElement } from 'lit';
 

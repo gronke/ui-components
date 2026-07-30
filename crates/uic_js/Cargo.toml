@@ -20,6 +20,9 @@ sqlite = ["storage", "dep:rusqlite"]
 # the answers resolve JS-side promises — `await confirm(…)` reads the same
 # in both hosts.
 dialogs = []
+# navigator.clipboard on the mocked DOM over a backend the app installs —
+# the same read the host loop uses for its own auto-continue.
+clipboard = []
 
 [dependencies]
 boa_engine = "0.21"
@@ -53,3 +56,7 @@ required-features = ["storage"]
 [[test]]
 name = "dialogs"
 required-features = ["dialogs"]
+
+[[test]]
+name = "clipboard"
+required-features = ["clipboard"]

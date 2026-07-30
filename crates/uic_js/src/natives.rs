@@ -229,6 +229,33 @@ pub(crate) fn register_natives(context: &mut Context) -> Result<(), Error> {
     #[cfg(feature = "dialogs")]
     register_dialog_natives(context)?;
 
+    #[cfg(feature = "clipboard")]
+    register_clipboard_natives(context)?;
+
+    Ok(())
+}
+
+// navigator.clipboard over the backend seam (src/clipboard.rs): a read
+// yields the text or null, a write reports whether the backend took it.
+#[cfg(feature = "clipboard")]
+fn register_clipboard_natives(context: &mut Context) -> Result<(), Error> {
+    context.register_global_callable(
+        js_string!("__uic_clipboard_read"),
+        0,
+        NativeFunction::from_fn_ptr(|_this, _args, _context| {
+            Ok(crate::clipboard::read().map_or(JsValue::null(), |text| js_string!(text).into()))
+        }),
+    )?;
+
+    context.register_global_callable(
+        js_string!("__uic_clipboard_write"),
+        1,
+        NativeFunction::from_fn_ptr(|_this, args, context| {
+            let text = arg_string(args, 0, context)?;
+            Ok(JsValue::from(crate::clipboard::write(&text)))
+        }),
+    )?;
+
     Ok(())
 }
 

@@ -11,7 +11,7 @@ rust-version.workspace = true
 [dependencies]
 # storage backs the runtime's localStorage (the --backend flag), dialogs
 # the mocked alert/confirm/prompt the loop paints as overlays.
-uic_js = { workspace = true, features = ["storage", "sqlite", "dialogs"] }
+uic_js = { workspace = true, features = ["storage", "sqlite", "dialogs", "clipboard"] }
 uic_dom.workspace = true
 clap.workspace = true
 # The crossterm/ratatui re-exports drive the terminal loop and paint; the
@@ -30,6 +30,9 @@ include_dir.workspace = true
 # 0028) — the codec rides uic_sync.
 uic_sync.workspace = true
 webrtc.workspace = true
+# The p2p clipboard watch auto-continues a pairing step when a matching
+# credential appears; --no-clipboard and headless sessions leave it inert.
+arboard.workspace = true
 
 [build-dependencies]
 # Build-time baking: the app's TypeScript compiles into the npm tree and
