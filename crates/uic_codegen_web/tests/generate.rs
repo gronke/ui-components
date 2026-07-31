@@ -11,6 +11,7 @@ use uic_codegen_web::WebCodegen;
 
 fn generate(test: &str) -> PathBuf {
     ui_components::link();
+    ui_components_demo::link();
     let out = std::env::temp_dir().join(format!("uic-codegen-{test}-{}", std::process::id()));
     let root = WebCodegen::new(&out)
         .manifest(true)

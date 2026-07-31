@@ -8,7 +8,7 @@
 //! a linked test is the earliest point the full registry exists:
 //!
 //! ```no_run
-//! ui_components::link();
+//! ui_components_tui::link();
 //! uic_tui::lint::assert_tui_compatible();
 //! ```
 //!

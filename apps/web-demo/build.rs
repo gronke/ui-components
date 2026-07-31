@@ -409,103 +409,6 @@ fn foreign_modules(package_root: &Path, dir: &Path, out: &mut Vec<String>) {
     }
 }
 
-/// Compiles the mocked-lit runtime (crates/uic_js/js/src) into a served
-/// module tree: the same per-module TypeScript compile the Boa host bakes,
-/// shipped as files here so the browser's own engine — in the worker —
-/// imports them natively.
-fn compile_worker_runtime(src_root: &Path, out_root: &Path) {
-    println!("cargo:rerun-if-changed={}", src_root.display());
-    compile_worker_tree(src_root, src_root, out_root);
-}
-
-fn compile_worker_tree(root: &Path, dir: &Path, out_root: &Path) {
-    for entry in fs::read_dir(dir).expect("read js/src").flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            compile_worker_tree(root, &path, out_root);
-            continue;
-        }
-        let name = path.file_name().unwrap_or_default().to_string_lossy();
-        if !name.ends_with(".ts") || name.ends_with(".d.ts") {
-            continue;
-        }
-        let relative = path.strip_prefix(root).expect("under js/src");
-        let specifier = relative
-            .to_string_lossy()
-            .trim_end_matches(".ts")
-            .to_string()
-            + ".js";
-        let source = fs::read_to_string(&path).expect("read runtime module");
-        let compiled = web_modules::typescript::compile_str(&source, relative)
-            .unwrap_or_else(|err| panic!("compile {relative:?}: {err}"));
-        let target = out_root.join(&specifier);
-        fs::create_dir_all(target.parent().expect("module dir")).expect("worker module dir");
-        fs::write(&target, compiled).expect("write worker module");
-    }
-}
-
-/// The bare specifier families the mocked runtime provides at the worker
-/// tree's root — a vendored component's imports of these rewrite to
-/// relative paths, since import maps do not reach workers.
-const MOCK_FAMILIES: &[&str] = &["lit", "lit-html", "lit-element", "@lit/"];
-
-/// Rewrites a dist module's bare `lit*` imports to relative paths into the
-/// worker tree. The grammar is the finite quoted-specifier set of ES
-/// modules (`from "…"`, `import "…"`, `import("…")`); web_modules' AST
-/// readers are not public yet (upstream proposal pending), and the
-/// browser's own resolution fails loudly on anything this misses.
-fn rewrite_bare_imports(source: &str, depth: usize) -> String {
-    let up = "../".repeat(depth);
-    let mut out = source.to_string();
-    for family in MOCK_FAMILIES {
-        let family = family.trim_end_matches('/');
-        for quote in ['"', '\''] {
-            for lead in ["from", "import"] {
-                // `from"lit"`, `from "lit/x.js"`, `import("lit")`, with or
-                // without whitespace and the call parenthesis.
-                for spacer in ["", " ", "("] {
-                    let needle = format!("{lead}{spacer}{quote}{family}");
-                    let replacement = format!("{lead}{spacer}{quote}{up}{family}");
-                    out = out.replace(&needle, &replacement);
-                }
-            }
-        }
-    }
-    // An extension-less rewritten family entry points at its module file.
-    for family in MOCK_FAMILIES {
-        let family = family.trim_end_matches('/');
-        for quote in ['"', '\''] {
-            let bare = format!("{up}{family}{quote}");
-            let file = format!("{up}{family}.js{quote}");
-            out = out.replace(&bare, &file);
-        }
-    }
-    out
-}
-
-/// Copies the vendored foreign package into the worker tree with its bare
-/// imports rewritten.
-fn copy_rewritten(package_root: &Path, dir: &Path, out_root: &Path, base_depth: usize) {
-    for entry in fs::read_dir(dir).expect("read vendored tree").flatten() {
-        let path = entry.path();
-        let relative = path.strip_prefix(package_root).expect("under package");
-        if path.is_dir() {
-            copy_rewritten(package_root, &path, out_root, base_depth);
-            continue;
-        }
-        let target = out_root.join(relative);
-        fs::create_dir_all(target.parent().expect("module dir")).expect("worker package dir");
-        if path.extension().and_then(|extension| extension.to_str()) == Some("js") {
-            let depth = base_depth + relative.components().count() - 1;
-            let source = fs::read_to_string(&path).expect("read vendored module");
-            fs::write(&target, rewrite_bare_imports(&source, depth))
-                .expect("write rewritten module");
-        } else {
-            fs::copy(&path, &target).expect("copy vendored file");
-        }
-    }
-}
-
 /// The notify wiring of a tag, from the registry: every notifying property
 /// with a JSON-faithful scalar type contributes its event and JS property
 /// name. Rich types stay out — a Zoned crossing JSON arrives as a plain
@@ -670,6 +573,9 @@ fn main() {
     println!("cargo:rerun-if-changed=templates");
     // Keep the catalog's inventory registrations linked into this build script.
     ui_components::link();
+    // The demo composition <app-root> ships out of the published tree but
+    // rides the generated web catalog (dist = false, ADR 0013).
+    ui_components_demo::link();
 
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
@@ -700,15 +606,11 @@ fn main() {
     // from the real tree, and the worker module tree carries the mocked
     // runtime beside the package with its bare lit* imports rewritten —
     // import maps do not reach workers.
-    let workspace = manifest
-        .parent()
-        .and_then(Path::parent)
-        .expect("workspace root");
     let worker_root = out.join("gen_worker");
     let _ = fs::remove_dir_all(&worker_root);
     let worker_modules = worker_root.join("tui-worker/modules");
     if !FOREIGN_EXAMPLES.is_empty() {
-        compile_worker_runtime(&workspace.join("crates/uic_js/js/src"), &worker_modules);
+        uic_worker::worker_runtime_tree(&uic_js::js_src_root(), &worker_modules);
     }
     let foreign_vendor = out.join("vendor_foreign");
     for example in FOREIGN_EXAMPLES {
@@ -722,8 +624,7 @@ fn main() {
         foreign_modules(&package_root, &package_root, &mut modules);
         modules.sort();
         let package_depth = example.package.split('/').count();
-        copy_rewritten(
-            &package_root,
+        uic_worker::rewrite_foreign_package(
             &package_root,
             &worker_modules.join(example.package),
             package_depth,

@@ -7,6 +7,7 @@ use uic_codegen_web::DistBuild;
 
 fn dist() -> (Vec<&'static str>, PathBuf) {
     ui_components::link();
+    ui_components_demo::link();
     let out = std::env::temp_dir().join(format!("uic-dist-{}", std::process::id()));
     let root = DistBuild::new(&out, "@schuhkarton/ui-components", "0.1.0")
         .repository("https://github.com/schuhkarton/ui-components")

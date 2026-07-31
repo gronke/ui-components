@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 rustup target add wasm32-unknown-unknown
-cargo build -p uic_tui_web --target wasm32-unknown-unknown --profile wasm
+cargo build -p web-demo-tui --target wasm32-unknown-unknown --profile wasm
 
 # The wasm-bindgen CLI must match the locked crate version exactly.
 VERSION="$(cargo pkgid wasm-bindgen)"
@@ -22,12 +22,16 @@ fi
 
 wasm-bindgen --target web --no-typescript \
     --out-dir apps/web-demo/web-tui \
-    target/wasm32-unknown-unknown/wasm/uic_tui_web.wasm
+    target/wasm32-unknown-unknown/wasm/web_demo_tui.wasm
 
 # The registry must survive the linker: a bundle whose data section lost the
-# component tags boots into "unknown custom element" (see ui_components::link).
-if ! grep -aq 'input-date' apps/web-demo/web-tui/uic_tui_web_bg.wasm; then
-    echo "the bundle lost the component registry (linker dropped the registrations)" >&2
-    exit 1
-fi
+# component tags boots into "unknown custom element" (see link_catalog). Guard
+# a catalog input, app-root (registered in ui_components_demo), and the widget
+# twins tab-bar and suggestion-input (registered in ui_components_tui).
+for tag in input-date app-root tab-bar suggestion-input; do
+    if ! grep -aq "$tag" apps/web-demo/web-tui/web_demo_tui_bg.wasm; then
+        echo "the bundle lost $tag (linker dropped the registrations)" >&2
+        exit 1
+    fi
+done
 echo "browser TUI built into apps/web-demo/web-tui (served as /tui)"

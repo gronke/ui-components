@@ -11,15 +11,16 @@ use uic_dom::NodeId;
 use uic_js::JsHost;
 
 const PACKAGE: &str = "@schuhkarton/lit-todo";
+const SYNC: &str = "@schuhkarton/uic-sync";
 
 fn npm_root() -> &'static Path {
     Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
 }
 
-fn module(host: &mut JsHost, file: &str) {
-    let src = std::fs::read_to_string(npm_root().join(PACKAGE).join(file))
+fn module(host: &mut JsHost, package: &str, file: &str) {
+    let src = std::fs::read_to_string(npm_root().join(package).join(file))
         .unwrap_or_else(|err| panic!("read {file}: {err}"));
-    host.load_module(&format!("{PACKAGE}/{file}"), &src)
+    host.load_module(&format!("{package}/{file}"), &src)
         .unwrap_or_else(|err| panic!("load {file}: {err}"));
 }
 
@@ -27,7 +28,7 @@ fn module(host: &mut JsHost, file: &str) {
 fn qr_code_renders_the_terminal_widget_marker() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "qr-code.js");
+    module(&mut host, SYNC, "qr-code.js");
 
     // The data attribute (composition flows as attributes, not `.prop=`)
     // reaches the element and drives its render.
@@ -48,9 +49,9 @@ fn qr_code_renders_the_terminal_widget_marker() {
 fn the_panel_action_button_signals_through_the_command() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     // The generic secondary action (ADR 0029's seam, used by the takeover):
@@ -81,11 +82,11 @@ fn the_panel_action_button_signals_through_the_command() {
 fn the_deck_composes_the_panes_and_the_qr() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
-    module(&mut host, "status-navbar.js");
-    module(&mut host, "p2p-deck.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
+    module(&mut host, SYNC, "status-navbar.js");
+    module(&mut host, PACKAGE, "p2p-deck.js");
     let deck = host.mount("p2p-deck", &[]).unwrap();
 
     // The deck composes the stack and the QR beside it — the structure the
@@ -129,9 +130,9 @@ fn the_panel_invite_embeds_the_qr_with_the_link() {
     // pair-panel, its theme fragment and the <qr-code> it embeds are off the
     // todo-app entry graph (as in main.rs); load the panel's imports first so
     // its scoped specifiers resolve.
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     let link = "https://example/lit-demo/p2p/#PAYLOAD64";
@@ -151,9 +152,9 @@ fn the_panel_invite_embeds_the_qr_with_the_link() {
 fn the_wizard_mutes_the_steps_it_has_not_reached() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     let reply = "https://example/lit-demo/p2p/#OWN.1a2b3c4d";
@@ -239,9 +240,9 @@ fn the_wizard_mutes_the_steps_it_has_not_reached() {
 fn the_active_connect_step_carries_the_live_status() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     // Step 3 connects on its own — no button — so its body IS the live
@@ -294,9 +295,9 @@ fn the_active_connect_step_carries_the_live_status() {
 fn the_acknowledge_step_shows_the_live_connecting_status() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     // The opener owes the reply link AND is connecting; step 2 must show both,
@@ -359,9 +360,9 @@ fn the_acknowledge_step_shows_the_live_connecting_status() {
 fn a_failure_renders_as_a_red_alert() {
     let mut host = JsHost::new().unwrap();
     host.load_package(npm_root(), PACKAGE).unwrap();
-    module(&mut host, "theme.js");
-    module(&mut host, "qr-code.js");
-    module(&mut host, "pair-panel.js");
+    module(&mut host, SYNC, "theme.js");
+    module(&mut host, SYNC, "qr-code.js");
+    module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     host.set_prop(panel, "mode", "\"failed\"").unwrap();

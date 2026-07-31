@@ -9,7 +9,17 @@ fn the_npm_tree_is_publish_ready() {
     let modules = uic_sync::npm_tree(&out, "0.0.0-test").expect("emit the npm tree");
     assert_eq!(
         modules,
-        ["codec.js", "pair.js", "session.js", "sync.js", "wire.js"]
+        [
+            "codec.js",
+            "pair-panel.js",
+            "pair.js",
+            "qr-code.js",
+            "session.js",
+            "status-navbar.js",
+            "sync.js",
+            "theme.js",
+            "wire.js"
+        ]
     );
 
     // Type-stripped, ESM, and free of TypeScript syntax.
@@ -32,6 +42,16 @@ fn the_npm_tree_is_publish_ready() {
     assert!(manifest.get("dependencies").is_none());
     assert_eq!(
         manifest["files"],
-        serde_json::json!(["codec.js", "pair.js", "session.js", "sync.js", "wire.js"])
+        serde_json::json!([
+            "codec.js",
+            "pair-panel.js",
+            "pair.js",
+            "qr-code.js",
+            "session.js",
+            "status-navbar.js",
+            "sync.js",
+            "theme.js",
+            "wire.js"
+        ])
     );
 }

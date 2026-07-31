@@ -11,7 +11,7 @@ use std::sync::LazyLock;
 
 use uic_core::{Ctx, CustomElement, ObjectMap, PropertyStore, SelectOption, UiEvent, Value};
 
-use crate::connect::{InMemorySource, QuerySource};
+use ui_components::connect::{InMemorySource, QuerySource};
 
 /// The demo's static data source: a pool of words behind the shared query
 /// interface (ADR 0014). Keep in sync with `WORDS` in `app_root.impl.ts` —

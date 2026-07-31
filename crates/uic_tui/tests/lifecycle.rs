@@ -61,7 +61,7 @@ impl LifecycleProbeLogic for LifecycleProbe {
 
 #[test]
 fn the_cycle_orders_will_update_notify_commit_updated_and_follows_up() {
-    ui_components::link();
+    ui_components_tui::link();
     let mut host = DomHost::mount("lifecycle-probe").expect("mount");
     let root = host.doc().root();
     host.doc_mut().add_event_listener(

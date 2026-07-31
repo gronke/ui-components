@@ -1,102 +1,71 @@
-//! The shared pairing panel under the scripted (terminal) host: the same
-//! `<pair-panel>` the browser renders, driven by properties and signalling
-//! intent through a polled `command` property — the terminal's contract,
-//! since Boa has no `dispatchEvent` (ADR 0029).
+//! The shared `<pair-panel>` (ADR 0029) under the scripted host — the REAL
+//! component, compiled from `@schuhkarton/uic-sync`'s web root. The panel used
+//! to live in the demo app, out of `uic_js`'s reach, so this test could only
+//! stub it; now it ships in `uic_sync`, and the scripted-host library hosts
+//! the shipped pairing UI directly, no demo package in between.
+//!
+//! The seam it pins is the terminal's contract: properties in, intent out
+//! through the polled `command` property (Boa has no `dispatchEvent`).
+
+use std::path::Path;
 
 use uic_js::JsHost;
 
-// A deliberately minimal fixture: the property / command seam without the
-// app's build tree (the dependency points the other way — uic_js cannot
-// import the demo's baked package). The REAL pair-panel.ts is exercised
-// under this host in apps/lit-demo/tests/p2p_components.rs; this test pins
-// the seam contract (properties in, command out), not the app's markup.
-const PANEL: &str = r#"
-import { html, LitElement } from 'lit';
-
-class PairPanel extends LitElement {
-    static properties = {
-        mode: {}, link: {}, status: {}, connected: {}, resetLabel: {}, command: {},
-    };
-
-    constructor() {
-        super();
-        this.mode = 'idle';
-        this.link = '';
-        this.status = '';
-        this.connected = null;
-        this.resetLabel = '';
-        this.command = null;
-    }
-
-    createRenderRoot() {
-        return this;
-    }
-
-    emit(command) {
-        this.command = command;
-    }
-
-    render() {
-        return html`<section class="card">
-            <div class="card-header">
-                pair another browser
-                ${this.connected === null
-                    ? ''
-                    : html`<span class="badge">${this.connected ? 'connected' : 'disconnected'}</span>`}
-            </div>
-            <div class="card-body">
-                <p class="status">${this.status}</p>
-                ${this.mode === 'idle'
-                    ? html`<button class="invite" @click=${() => this.emit('invite')}>create an invite</button>`
-                    : this.mode === 'invite'
-                      ? html`<a class="copy-link" href=${this.link}>${this.link}</a>
-                            <button class="connect" @click=${() => this.emit('connect')}>connect</button>`
-                      : ''}
-                ${this.resetLabel
-                    ? html`<button class="reset" @click=${() => this.emit('reset')}>${this.resetLabel}</button>`
-                    : ''}
-            </div>
-        </section>`;
-    }
+/// Compiles a `uic_sync` web module (TypeScript) and registers it under its
+/// package specifier, so `pair-panel`'s `./theme.js` and `./qr-code.js`
+/// resolve within `@schuhkarton/uic-sync`.
+fn load(host: &mut JsHost, name: &str) {
+    let file = format!("{name}.ts");
+    let src = std::fs::read_to_string(uic_sync::web_root().join(&file))
+        .unwrap_or_else(|err| panic!("read {file}: {err}"));
+    let js = web_modules::typescript::compile_str(&src, Path::new(&file))
+        .unwrap_or_else(|err| panic!("compile {file}: {err}"));
+    host.load_module(&format!("@schuhkarton/uic-sync/{name}.js"), &js)
+        .unwrap_or_else(|err| panic!("load {name}: {err}"));
 }
 
-customElements.define('pair-panel', PairPanel);
-"#;
+/// A host with the real pair-panel mounted, its imports loaded inside-out.
+fn panel_host() -> (JsHost, uic_dom::NodeId) {
+    let mut host = JsHost::new().unwrap();
+    load(&mut host, "theme");
+    load(&mut host, "qr-code");
+    load(&mut host, "pair-panel");
+    let panel = host.mount("pair-panel", &[]).unwrap();
+    (host, panel)
+}
 
-fn node_by(host: &JsHost, selector: &str) -> uic_dom::NodeId {
+fn node_by(host: &JsHost, class: &str) -> uic_dom::NodeId {
     let state = host.state.borrow();
     let root = state.doc.root();
     state
         .doc
         .find_element(root, |el| {
-            el.attr("class").is_some_and(|c| c.contains(selector))
+            el.attr("class")
+                .is_some_and(|c| c.split_whitespace().any(|w| w == class))
         })
-        .expect("a matching node")
+        .unwrap_or_else(|| panic!("a node with class {class}"))
 }
 
 #[test]
 fn properties_drive_the_render() {
-    let mut host = JsHost::new().unwrap();
-    host.load_module("test:panel", PANEL).unwrap();
-    let panel = host.mount("pair-panel", &[]).unwrap();
+    let (mut host, panel) = panel_host();
 
-    // The host sets the invite state; the panel renders the link and badge.
+    // The invite mode renders the three-step wizard; the active step carries
+    // the link and the status the host set.
     host.set_prop(panel, "mode", "\"invite\"").unwrap();
     host.set_prop(panel, "link", "\"https://example/p2p/#abc123\"")
         .unwrap();
     host.set_prop(panel, "status", "\"share the invite\"")
         .unwrap();
-    host.set_prop(panel, "connected", "true").unwrap();
     host.set_prop(panel, "resetLabel", "\"start over\"")
         .unwrap();
 
     let html = host.state.borrow().doc.inner_html(panel);
-    assert!(html.contains("abc123"), "the link renders: {html}");
+    assert!(html.contains("abc123"), "the invite link renders: {html}");
     assert!(
         html.contains("share the invite"),
         "the status renders: {html}"
     );
-    assert!(html.contains("connected"), "the badge renders: {html}");
     assert!(
         html.contains("start over"),
         "the reset button renders: {html}"
@@ -105,28 +74,27 @@ fn properties_drive_the_render() {
 
 #[test]
 fn buttons_signal_intent_through_the_command_property() {
-    let mut host = JsHost::new().unwrap();
-    host.load_module("test:panel", PANEL).unwrap();
-    let panel = host.mount("pair-panel", &[]).unwrap();
+    let (mut host, panel) = panel_host();
 
-    // Idle: clicking "create an invite" writes command="invite" — the only
-    // channel back to the terminal host (no events under Boa).
+    // Idle: "create an invite" writes command="invite" — the only channel back
+    // to the terminal host (no events under Boa).
     let invite = node_by(&host, "invite");
     host.click(invite).unwrap();
     assert_eq!(host.prop_json(panel, "command").unwrap(), "\"invite\"");
 
-    // The host reads, acts, clears — and the next click writes afresh.
+    // The host reads, acts, clears — the next click writes afresh.
     host.set_prop(panel, "command", "null").unwrap();
     host.set_prop(panel, "mode", "\"invite\"").unwrap();
     host.set_prop(panel, "resetLabel", "\"start over\"")
         .unwrap();
 
-    let reset = node_by(&host, "reset");
-    host.click(reset).unwrap();
-    assert_eq!(host.prop_json(panel, "command").unwrap(), "\"reset\"");
-
-    host.set_prop(panel, "command", "null").unwrap();
+    // Step 1's connect button and the reset control both signal.
     let connect = node_by(&host, "connect");
     host.click(connect).unwrap();
     assert_eq!(host.prop_json(panel, "command").unwrap(), "\"connect\"");
+
+    host.set_prop(panel, "command", "null").unwrap();
+    let reset = node_by(&host, "reset");
+    host.click(reset).unwrap();
+    assert_eq!(host.prop_json(panel, "command").unwrap(), "\"reset\"");
 }

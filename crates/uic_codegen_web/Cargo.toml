@@ -21,6 +21,8 @@ web_modules = { workspace = true, features = ["typescript", "dts", "scss"], opti
 [dev-dependencies]
 # Registers <input-date>/<input-text> in the test binary's registry.
 ui_components.workspace = true
+# The demo composition <app-root> the generate/parity/dist tests exercise.
+ui_components_demo.workspace = true
 # oxc smoke test: the emitted TypeScript must transpile.
 web_modules = { workspace = true, features = ["typescript"] }
 # The parity fixtures convert states through the shared JSON layer.

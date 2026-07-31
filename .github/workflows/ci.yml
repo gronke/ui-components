@@ -12,6 +12,9 @@ env:
   # Backtraces keep file/line without the variable-level debug info that
   # dominates target/ size and codegen time; local builds stay untouched.
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # Incremental artifacts are the largest recompilation byproduct and are never
+  # cached; disabling them keeps target/ inside the runner's root disk.
+  CARGO_INCREMENTAL: "0"
 
 permissions:
   contents: read
@@ -23,10 +26,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The native target with every test binary, plus the cache's zstd
-      # staging, no longer fits beside the runner's preinstalled bundles.
-      - name: Free runner disk
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      # Linking every test binary beside the cache's zstd staging exhausts the
+      # runner: a full disk or an out-of-memory linker both surface as a Bus
+      # error. Reclaim the preinstalled bundles and docker images, and add swap
+      # on the larger /mnt disk so the linker keeps virtual-memory headroom.
+      - name: Free runner disk and add swap
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/.ghcup /usr/local/share/boost \
+            /usr/share/swift /usr/local/share/powershell /usr/lib/google-cloud-sdk
+          sudo apt-get clean
+          sudo find /opt/hostedtoolcache -mindepth 1 -maxdepth 1 ! -name node \
+            -exec rm -rf {} + 2>/dev/null || true
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          sudo fallocate -l 10G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile >/dev/null
+          sudo swapon /mnt/swapfile
+          echo "--- disk ---"; df -h /; echo "--- memory ---"; free -h
 
       - name: Install Rust toolchain
         uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
@@ -52,8 +69,11 @@ jobs:
           features: "--all-features"
 
       # The dist suite hides behind its required-features gate.
+      # The dist test binaries each statically link the whole oxc/grass codegen
+      # stack; linking two of them at once peaks the runner into an ld Bus error,
+      # so this step links one binary at a time.
       - name: Dist build test
-        run: cargo test -p uic_codegen_web --features dist
+        run: cargo test -p uic_codegen_web --features dist --jobs 1
 
       # The workspace run staged the compiled twin and the Rust fixtures;
       # node replays them — the cross-target parity gate.

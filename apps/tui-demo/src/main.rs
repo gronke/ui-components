@@ -10,7 +10,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ui_components::link();
+    ui_components_tui::link();
+    ui_components_demo::link();
     uic_core::CustomElementRegistry::assert_valid()?;
 
     let tag = std::env::args()

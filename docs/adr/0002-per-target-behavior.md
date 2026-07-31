@@ -26,22 +26,24 @@ A composite's synchronization writes cascade into its children through the exist
 
 ### One directory holds all of a component's targets
 
-A component's directory holds every asset: the Rust definition and logic (`mod.rs`), the template (`.html`), the stylesheet (`.scss`), the browser twin (`.impl.ts`) and the terminal twin (`tui.rs`) — `input/suggestion/` is the pattern.
+A component's directory holds its web assets: the Rust definition and logic (`mod.rs`), the template (`.html`), the stylesheet (`.scss`) and the browser twin (`.impl.ts`).
+The terminal twin (`tui.rs`) belongs beside them by default, but may instead live in a path-mirrored companion crate: `ui_components_tui`'s `nav_tabs/tui.rs` sits at the same directory path as `ui_components`'s `nav_tabs/`, which keeps `ui_components` a pure web/definition crate with no `uic_tui` dependency at all.
+That dissolves an edge co-location would otherwise force — the catalog's `tui.rs` builds against `uic_tui`, and `uic_tui`'s own integration tests mount the catalog, so the two would depend on each other — while the guard against drift stays structural, not positional: the twin keeps its mirrored path, registers the same `data-tui` string kind, and is exercised by the same TestBackend suites, so co-location was the convention and never the mechanism that caught drift.
 The terminal twin registers itself through `uic_tui::WidgetRegistration { kind, build }`, collected by `inventory` like the custom-element registry; `WidgetBox::new` consults the registry after the built-in kinds, so a new `data-tui` kind edits nothing in the runtime.
 `uic_tui` exposes the implementation surface for such twins: `WidgetAdapter` and `OverlayOutcome` are public, and the crate re-exports `crossterm`, `ratatui`, `rat_widget` and `unicode_width` so adapters build against the runtime's own dependency versions.
 `.options` bindings are valid on `data-tui` widgets, whose adapters store the rows through `set_options` (ADR 0005).
 
-The catalog's terminal half sits behind the `tui` cargo feature (`ui_components = { workspace = true, features = ["tui"] }`).
-TUI consumers enable it — `uic_tui`'s own integration tests, `uic_tui_web`, tui-demo; web-only consumers compile no terminal stack — the web-demo build script, `apps/dist` and `uic_codegen_web`'s tests stay lean, which cargo's resolver guarantees because build-dependency features never unify with normal ones.
+The catalog's terminal half is the companion crate: TUI consumers depend on `ui_components_tui` (which pulls `ui_components` for the definitions and `uic_tui` for the widget surface, and whose `link` chains the catalog's own) — `uic_tui`'s own integration tests, `uic_tui_web`, tui-demo — while web-only consumers depend on `ui_components` alone and compile no terminal stack: the web-demo build script, `apps/dist` and `uic_codegen_web`'s tests stay lean by construction, with no feature to leave unset.
 Macro asset paths resolve beside the source file and then upward through its ancestors, stopping at the crate root, the nearest match winning — so `#[input_shared]`'s `_shared/chrome.html` reaches components at any directory depth.
 
 ## Why
 
 Template structure, properties, and events are single-sourced in Rust; imperative logic cannot be auto-translated without a transpiler or a WASM runtime in the browser — both rejected (the generated output must stay readable, dependency-light Lit).
 Composition needs a home with LitElement's semantics: derive and correct state in `willUpdate(changedProperties)`, observe the committed result in `updated(changedProperties)` — and both render targets must run the same flow.
-Per-target behavior twins belong side by side: the browser popup in `suggestion.impl.ts` and the terminal popup in `tui.rs` are the same feature spelled twice, and splitting them across crates hides drift.
+Per-target behavior twins belong side by side by default: the browser popup in `suggestion.impl.ts` and the terminal popup in `tui.rs` are the same feature spelled twice.
+Splitting them across crates hides drift only when the split also loses the structure that caught it; a path-mirrored companion crate that registers the same kinds and runs the same parity and TestBackend suites keeps drift visible while letting the catalog shed its dependency on the runtime.
 Adding a component must not affect existing ones or central runtime files; registration through `inventory` gives widget kinds the property the element registry already has.
-The feature gate exists for the consumers that never paint a terminal: the npm tree and the web codegen build scripts should not compile ratatui, crossterm and the rat crates.
+The companion crate exists for the consumers that never paint a terminal: the npm tree and the web codegen build scripts depend on `ui_components` alone, so they compile no ratatui, crossterm or rat crates.
 
 ## Consequences
 
@@ -52,4 +54,4 @@ Behavioral parity is pinned by tests exercising the same inputs on both sides: R
 The built-in widget kinds (date, text/number, textarea, select) live in `uic_tui`; flat components migrate to directories opportunistically, never in bulk.
 `WidgetAdapter` is public API — its methods are the commitment the runtime makes to co-located twins.
 Composition stays template-level (nested custom elements, as in `input-date-range`): `input-suggestion` wraps a raw `<input>` rather than an `<input-text>` child, precisely so an existing component's contract needn't change for a new one.
-A widget registration rides the same inventory/linker mechanics as element registrations; `ui_components::link()` anchors both past the linker.
+A widget registration rides the same inventory/linker mechanics as element registrations; `ui_components_tui::link()` anchors the widgets and chains `ui_components::link()` for the elements past the linker.

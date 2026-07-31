@@ -7,7 +7,8 @@ use uic_tui::{App, Control};
 use uic_tui_web::XtermBackend;
 
 fn app(cols: u16, rows: u16) -> (App<XtermBackend>, uic_tui_web::Output) {
-    ui_components::link();
+    ui_components_tui::link();
+    ui_components_demo::link();
     let (backend, out) = XtermBackend::new(cols, rows);
     (App::from_terminal(Terminal::new(backend).unwrap()), out)
 }

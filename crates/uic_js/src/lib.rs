@@ -7,6 +7,8 @@
 //! into the retained `uic_tui::dom::DomDocument`; the existing taffy layout
 //! and ratatui paint consume that document unchanged.
 
+use std::path::{Path, PathBuf};
+
 #[cfg(feature = "clipboard")]
 mod clipboard;
 #[cfg(feature = "dialogs")]
@@ -30,3 +32,12 @@ pub use state::HostState;
 pub use storage::SqliteBackend;
 #[cfg(feature = "storage")]
 pub use storage::{MemoryBackend, StorageBackend, StorageError};
+
+/// The mocked-runtime TypeScript sources (`js/src`): the mocked `lit` module
+/// family and the `__uic_*` runtime, compiled per module by a consumer's
+/// build. The browser worker host (`uic_worker::worker_runtime_tree`) compiles
+/// this tree so the browser's own engine runs the same runtime the Boa host
+/// bakes — sourcing it here instead of reaching across the workspace by path.
+pub fn js_src_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("js/src")
+}

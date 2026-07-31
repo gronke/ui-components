@@ -10,7 +10,7 @@ use uic_dom::ListenerOptions;
 use uic_tui::dom::DomHost;
 
 fn host(tag: &str) -> DomHost {
-    ui_components::link();
+    ui_components_tui::link();
     DomHost::mount(tag).expect("mounts")
 }
 

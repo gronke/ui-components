@@ -8,16 +8,22 @@ edition.workspace = true
 rust-version.workspace = true
 
 [lib]
-# rlib so the ANSI backend and key map test natively; cdylib for the browser.
-crate-type = ["cdylib", "rlib"]
+# rlib: a reusable, catalog-agnostic host library. The browser wasm entry is a
+# consumer cdylib (apps/web-demo-tui) that binds this host to its catalog.
+crate-type = ["rlib"]
 
 [dependencies]
 uic_core = { workspace = true, features = ["json"] }
 uic_tui.workspace = true
-ui_components = { workspace = true, features = ["tui"] }
 ratatui.workspace = true
 crossterm.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+# The ansi suite mounts catalog components (the input widgets, app-root); the
+# host itself is catalog-agnostic — the consumer links them.
+ui_components_tui.workspace = true
+ui_components_demo.workspace = true

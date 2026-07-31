@@ -5672,6 +5672,22 @@ dependencies = [
  "chrono",
  "chrono-tz 0.10.4",
  "uic_core",
+]
+
+[[package]]
+name = "ui_components_demo"
+version = "0.1.0"
+dependencies = [
+ "ui_components",
+ "uic_core",
+]
+
+[[package]]
+name = "ui_components_tui"
+version = "0.1.0"
+dependencies = [
+ "ui_components",
+ "uic_core",
  "uic_tui",
 ]
 
@@ -5682,6 +5698,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "ui_components",
+ "ui_components_demo",
  "uic_core",
  "uic_template",
  "web_modules",
@@ -5747,6 +5764,7 @@ dependencies = [
  "tokio",
  "uic_core",
  "uic_dom",
+ "uic_sync",
  "uic_tui",
  "uic_tui_web",
  "web_modules",
@@ -5760,11 +5778,11 @@ dependencies = [
  "axum",
  "clap",
  "include_dir",
- "npm-utils",
  "serde_json",
  "tokio",
  "uic_dom",
  "uic_js",
+ "uic_npm",
  "uic_sync",
  "uic_tui",
  "web_modules",
@@ -5782,14 +5800,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "uic_npm"
+version = "0.1.0"
+dependencies = [
+ "npm-utils",
+ "serde_json",
+ "web_modules",
+]
+
+[[package]]
 name = "uic_sync"
 version = "0.1.0"
 dependencies = [
  "base64",
- "npm-utils",
  "serde",
  "serde_json",
- "web_modules",
+ "uic_npm",
 ]
 
 [[package]]
@@ -5810,7 +5836,8 @@ dependencies = [
  "ratatui",
  "taffy",
  "thiserror 2.0.18",
- "ui_components",
+ "ui_components_demo",
+ "ui_components_tui",
  "uic_core",
  "uic_css",
  "uic_dom",
@@ -5822,7 +5849,8 @@ dependencies = [
 name = "uic_tui_demo"
 version = "0.1.0"
 dependencies = [
- "ui_components",
+ "ui_components_demo",
+ "ui_components_tui",
  "uic_core",
  "uic_tui",
 ]
@@ -5836,7 +5864,8 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
- "ui_components",
+ "ui_components_demo",
+ "ui_components_tui",
  "uic_core",
  "uic_tui",
  "wasm-bindgen",
@@ -5850,8 +5879,10 @@ dependencies = [
  "serde_json",
  "tokio",
  "ui_components",
+ "ui_components_demo",
  "uic_codegen_web",
  "uic_core",
+ "uic_js",
  "uic_worker",
  "web_modules",
 ]
@@ -5860,8 +5891,8 @@ dependencies = [
 name = "uic_worker"
 version = "0.1.0"
 dependencies = [
- "npm-utils",
  "serde_json",
+ "uic_npm",
  "web_modules",
 ]
 
@@ -6188,6 +6219,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8eab23fefc9e41f8e841df4a9c707e8a8c4ed26e944ef69297184de2785e3be"
 dependencies = [
  "pkg-config",
+]
+
+[[package]]
+name = "web-demo-tui"
+version = "0.1.0"
+dependencies = [
+ "ui_components_demo",
+ "ui_components_tui",
+ "uic_tui_web",
+ "wasm-bindgen",
 ]
 
 [[package]]

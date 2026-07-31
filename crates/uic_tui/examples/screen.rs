@@ -5,7 +5,7 @@ use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ui_components::link();
+    ui_components_tui::link();
     let mut app = uic_tui::App::from_terminal(Terminal::new(TestBackend::new(44, 8))?);
     let element = app.mount("input-date")?;
     app.set_attr(element, "label", "Date of purchase");

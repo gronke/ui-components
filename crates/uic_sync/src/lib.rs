@@ -4,6 +4,10 @@
 //! that connects two browsers through mutually scanned QR codes — no
 //! signaling server.
 //!
+//! The shared pairing UI ships here too (ADR 0029): `pair-panel.ts`,
+//! `qr-code.ts` and `status-navbar.ts` are the one component set both hosts
+//! render, loaded from `@schuhkarton/uic-sync` beside the wire they drive.
+//!
 //! Consumers integrate one of two ways: hand [`web_root`] to a
 //! `web_modules` build as an extra source root, or emit the compiled npm
 //! tree with [`npm_tree`] and install it like any package.
@@ -17,10 +21,8 @@
 pub mod pair;
 pub mod session;
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
-use npm_utils::package_json::manifest::{self, remove_field, set_field};
 use serde_json::json;
 
 /// The TypeScript sources (`codec.ts`, `wire.ts`, `sync.ts`, `pair.ts`,
@@ -29,57 +31,32 @@ pub fn web_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("web")
 }
 
-/// Emits the publish-ready npm tree: the compiled modules plus a
-/// `package.json`. Returns the emitted module names.
+/// Emits the publish-ready `@schuhkarton/uic-sync` npm tree: the compiled
+/// modules plus a `package.json`. Returns the emitted module names.
 pub fn npm_tree(out: &Path, version: &str) -> Result<Vec<String>, String> {
-    fs::create_dir_all(out).map_err(|err| err.to_string())?;
-    let mut modules = Vec::new();
-    for entry in fs::read_dir(web_root())
-        .map_err(|err| err.to_string())?
-        .flatten()
-    {
-        let path = entry.path();
-        let name = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        if !name.ends_with(".ts") || name.ends_with(".d.ts") {
-            continue;
-        }
-        let source = fs::read_to_string(&path).map_err(|err| err.to_string())?;
-        let relative = Path::new(&name);
-        let compiled = web_modules::typescript::compile_str(&source, relative)
-            .map_err(|err| format!("compile {name}: {err}"))?;
-        let module = name.trim_end_matches(".ts").to_string() + ".js";
-        fs::write(out.join(&module), compiled).map_err(|err| err.to_string())?;
-        modules.push(module);
-    }
-    modules.sort();
-    let mut doc = manifest::scaffold("@schuhkarton/uic-sync", version);
-    // A published tree has no dependencies; drop scaffold's empty object.
-    remove_field(&mut doc, "dependencies");
-    set_field(
-        &mut doc,
-        "description",
-        json!("One wire for component state: structured-clone snapshots over WebSocket or WebRTC, plus serverless QR pairing"),
-    );
-    set_field(&mut doc, "license", json!("MIT"));
-    set_field(&mut doc, "type", json!("module"));
-    set_field(
-        &mut doc,
-        "exports",
-        json!({
-            ".": "./sync.js",
-            "./codec.js": "./codec.js",
-            "./pair.js": "./pair.js",
-            "./session.js": "./session.js",
-            "./sync.js": "./sync.js",
-            "./wire.js": "./wire.js"
-        }),
-    );
-    set_field(&mut doc, "files", json!(modules));
-    fs::write(out.join("package.json"), manifest::to_pretty(&doc))
-        .map_err(|err| err.to_string())?;
-    Ok(modules)
+    let root = web_root();
+    uic_npm::emit_tree(
+        &uic_npm::TreeSpec {
+            web_root: &root,
+            name: "@schuhkarton/uic-sync",
+            version,
+            description: "One wire for component state: structured-clone snapshots over WebSocket or WebRTC, plus serverless QR pairing",
+            exports: json!({
+                ".": "./sync.js",
+                "./codec.js": "./codec.js",
+                "./pair.js": "./pair.js",
+                "./pair-panel.js": "./pair-panel.js",
+                "./qr-code.js": "./qr-code.js",
+                "./session.js": "./session.js",
+                "./status-navbar.js": "./status-navbar.js",
+                "./sync.js": "./sync.js",
+                "./theme.js": "./theme.js",
+                "./wire.js": "./wire.js"
+            }),
+            // The pairing components import `lit` (ADR 0029); the codec-only
+            // modules do not, but the tree ships them together.
+            peer_dependencies: Some(json!({ "lit": "^3" })),
+        },
+        out,
+    )
 }

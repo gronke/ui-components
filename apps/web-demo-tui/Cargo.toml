@@ -1,0 +1,21 @@
+[package]
+name = "web-demo-tui"
+description = "The web-demo's browser-TUI wasm entry: binds uic_tui_web to the demo catalog"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# The reusable, catalog-agnostic terminal host; its TuiSession rides along.
+uic_tui_web.workspace = true
+# This demo's catalog with its terminal widget twins (ADR 0002) and the
+# <app-root> composition, all linked into the bundle.
+ui_components_tui.workspace = true
+ui_components_demo.workspace = true
+wasm-bindgen.workspace = true

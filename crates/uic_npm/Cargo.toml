@@ -1,0 +1,16 @@
+[package]
+name = "uic_npm"
+description = "Compiles a crate's TypeScript sources into a publish-ready npm tree"
+publish = false
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Strips the TypeScript sources to ESM for the tree.
+web_modules = { workspace = true, features = ["typescript"] }
+# Assembles the tree's package.json (package_json::manifest).
+npm-utils.workspace = true
+serde_json.workspace = true

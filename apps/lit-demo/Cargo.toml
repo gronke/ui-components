@@ -38,8 +38,8 @@ arboard.workspace = true
 # Build-time baking: the app's TypeScript compiles into the npm tree and
 # the browser dist; Tera renders the page with the importmap hole.
 web_modules = { workspace = true, features = ["typescript", "tera"] }
-# Assembles the app tree's package.json (package_json::manifest).
-npm-utils.workspace = true
+# Compiles the app's TypeScript into its npm tree.
+uic_npm.workspace = true
 serde_json.workspace = true
 # The sync tooling bakes its npm tree beside the app's.
 uic_sync.workspace = true

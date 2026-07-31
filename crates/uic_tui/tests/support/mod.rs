@@ -19,7 +19,8 @@ use uic_core::NotifyEvent;
 use uic_tui::{App, Control};
 
 pub fn app(cols: u16, rows: u16) -> App<TestBackend> {
-    ui_components::link();
+    ui_components_tui::link();
+    ui_components_demo::link();
     let terminal = Terminal::new(TestBackend::new(cols, rows)).expect("test terminal");
     App::from_terminal(terminal)
 }

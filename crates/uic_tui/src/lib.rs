@@ -5,7 +5,7 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! ui_components::link();
+//! ui_components_tui::link();
 //! let mut app = uic_tui::App::new()?;
 //! let el = app.mount("input-date")?;
 //! app.set_attr(el, "label", "Date of purchase");

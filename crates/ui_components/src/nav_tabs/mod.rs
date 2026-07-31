@@ -3,12 +3,9 @@
 //! selected value leaves through `value-changed`; panes are the host's job
 //! (two `<template if>` branches beside the bar, see the demo).
 //!
-//! Every asset lives in this directory (ADR 0002): the shared template and
-//! logic here, the button rows in `nav_tabs.impl.ts`, the terminal tab row
-//! in `tui.rs`.
-
-#[cfg(feature = "tui")]
-mod tui;
+//! The shared template and logic live here, the button rows in
+//! `nav_tabs.impl.ts`; the terminal tab row is the path-mirrored twin in
+//! `ui_components_tui` (ADR 0002).
 
 use uic_core::{Ctx, CustomElement, SelectOption, UiEvent};
 

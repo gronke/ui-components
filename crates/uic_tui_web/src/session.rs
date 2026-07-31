@@ -29,6 +29,12 @@ fn js_err(err: impl std::fmt::Display) -> JsError {
     JsError::new(&err.to_string())
 }
 
+/// Anchors this crate's object so a consumer cdylib keeps the `TuiSession`
+/// wasm-bindgen export (and the inventory ceremony) through the linker — the
+/// demo's wasm entry calls it beside the catalog's own `link`.
+#[inline(never)]
+pub fn link() {}
+
 /// One terminal pane hosting mounted component roots, stacked like the
 /// elements of a page. The host mounts each element by tag, replays its
 /// markup attributes, and feeds DOM keys; every call returns the pending
@@ -45,12 +51,15 @@ impl TuiSession {
     /// A `cols`×`rows` in-memory terminal with no roots yet.
     #[wasm_bindgen(constructor)]
     pub fn new(cols: u16, rows: u16) -> Result<TuiSession, JsError> {
+        // Run the inventory constructors and install the panic hook once. The
+        // catalog is the consumer's to link — this host is catalog-agnostic,
+        // and the demo's wasm entry (apps/web-demo-tui) anchors ui_components
+        // so `__wasm_call_ctors` finds its registrations.
         LINK.call_once(|| {
             #[cfg(target_arch = "wasm32")]
             unsafe {
                 __wasm_call_ctors()
             };
-            ui_components::link();
             #[cfg(target_arch = "wasm32")]
             std::panic::set_hook(Box::new(|info| console_error(&info.to_string())));
         });

@@ -738,6 +738,19 @@ mod tests {
         assert_eq!(short.width, 180);
     }
 
+    // Load a baked module under its package specifier — the moved pairing UI
+    // resolves from @schuhkarton/uic-sync (ADR 0029), the deck from the app.
+    fn load_module_from(host: &mut JsHost, package: &str, file: &str) {
+        let src = std::fs::read_to_string(
+            std::path::Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
+                .join(package)
+                .join(file),
+        )
+        .unwrap();
+        host.load_module(&format!("{package}/{file}"), &src)
+            .unwrap();
+    }
+
     fn deck_host() -> (JsHost, PanelDriverNodes) {
         let mut host = JsHost::new().unwrap();
         host.load_package(
@@ -750,17 +763,10 @@ mod tests {
             "qr-code.js",
             "pair-panel.js",
             "status-navbar.js",
-            "p2p-deck.js",
         ] {
-            let src = std::fs::read_to_string(
-                std::path::Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
-                    .join(crate::PACKAGE)
-                    .join(module),
-            )
-            .unwrap();
-            host.load_module(&format!("{}/{module}", crate::PACKAGE), &src)
-                .unwrap();
+            load_module_from(&mut host, "@schuhkarton/uic-sync", module);
         }
+        load_module_from(&mut host, crate::PACKAGE, "p2p-deck.js");
         host.mount("p2p-deck", &[]).unwrap();
         let nodes = PanelDriverNodes {
             todo: crate::node_by_tag(&host, "todo-app").unwrap(),
@@ -935,14 +941,7 @@ mod tests {
         )
         .unwrap();
         for module in ["theme.js", "qr-code.js", "pair-panel.js"] {
-            let src = std::fs::read_to_string(
-                std::path::Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
-                    .join(crate::PACKAGE)
-                    .join(module),
-            )
-            .unwrap();
-            host.load_module(&format!("{}/{module}", crate::PACKAGE), &src)
-                .unwrap();
+            load_module_from(&mut host, "@schuhkarton/uic-sync", module);
         }
         let panel = host.mount("pair-panel", &[]).unwrap();
 

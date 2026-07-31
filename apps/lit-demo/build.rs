@@ -3,10 +3,8 @@
 //! and the browser dist (`$OUT_DIR/dist`: vendored lit family, the same
 //! compiled tree, the Tera-rendered page), which `main.rs` embeds.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
-use npm_utils::package_json::manifest::{self, remove_field, set_field};
 use serde_json::json;
 use web_modules::build::{build, BuildOptions};
 use web_modules::vendor::specs_from_package_json;
@@ -50,58 +48,26 @@ fn main() {
     .expect("build the lit-todo frontend");
 }
 
-/// The compiled package tree, `uic_worker::npm_tree`'s shape: each
-/// `web/src/*.ts` compiles beside a generated manifest, and both hosts
-/// consume the result — `JsHost::load_package` natively, the browser build
-/// as a source root.
+/// The compiled `@schuhkarton/lit-todo` tree: each `web/src/*.ts` compiles
+/// beside a generated manifest, and both hosts consume the result —
+/// `JsHost::load_package` natively, the browser build as a source root.
 fn npm_tree(src: &Path, out: &Path) {
-    fs::create_dir_all(out).expect("create the npm tree");
-    let mut modules = Vec::new();
-    for entry in fs::read_dir(src).expect("read web/src").flatten() {
-        let path = entry.path();
-        let name = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        if !name.ends_with(".ts") || name.ends_with(".d.ts") {
-            continue;
-        }
-        let source = fs::read_to_string(&path).expect("read app module");
-        let compiled = web_modules::typescript::compile_str(&source, Path::new(&name))
-            .unwrap_or_else(|err| panic!("compile {name}: {err}"));
-        let module = name.trim_end_matches(".ts").to_string() + ".js";
-        fs::write(out.join(&module), compiled).expect("write compiled module");
-        modules.push(module);
-    }
-    modules.sort();
-
-    let mut doc = manifest::scaffold(PACKAGE, env!("CARGO_PKG_VERSION"));
-    // The tree carries no dependencies of its own; lit stays a peer.
-    remove_field(&mut doc, "dependencies");
-    set_field(
-        &mut doc,
-        "description",
-        json!("One hand-written Lit todo app, rendered by the browser and the ui-components terminal runtime alike"),
-    );
-    set_field(&mut doc, "license", json!("MIT"));
-    set_field(&mut doc, "type", json!("module"));
-    set_field(
-        &mut doc,
-        "exports",
-        json!({
-            ".": "./todo-app.js",
-            "./todo-app.js": "./todo-app.js",
-            "./todo-item.js": "./todo-item.js",
-            "./pair-panel.js": "./pair-panel.js",
-            "./qr-code.js": "./qr-code.js",
-            "./p2p-deck.js": "./p2p-deck.js",
-            "./status-navbar.js": "./status-navbar.js",
-            "./theme.js": "./theme.js"
-        }),
-    );
-    set_field(&mut doc, "peerDependencies", json!({ "lit": "^3" }));
-    set_field(&mut doc, "files", json!(modules));
-    fs::write(out.join("package.json"), manifest::to_pretty(&doc))
-        .expect("write the tree manifest");
+    uic_npm::emit_tree(
+        &uic_npm::TreeSpec {
+            web_root: src,
+            name: PACKAGE,
+            version: env!("CARGO_PKG_VERSION"),
+            description: "One hand-written Lit todo app, rendered by the browser and the ui-components terminal runtime alike",
+            exports: json!({
+                ".": "./todo-app.js",
+                "./todo-app.js": "./todo-app.js",
+                "./todo-item.js": "./todo-item.js",
+                "./p2p-deck.js": "./p2p-deck.js",
+                "./theme.js": "./theme.js"
+            }),
+            peer_dependencies: Some(json!({ "lit": "^3" })),
+        },
+        out,
+    )
+    .expect("bake the lit-todo tree");
 }

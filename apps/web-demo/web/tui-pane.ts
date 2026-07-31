@@ -26,8 +26,10 @@ export async function mountTuiPane(options: {
 }): Promise<TuiPane | null> {
     let glue: any;
     try {
-        glue = await import('./tui/uic_tui_web.js');
+        glue = await import('./tui/web_demo_tui.js');
         await glue.default();
+        // Bind this demo's catalog into the reusable, catalog-agnostic host.
+        glue.link_catalog();
     } catch {
         return null;
     }

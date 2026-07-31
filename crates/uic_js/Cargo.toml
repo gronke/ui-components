@@ -47,7 +47,10 @@ web_modules = { workspace = true, default-features = true }
 axum = { version = "0.8", features = ["ws"] }
 tokio.workspace = true
 uic_tui_web.workspace = true
-web_modules = { workspace = true, default-features = true }
+# Compiles the real pair-panel.ts from uic_sync's web root for the pairing
+# panel test (ADR 0029) — the shared component, not a stub.
+uic_sync.workspace = true
+web_modules = { workspace = true, default-features = true, features = ["typescript"] }
 
 [[test]]
 name = "storage"

@@ -34,6 +34,7 @@ fn breadcrumb_crumbs(items: &serde_json::Value, divider: &str) -> serde_json::Va
 #[test]
 fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
     ui_components::link();
+    ui_components_demo::link();
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/parity");
 
     // The compiled twin and its helpers, for scripts/parity-check.mjs.
@@ -94,7 +95,7 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
         .iter()
         .map(|query| {
             let mut values: Vec<String> = Vec::new();
-            ui_components::demo::app_root::WORD_POOL.query(
+            ui_components_demo::app_root::WORD_POOL.query(
                 query,
                 Box::new(|rows| values = rows.into_iter().map(|row| row.value).collect()),
             );

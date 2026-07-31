@@ -9,9 +9,9 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-# Compiles the TypeScript sources for the npm tree; consumers hand the
-# source root to their own web_modules build instead.
-web_modules = { workspace = true, features = ["typescript"] }
-# Assembles the npm tree's package.json (package_json::manifest).
-npm-utils.workspace = true
+# Compiles the TypeScript sources into the publish-ready npm tree.
+uic_npm.workspace = true
+# Builds the tree's exports and description into the TreeSpec.
 serde_json.workspace = true
+# Compiles the mocked-lit runtime (uic_js's js/src) into the served worker tree.
+web_modules = { workspace = true, features = ["typescript"] }

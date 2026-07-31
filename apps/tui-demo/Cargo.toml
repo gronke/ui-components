@@ -9,6 +9,10 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ui_components = { workspace = true, features = ["tui"] }
+# The catalog inputs' terminal twins live in the companion crate (ADR 0002);
+# it chains ui_components for the definitions.
+ui_components_tui.workspace = true
+# The demo composition <app-root> mounts by tag beside the catalog inputs.
+ui_components_demo.workspace = true
 uic_core.workspace = true
 uic_tui.workspace = true

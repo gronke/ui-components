@@ -21,7 +21,7 @@ export async function mountWorkerPane(options: {
     const { config } = options;
     const foreign = config.foreign!;
     // Absent bundle degrades to the web pane alone.
-    const boot = await fetch('./tui/uic_tui_web.js', { method: 'HEAD' }).catch(() => null);
+    const boot = await fetch('./tui/web_demo_tui.js', { method: 'HEAD' }).catch(() => null);
     if (!boot || !boot.ok) {
         return null;
     }

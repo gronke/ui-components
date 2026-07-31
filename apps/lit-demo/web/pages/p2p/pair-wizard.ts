@@ -33,8 +33,8 @@ import {
     TAKEOVER_TIMEOUT_MS,
 } from '../@schuhkarton/uic-sync/session.js';
 import type { Wire } from '../@schuhkarton/uic-sync/wire.js';
-import '../@schuhkarton/lit-todo/pair-panel.js';
-import type { PanelMode } from '../@schuhkarton/lit-todo/pair-panel.js';
+import '../@schuhkarton/uic-sync/pair-panel.js';
+import type { PanelMode } from '../@schuhkarton/uic-sync/pair-panel.js';
 import { iceConfig } from './ice.js';
 import { scanFor } from './scan.js';
 

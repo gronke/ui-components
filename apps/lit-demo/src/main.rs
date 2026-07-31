@@ -272,9 +272,10 @@ fn p2p(
     // One mounted root, the p2p deck: the todo card and the shared pairing
     // panel (ADR 0029) stack in a column, the QR (ADR 0029) docks beside
     // them — responsive flexbox from the deck's own styles, no rect math.
-    // The extra modules are baked in the package but off the todo-app entry
-    // graph, so they load explicitly, import order inside-out; then the
-    // mount upgrades the whole composition.
+    // The extra modules are off the todo-app entry graph, so they load
+    // explicitly, inside-out: the shared pairing UI from @schuhkarton/uic-sync
+    // (ADR 0029), then the todo-specific deck from the app package; the mount
+    // upgrades the whole composition.
     let mut host = JsHost::with_storage(storage_backend(backend)?)?;
     host.load_package(Path::new(env!("UIC_LIT_DEMO_NPM_ROOT")), PACKAGE)?;
     for module in [
@@ -282,15 +283,20 @@ fn p2p(
         "qr-code.js",
         "pair-panel.js",
         "status-navbar.js",
-        "p2p-deck.js",
     ] {
         let src = std::fs::read_to_string(
             Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
-                .join(PACKAGE)
+                .join("@schuhkarton/uic-sync")
                 .join(module),
         )?;
-        host.load_module(&format!("@schuhkarton/lit-todo/{module}"), &src)?;
+        host.load_module(&format!("@schuhkarton/uic-sync/{module}"), &src)?;
     }
+    let deck = std::fs::read_to_string(
+        Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
+            .join(PACKAGE)
+            .join("p2p-deck.js"),
+    )?;
+    host.load_module(&format!("{PACKAGE}/p2p-deck.js"), &deck)?;
     host.mount("p2p-deck", &[])?;
     let node = node_by_tag(&host, "todo-app").ok_or("the deck mounts a todo-app")?;
     let panel = node_by_tag(&host, "pair-panel").ok_or("the deck mounts a pair-panel")?;

@@ -12,8 +12,12 @@ members = [
     "crates/uic_worker",
     "crates/uic_js",
     "crates/uic_sync",
+    "crates/uic_npm",
     "crates/ui_components",
+    "crates/ui_components_demo",
+    "crates/ui_components_tui",
     "apps/web-demo",
+    "apps/web-demo-tui",
     "apps/tui-demo",
     "apps/lit-demo",
     "apps/dist",
@@ -40,7 +44,10 @@ uic_tui_web = { path = "crates/uic_tui_web", version = "0.1.0" }
 uic_worker = { path = "crates/uic_worker", version = "0.1.0" }
 uic_js = { path = "crates/uic_js", version = "0.1.0" }
 uic_sync = { path = "crates/uic_sync", version = "0.1.0" }
+uic_npm = { path = "crates/uic_npm", version = "0.1.0" }
 ui_components = { path = "crates/ui_components", version = "0.1.0" }
+ui_components_demo = { path = "crates/ui_components_demo", version = "0.1.0" }
+ui_components_tui = { path = "crates/ui_components_tui", version = "0.1.0" }
 
 # shared external dependencies
 inventory = "0.3"

@@ -4,12 +4,9 @@
 //! picking one commits like typed text. Commit semantics follow the text
 //! family: trimmed, empty becoming null when `allow-null` is set.
 //!
-//! Every asset of the component lives in this directory (ADR 0002): the
-//! shared template and logic here, the browser popup in
-//! `suggestion.impl.ts`, the terminal popup in `tui.rs`.
-
-#[cfg(feature = "tui")]
-mod tui;
+//! The shared template and logic live here, the browser popup in
+//! `suggestion.impl.ts`; the terminal popup is the path-mirrored twin in
+//! `ui_components_tui` (ADR 0002).
 
 use uic_core::{input_shared, Ctx, CustomElement, SelectOption, UiEvent, Value};
 

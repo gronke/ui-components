@@ -27,9 +27,11 @@ unicode-width = "0.2"
 qr = ["dep:qrcode"]
 
 [dev-dependencies]
-# With the tui feature: the integration tests mount components whose widget
-# twins live in the catalog (ADR 0002).
-ui_components = { workspace = true, features = ["tui"] }
+# The integration tests mount components whose terminal widget twins live in
+# the companion crate (ADR 0002); it chains ui_components for the definitions.
+ui_components_tui.workspace = true
+# The demo composition <app-root> the app_root and lint suites mount.
+ui_components_demo.workspace = true
 
 [[test]]
 name = "qr_registry"
