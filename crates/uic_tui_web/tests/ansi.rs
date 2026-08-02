@@ -53,6 +53,32 @@ fn a_frame_is_positioned_styled_ansi() {
 }
 
 #[test]
+fn a_paste_travels_as_one_bulk_insert() {
+    let (mut app, out) = app(44, 10);
+    let el = app.mount("input-text").unwrap();
+    app.set_attr(el, "label", "Token");
+    app.draw().unwrap();
+    out.take();
+
+    app.handle_event(&Event::Paste("hello pasted world".into()));
+    app.draw().unwrap();
+    // One take = one frame; the diff writes positioned cell runs, so the
+    // words assert individually and the shadow grid carries the phrase.
+    let ansi = out.take();
+    for word in ["hello", "pasted", "world"] {
+        assert!(
+            ansi.contains(word),
+            "{word} lands in the one frame: {ansi:?}"
+        );
+    }
+    assert!(app
+        .terminal()
+        .backend()
+        .screen_text()
+        .contains("hello pasted world"));
+}
+
+#[test]
 fn keys_travel_through_the_runtime_and_back_as_ansi() {
     let (mut app, out) = app(44, 10);
     let el = app.mount("input-text").unwrap();

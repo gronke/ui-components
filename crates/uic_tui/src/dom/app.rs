@@ -16,7 +16,7 @@ use uic_dom::{Event as DomEvent, NodeId};
 
 use super::host::{deliver, Listener, Mount};
 use super::render;
-use super::widget::{OverlayOutcome, WidgetBox};
+use super::widget::{self, OverlayOutcome, WidgetBox};
 use super::DomDocument;
 use crate::{Control, Error};
 
@@ -42,10 +42,16 @@ pub struct App<B: Backend> {
 // with synthesized events instead.
 #[cfg(not(target_arch = "wasm32"))]
 impl App<ratatui::backend::CrosstermBackend<std::io::Stdout>> {
-    /// Takes over the terminal (alternate screen, raw mode, mouse capture).
+    /// Takes over the terminal (alternate screen, raw mode, mouse capture,
+    /// bracketed paste — a paste arrives as one `Event::Paste`, not a key
+    /// hail).
     pub fn new() -> Result<Self, Error> {
         let terminal = ratatui::try_init()?;
-        crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+        crossterm::execute!(
+            std::io::stdout(),
+            crossterm::event::EnableMouseCapture,
+            crossterm::event::EnableBracketedPaste
+        )?;
         Ok(Self::from_terminal(terminal))
     }
 
@@ -53,7 +59,11 @@ impl App<ratatui::backend::CrosstermBackend<std::io::Stdout>> {
     /// Tab commits and cycles focus, Enter commits, clicks focus and pick.
     pub fn run(mut self) -> Result<(), Error> {
         let result = self.event_loop();
-        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::event::DisableBracketedPaste,
+            crossterm::event::DisableMouseCapture
+        );
         ratatui::try_restore()?;
         result
     }
@@ -61,9 +71,18 @@ impl App<ratatui::backend::CrosstermBackend<std::io::Stdout>> {
     fn event_loop(&mut self) -> Result<(), Error> {
         loop {
             self.draw()?;
-            let event = crossterm::event::read()?;
-            if self.handle_event(&event) == Control::Quit {
-                return Ok(());
+            let mut event = crossterm::event::read()?;
+            // Coalesce a burst — an unbracketed paste's key hail, held-key
+            // autorepeat, drag streams — into one draw: handle everything
+            // already buffered, then paint once.
+            loop {
+                if self.handle_event(&event) == Control::Quit {
+                    return Ok(());
+                }
+                if !crossterm::event::poll(std::time::Duration::ZERO)? {
+                    break;
+                }
+                event = crossterm::event::read()?;
             }
         }
     }
@@ -241,6 +260,17 @@ impl<B: Backend> App<B> {
     fn route_event(&mut self, event: &Event) -> Control {
         if let Event::Mouse(mouse) = event {
             return self.handle_mouse(*mouse);
+        }
+        if let Event::Paste(text) = event {
+            // One bulk insert through the widget's own paste handling; a
+            // modal overlay's widget (select, calendar) ignores it. The
+            // text follows the focused widget's line discipline.
+            self.blurred = false;
+            let paste = Event::Paste(widget::normalize_paste(text, self.focused_multiline()));
+            if self.forward_to_focused(&paste) {
+                self.commit_focused();
+            }
+            return Control::Continue;
         }
         if let Event::Key(key) = event {
             if key.kind == KeyEventKind::Press {

@@ -28,8 +28,10 @@ jobs:
 
       # Linking every test binary beside the cache's zstd staging exhausts the
       # runner: a full disk or an out-of-memory linker both surface as a Bus
-      # error. Reclaim the preinstalled bundles and docker images, and add swap
-      # on the larger /mnt disk so the linker keeps virtual-memory headroom.
+      # error. Reclaim the preinstalled bundles and docker images, put the
+      # build tree on the larger /mnt disk — lld mmaps its output, so a disk
+      # filling mid-link kills it with SIGBUS instead of ENOSPC — and add swap
+      # on the root disk, which sits idle once the build tree moved away.
       - name: Free runner disk and add swap
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
@@ -39,11 +41,17 @@ jobs:
           sudo find /opt/hostedtoolcache -mindepth 1 -maxdepth 1 ! -name node \
             -exec rm -rf {} + 2>/dev/null || true
           sudo docker image prune --all --force >/dev/null 2>&1 || true
-          sudo fallocate -l 10G /mnt/swapfile
-          sudo chmod 600 /mnt/swapfile
-          sudo mkswap /mnt/swapfile >/dev/null
-          sudo swapon /mnt/swapfile
-          echo "--- disk ---"; df -h /; echo "--- memory ---"; free -h
+          # The image ships an active 4G /swapfile; replace it with 10G.
+          sudo swapoff /swapfile 2>/dev/null || true
+          sudo rm -f /swapfile
+          sudo fallocate -l 10G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile >/dev/null
+          sudo swapon /swapfile
+          sudo mkdir -p /mnt/target
+          sudo chown "$(id -u):$(id -g)" /mnt/target
+          ln -s /mnt/target target
+          echo "--- disk ---"; df -h / /mnt; echo "--- memory ---"; free -h
 
       - name: Install Rust toolchain
         uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
@@ -68,6 +76,18 @@ jobs:
         with:
           features: "--all-features"
 
+      # The workspace test binaries have run and nothing later reads them:
+      # parity replays staged fixtures from the source tree, and the dist
+      # step links fresh feature-hashed binaries. Deleting them returns
+      # their gigabytes to the scratch disk right before the dist links —
+      # the job's fullest moment, where a heavy-delta PR can still brush
+      # the disk into an ld SIGBUS.
+      - name: Reclaim the run test binaries
+        run: |
+          find target/debug/deps target/debug/examples target/debug \
+            -maxdepth 1 -type f -executable -delete 2>/dev/null || true
+          echo "--- disk ---"; df -h / /mnt
+
       # The dist suite hides behind its required-features gate.
       # The dist test binaries each statically link the whole oxc/grass codegen
       # stack; linking two of them at once peaks the runner into an ld Bus error,
@@ -79,6 +99,11 @@ jobs:
       # node replays them — the cross-target parity gate.
       - name: Cross-target parity
         run: node scripts/parity-check.mjs
+
+      # The forensic tail: how full both disks ended, pass or fail.
+      - name: Disk report
+        if: always()
+        run: df -h / /mnt
 
   # The TUI stack keeps compiling for the browser; this is what the crossterm
   # mirror pin exists for.

@@ -15,6 +15,7 @@ export type PaneSession = {
     resize(cols: number, rows: number): string;
     set_theme(theme: string): string;
     key(key: string, ctrl: boolean, alt: boolean, shift: boolean): string;
+    paste(text: string): string;
     mouse(kind: string, col: number, row: number): string;
     blur(): string;
     take_quit(): boolean;

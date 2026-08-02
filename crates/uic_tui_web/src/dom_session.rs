@@ -144,6 +144,13 @@ impl DomSession {
         self.state.widget_default_action(&stroke).is_some()
     }
 
+    /// The paste default action: the pane's clipboard text into the focused
+    /// widget as one bulk insert; true when the text changed and the worker
+    /// should deliver the single bubbling `input` a browser paste fires.
+    pub fn widget_paste(&mut self, text: &str) -> bool {
+        self.state.widget_paste(text).is_some()
+    }
+
     /// Whether the node carries a mounted widget — the pointer-focus guard.
     pub fn widget_at(&self, handle: i32) -> bool {
         handle >= 0 && self.state.has_widget(handle as usize)

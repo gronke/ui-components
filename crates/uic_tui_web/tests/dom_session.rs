@@ -49,6 +49,23 @@ fn queries_return_handles_and_matches_sees_focus() {
 }
 
 #[test]
+fn a_paste_bulk_inserts_into_the_focused_widget() {
+    let (mut session, root) = session();
+    session.commit(root, "<input data-path='p' value=''>");
+    let input = session.query(root, "input").unwrap()[0];
+    session.set_focused(input as i32);
+
+    assert!(session.widget_paste("hi there"));
+    assert_eq!(session.widget_value(input).as_deref(), Some("hi there"));
+    // A second paste continues from the caret — insert, not replace.
+    assert!(session.widget_paste("!"));
+    assert_eq!(session.widget_value(input).as_deref(), Some("hi there!"));
+    // Nothing focused: the paste has no target.
+    session.set_focused(-1);
+    assert!(!session.widget_paste("lost"));
+}
+
+#[test]
 fn focus_survives_a_commit_by_data_path() {
     let (mut session, root) = session();
     session.commit(root, "<div data-path='keep'>row</div>");

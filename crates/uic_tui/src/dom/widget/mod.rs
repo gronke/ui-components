@@ -194,6 +194,35 @@ pub(crate) fn mount_widgets(doc: &mut DomDocument, root: NodeId) {
     }
 }
 
+/// Terminal paste text, normalized for a widget: CRLF and lone CR fold to
+/// `\n` (terminals send `\r` for line breaks inside bracketed paste), other
+/// control characters drop — a paste must not smuggle escape bytes into the
+/// frame — and a single-line target loses its line breaks entirely, the
+/// browser's own input-value sanitization.
+pub(crate) fn normalize_paste(text: &str, multiline: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        let c = match c {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                '\n'
+            }
+            c => c,
+        };
+        match c {
+            '\n' if multiline => out.push('\n'),
+            '\n' => {}
+            '\t' => out.push('\t'),
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// What an overlay did with an event, for the host to act on.
 pub enum OverlayOutcome {
     /// The overlay consumed the event.
@@ -311,7 +340,7 @@ pub trait WidgetAdapter {
 
 #[cfg(test)]
 mod tests {
-    use super::detect_kind;
+    use super::{detect_kind, normalize_paste};
     use crate::dom::DomDocument;
 
     fn detected(html: &str) -> Option<(String, (bool, bool))> {
@@ -373,6 +402,27 @@ mod tests {
         assert_eq!(detected(r#"<input tabindex="-1">"#), None);
         assert_eq!(detected(r#"<select tabindex="-1"></select>"#), None);
         assert_eq!(detected("<div></div>"), None);
+    }
+
+    #[test]
+    fn paste_text_folds_terminal_line_breaks() {
+        assert_eq!(
+            normalize_paste("one\r\ntwo\rthree\nfour", true),
+            "one\ntwo\nthree\nfour"
+        );
+    }
+
+    #[test]
+    fn a_single_line_paste_loses_its_line_breaks() {
+        assert_eq!(normalize_paste("one\r\ntwo\rthree", false), "onetwothree");
+    }
+
+    #[test]
+    fn control_characters_drop_but_tabs_survive() {
+        // The ESC byte drops (neutralizing the sequence); its printable
+        // remnant stays — pasted log text keeps its characters.
+        assert_eq!(normalize_paste("a\x1b[31mb\x07c\td", false), "a[31mbc\td");
+        assert_eq!(normalize_paste("a\u{7f}b", true), "ab");
     }
 
     #[test]

@@ -274,6 +274,23 @@ impl JsHost {
         Ok(prevented)
     }
 
+    /// Delivers a paste to the focused widget: one bulk insert through the
+    /// widget's own paste handling, then the single bubbling `input` a
+    /// browser paste fires — whose listeners read the full text through
+    /// `event.target.value`. Returns whether the text changed.
+    pub fn paste(&mut self, text: &str) -> Result<bool, Error> {
+        let Some(focused) = self.state.borrow().focused else {
+            return Ok(false);
+        };
+        let handle = self.state.borrow_mut().handle(focused);
+        let changed = self.state.borrow_mut().widget_paste(text).is_some();
+        if changed {
+            self.eval(&format!("__uicDeliver({handle}, 'input', {{}})"))?;
+        }
+        self.run_jobs()?;
+        Ok(changed)
+    }
+
     /// Delivers a bubbling click at the node — the pointer entry after a
     /// `uic_tui::dom::hit_test`.
     pub fn click(&mut self, node: NodeId) -> Result<(), Error> {

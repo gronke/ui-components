@@ -283,17 +283,40 @@ impl HostState {
     /// new live text when the key changed it; the host synthesizes the
     /// bubbling `input` event from that.
     pub fn widget_default_action(&mut self, stroke: &KeyStroke) -> Option<String> {
+        let event = Event::Key(stroke.to_crossterm()?);
+        self.feed_focused(&event)
+    }
+
+    /// The paste default action: the whole text into the focused widget as
+    /// one bulk insert at the caret (replacing the selection), through the
+    /// widget's own `Event::Paste` handling. The text normalizes per the
+    /// widget's line discipline; the host synthesizes the one bubbling
+    /// `input` a browser paste fires from the returned text.
+    pub fn widget_paste(&mut self, text: &str) -> Option<String> {
+        let node = self.focused?;
+        let multiline = self
+            .doc
+            .element(node)
+            .and_then(|el| el.data.widget.as_ref())
+            .is_some_and(|widget| widget.adapter.is_multiline());
+        let event = Event::Paste(widget::normalize_paste(text, multiline));
+        self.feed_focused(&event)
+    }
+
+    /// Feeds one terminal event into the focused widget and diffs the
+    /// committed text — the shared tail of the key and paste default
+    /// actions.
+    fn feed_focused(&mut self, event: &Event) -> Option<String> {
         let node = self.focused?;
         if self.doc.attribute(node, "disabled").is_some() {
             return None;
         }
-        let event = Event::Key(stroke.to_crossterm()?);
         let widget = self
             .doc
             .element_mut(node)
             .and_then(|el| el.data.widget.as_mut())?;
         let before = widget.adapter.committed_text();
-        widget.adapter.handle(true, &event);
+        widget.adapter.handle(true, event);
         let after = widget.adapter.committed_text();
         self.dirty = true;
         (after != before).then_some(after)
@@ -468,6 +491,55 @@ mod tests {
         let input = state.query(root, "input").unwrap()[0];
         state.set_focused_handle(Some(input));
         assert_eq!(state.widget_default_action(&KeyStroke::new("h")), None);
+        assert_eq!(state.widget_value(input), Some("".into()));
+    }
+
+    #[test]
+    fn a_paste_bulk_inserts_at_the_caret() {
+        let mut state = HostState::new();
+        let root = state.create_root("x-app", &[]);
+        state.commit(root, r#"<input data-path="f" value="">"#);
+        let input = state.query(root, "input").unwrap()[0];
+        state.set_focused_handle(Some(input));
+        typed(&mut state, "ab");
+        state.widget_default_action(&KeyStroke::new("ArrowLeft"));
+        // One event, whole text, at the caret — not a whole-value replace.
+        assert_eq!(state.widget_paste("XY"), Some("aXYb".into()));
+        // A second paste continues from the moved caret.
+        assert_eq!(state.widget_paste("Z"), Some("aXYZb".into()));
+    }
+
+    #[test]
+    fn a_single_line_paste_loses_its_line_breaks() {
+        let mut state = HostState::new();
+        let root = state.create_root("x-app", &[]);
+        state.commit(
+            root,
+            r#"<input data-path="f" value=""><textarea data-path="a"></textarea>"#,
+        );
+        let input = state.query(root, "input").unwrap()[0];
+        state.set_focused_handle(Some(input));
+        assert_eq!(
+            state.widget_paste("one\r\ntwo\rthree"),
+            Some("onetwothree".into())
+        );
+        // The textarea keeps the breaks, folded to \n.
+        let area = state.query(root, "textarea").unwrap()[0];
+        state.set_focused_handle(Some(area));
+        assert_eq!(
+            state.widget_paste("one\r\ntwo\rthree"),
+            Some("one\ntwo\nthree".into())
+        );
+    }
+
+    #[test]
+    fn a_disabled_input_swallows_no_paste() {
+        let mut state = HostState::new();
+        let root = state.create_root("x-app", &[]);
+        state.commit(root, r#"<input data-path="f" disabled value="">"#);
+        let input = state.query(root, "input").unwrap()[0];
+        state.set_focused_handle(Some(input));
+        assert_eq!(state.widget_paste("nope"), None);
         assert_eq!(state.widget_value(input), Some("".into()));
     }
 

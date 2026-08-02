@@ -112,6 +112,16 @@ impl Dialog {
             _ => DialogOutcome::Open,
         }
     }
+
+    /// Bulk text into a prompt's line — the paste twin of the printable
+    /// arm, with the single-line discipline applied; the other kinds
+    /// ignore it.
+    pub fn paste(&mut self, text: &str) {
+        if self.kind == DialogKind::Prompt {
+            self.input
+                .push_str(&crate::dom::widget::normalize_paste(text, false));
+        }
+    }
 }
 
 /// One printable character — the DOM key name of a text key.

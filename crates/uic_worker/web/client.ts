@@ -18,6 +18,7 @@ export type WorkerSession = {
     resize(cols: number, rows: number): string;
     set_theme(theme: string): string;
     key(key: string, ctrl: boolean, alt: boolean, shift: boolean): string;
+    paste(text: string): string;
     mouse(kind: string, col: number, row: number): string;
     blur(): string;
     take_quit(): boolean;
@@ -51,6 +52,10 @@ export function connectWorkerSession(options: {
         },
         key: (key, ctrl, alt, shift) => {
             worker.postMessage({ type: 'key', key, ctrl, alt, shift });
+            return '';
+        },
+        paste: (text) => {
+            worker.postMessage({ type: 'paste', text });
             return '';
         },
         mouse: (kind, col, row) => {

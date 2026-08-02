@@ -182,6 +182,19 @@ impl TuiSession {
         Ok(self.out.take())
     }
 
+    /// Feeds the pane's pasted text as one bracketed-paste event — one bulk
+    /// insert into the focused widget — and returns the ANSI the redraw
+    /// produced.
+    pub fn paste(&mut self, text: &str) -> Result<String, JsError> {
+        // Draw before dispatching, like the terminal event loop: widget
+        // state syncs during the paint.
+        self.app.draw().map_err(js_err)?;
+        let event = crossterm::event::Event::Paste(text.to_string());
+        self.app.handle_event(&event);
+        self.app.draw().map_err(js_err)?;
+        Ok(self.out.take())
+    }
+
     /// Feeds one DOM pointer gesture at a screen cell and returns the ANSI
     /// the redraw produced. Kinds: `down`, `up`, `drag`, `wheel-up`,
     /// `wheel-down`.

@@ -17,6 +17,7 @@ type InitMessage = {
 
 type InputMessage =
     | { type: 'key'; key: string; ctrl?: boolean; alt?: boolean; shift?: boolean }
+    | { type: 'paste'; text: string }
     | { type: 'mouse'; kind: string; col: number; row: number }
     | { type: 'resize'; cols: number; rows: number }
     | { type: 'theme'; theme: string };
@@ -113,6 +114,21 @@ async function input(message: InputMessage): Promise<void> {
                 ) {
                     (globalThis as any).__uicDeliver(focused, 'input', {});
                 }
+                await settled();
+            }
+            break;
+        }
+        case 'paste': {
+            const focused = session.focused();
+            // One bulk insert through the widget's paste handling, then the
+            // single `input` a browser paste fires. Capability-checked like
+            // the key path: a stale wasm glue skips it.
+            if (
+                focused >= 0 &&
+                typeof session.widget_paste === 'function' &&
+                session.widget_paste(message.text)
+            ) {
+                (globalThis as any).__uicDeliver(focused, 'input', {});
                 await settled();
             }
             break;

@@ -65,6 +65,12 @@ pub fn type_str(app: &mut App<TestBackend>, text: &str) {
     }
 }
 
+/// One bracketed paste, as the terminal delivers it.
+pub fn paste(app: &mut App<TestBackend>, text: &str) -> Control {
+    app.draw().expect("draw");
+    app.handle_event(&Event::Paste(text.to_string()))
+}
+
 pub fn mouse(app: &mut App<TestBackend>, kind: MouseEventKind, column: u16, row: u16) {
     app.draw().expect("draw");
     app.handle_event(&Event::Mouse(MouseEvent {

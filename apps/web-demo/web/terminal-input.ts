@@ -9,16 +9,34 @@ export function wireTerminalInput(options: {
 }): void {
   const { term, session, screen } = options;
 
+  // Paste chords stay with the browser: without preventDefault the native
+  // paste lands on xterm's textarea, whose own clipboard handler routes the
+  // text through term.onData below. Ctrl+V therefore means the OS clipboard
+  // here, not rat's in-process one.
+  const isPasteChord = (ev: KeyboardEvent) =>
+    ((ev.ctrlKey || ev.metaKey) && !ev.altKey && ev.key.toLowerCase() === 'v') ||
+    (ev.shiftKey && !ev.ctrlKey && !ev.altKey && ev.key === 'Insert');
+
   term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
     if (ev.type !== 'keydown') return false;
     // Shift+Tab walks the focus backward inside the pane (the keymap turns
     // it into BackTab); the browser keeps its function keys except the F4
     // picker.
     if (/^F\d+$/.test(ev.key) && ev.key !== 'F4') return false;
+    if (isPasteChord(ev)) return false;
     term.write(session.key(ev.key, ev.ctrlKey, ev.altKey, ev.shiftKey));
     if (session.take_quit()) term.blur();
     ev.preventDefault();
     return false;
+  });
+
+  // With every key preventDefault()ed above and no terminal modes enabled,
+  // onData only carries pastes (chords, context menu, middle click) and
+  // ESC-prefixed query auto-replies — never typed text. xterm folds the
+  // pasted line breaks to \r; the session normalizes them.
+  term.onData((data: string) => {
+    if (!data || data.includes('\u001b')) return;
+    if (typeof session.paste === 'function') term.write(session.paste(data));
   });
 
   // Pointer gestures skip terminal mouse protocols: pane pixels convert to

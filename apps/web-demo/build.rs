@@ -409,22 +409,26 @@ fn foreign_modules(package_root: &Path, dir: &Path, out: &mut Vec<String>) {
     }
 }
 
-/// The notify wiring of a tag, from the registry: every notifying property
-/// with a JSON-faithful scalar type contributes its event and JS property
-/// name. Rich types stay out — a Zoned crossing JSON arrives as a plain
-/// string, not a Temporal instance, and the scalar `value` twin already
-/// carries the same information.
-fn notify_pairs(tag: &str) -> Vec<serde_json::Value> {
+/// The notify wiring of a tag, from the registry — the page registers its
+/// `on_notify` callbacks from exactly this list. The per-property pane sync
+/// carries JSON-faithful scalars only: rich types stay out, since a Zoned
+/// crossing JSON arrives as a plain string, not a Temporal instance, and
+/// the scalar `value` twin already carries the same information. A channel
+/// example consumes whole-state snapshots instead, so its rich-typed notify
+/// (the form's `state` object) must register regardless — filtering it away
+/// would sever the TUI→page direction entirely.
+fn notify_pairs(tag: &str, channel: bool) -> Vec<serde_json::Value> {
     use uic_core::JsType;
     let def = uic_core::CustomElementRegistry::get(tag)
         .unwrap_or_else(|| panic!("{tag} is not a registered component"));
     def.properties
         .iter()
         .filter(|property| {
-            matches!(
-                property.js_type,
-                JsType::String | JsType::Number | JsType::Boolean
-            )
+            channel
+                || matches!(
+                    property.js_type,
+                    JsType::String | JsType::Number | JsType::Boolean
+                )
         })
         .filter_map(|property| {
             property.notify_event_name().map(|event| {
@@ -453,7 +457,7 @@ fn config_json(example: &Example) -> String {
         "attrs": attrs,
         "props": props,
         "optionProps": option_props,
-        "notify": notify_pairs(example.tag),
+        "notify": notify_pairs(example.tag, example.channel.is_some()),
         "cols": example.cols,
         "rows": example.rows,
         "channel": example.channel,

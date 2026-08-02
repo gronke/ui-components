@@ -150,14 +150,24 @@ fn app_key(stroke: KeyStroke) -> Option<KeyStroke> {
     })
 }
 
-/// Brackets the run with terminal setup and restore.
+/// Brackets the run with terminal setup and restore. Bracketed paste makes
+/// a paste arrive as one `Event::Paste` instead of a key hail — one bulk
+/// insert, one render.
 pub(crate) fn with_terminal(
     run: impl FnOnce(&mut Terminal) -> Result<(), Box<dyn std::error::Error>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = ratatui::try_init()?;
-    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+    crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::EnableMouseCapture,
+        crossterm::event::EnableBracketedPaste
+    )?;
     let result = run(&mut terminal);
-    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        crossterm::event::DisableBracketedPaste,
+        crossterm::event::DisableMouseCapture
+    );
     ratatui::try_restore()?;
     result
 }
@@ -411,123 +421,143 @@ pub(crate) fn run(
     let mut dialog: Option<ActiveDialog> = None;
     draw(host, terminal, status, qr, None)?;
     loop {
-        let changed = match next_input(bridge.as_deref_mut())? {
-            // The idle tick is where the clipboard watch reads: a matching
-            // credential continues the step, a different one mid-pairing
-            // asks first. Only while the pairing screen shows.
-            Input::Idle => match panel.as_mut() {
-                Some(driver) => {
-                    clipboard_tick(host, driver, &last_panel, &mut last_peer, &mut dialog)
+        // Coalesce a buffered burst — an unbracketed paste's key hail,
+        // held-key autorepeat — into one publish/command/draw tail: handle
+        // everything already queued, then run the tail once.
+        let mut input = next_input(bridge.as_deref_mut())?;
+        let mut changed = false;
+        loop {
+            changed |= match input {
+                // The idle tick is where the clipboard watch reads: a matching
+                // credential continues the step, a different one mid-pairing
+                // asks first. Only while the pairing screen shows.
+                Input::Idle => match panel.as_mut() {
+                    Some(driver) => {
+                        clipboard_tick(host, driver, &last_panel, &mut last_peer, &mut dialog)
+                    }
+                    None => false,
+                },
+                Input::Web(state) => {
+                    apply_state(host, node, &state)?;
+                    true
                 }
-                None => false,
-            },
-            Input::Web(state) => {
-                apply_state(host, node, &state)?;
-                true
-            }
-            // A dialog owns the keyboard first — before is_quit, or Escape
-            // would quit the app instead of closing the box. Ctrl+C still
-            // hard-quits; ^D and the page never see these keys.
-            Input::Terminal(Event::Key(key)) if dialog.is_some() => {
-                match KeyStroke::from_crossterm(&key) {
-                    Some(stroke) if stroke.ctrl && stroke.key == "c" => return Ok(()),
-                    Some(stroke) => {
-                        use uic_tui::dialog::DialogOutcome;
-                        let active = dialog.as_mut().expect("a shown dialog");
-                        match active.dialog.key(&stroke) {
-                            DialogOutcome::Open => {}
-                            outcome => {
-                                let ok = outcome == DialogOutcome::Ok;
-                                let ActiveDialog {
-                                    dialog: box_,
-                                    source,
-                                    ..
-                                } = dialog.take().expect("a shown dialog");
-                                match source {
-                                    DialogSource::Js(id) => {
-                                        host.answer_dialog(id, &dialog_answer(&box_, ok))?;
-                                    }
-                                    // The conflict prompt: accepting dials the
-                                    // credential that arrived mid-pairing.
-                                    DialogSource::Host(HostIntent::AcceptPeer(text)) => {
-                                        if ok {
-                                            if let Some(panel) = panel.as_ref() {
-                                                let _ = panel
-                                                    .commands
-                                                    .send(Command::Connect(text.clone()));
+                // A dialog owns the keyboard first — before is_quit, or Escape
+                // would quit the app instead of closing the box. Ctrl+C still
+                // hard-quits; ^D and the page never see these keys.
+                Input::Terminal(Event::Key(key)) if dialog.is_some() => {
+                    match KeyStroke::from_crossterm(&key) {
+                        Some(stroke) if stroke.ctrl && stroke.key == "c" => return Ok(()),
+                        Some(stroke) => {
+                            use uic_tui::dialog::DialogOutcome;
+                            let active = dialog.as_mut().expect("a shown dialog");
+                            match active.dialog.key(&stroke) {
+                                DialogOutcome::Open => {}
+                                outcome => {
+                                    let ok = outcome == DialogOutcome::Ok;
+                                    let ActiveDialog {
+                                        dialog: box_,
+                                        source,
+                                        ..
+                                    } = dialog.take().expect("a shown dialog");
+                                    match source {
+                                        DialogSource::Js(id) => {
+                                            host.answer_dialog(id, &dialog_answer(&box_, ok))?;
+                                        }
+                                        // The conflict prompt: accepting dials the
+                                        // credential that arrived mid-pairing.
+                                        DialogSource::Host(HostIntent::AcceptPeer(text)) => {
+                                            if ok {
+                                                if let Some(panel) = panel.as_ref() {
+                                                    let _ = panel
+                                                        .commands
+                                                        .send(Command::Connect(text.clone()));
+                                                }
+                                                last_peer =
+                                                    Some(uic_sync::pair::link_payload(&text));
                                             }
-                                            last_peer = Some(uic_sync::pair::link_payload(&text));
                                         }
                                     }
                                 }
                             }
+                            true
                         }
-                        true
+                        None => false,
                     }
-                    None => false,
                 }
-            }
-            Input::Terminal(Event::Key(key)) => match KeyStroke::from_crossterm(&key) {
-                Some(stroke) if stroke.is_quit() => return Ok(()),
-                // ^D disconnects app-globally: control chords never reach
-                // the focused widget, so typing cannot collide with it. The
-                // session answers with a close and a fresh invite — the
-                // pairing screen comes back on the mode mirror below.
-                Some(stroke) if stroke.ctrl && stroke.key == "d" && panel.is_some() => {
-                    if let Some(panel) = panel.as_ref() {
-                        let _ = panel.commands.send(Command::Renew);
+                Input::Terminal(Event::Key(key)) => match KeyStroke::from_crossterm(&key) {
+                    Some(stroke) if stroke.is_quit() => return Ok(()),
+                    // ^D disconnects app-globally: control chords never reach
+                    // the focused widget, so typing cannot collide with it. The
+                    // session answers with a close and a fresh invite — the
+                    // pairing screen comes back on the mode mirror below.
+                    Some(stroke) if stroke.ctrl && stroke.key == "d" && panel.is_some() => {
+                        if let Some(panel) = panel.as_ref() {
+                            let _ = panel.commands.send(Command::Renew);
+                        }
+                        false
                     }
-                    false
-                }
-                Some(stroke) => match app_key(stroke) {
-                    Some(stroke) => {
-                        host.dispatch(&stroke)?;
-                        true
-                    }
+                    Some(stroke) => match app_key(stroke) {
+                        Some(stroke) => {
+                            host.dispatch(&stroke)?;
+                            true
+                        }
+                        None => false,
+                    },
                     None => false,
                 },
-                None => false,
-            },
-            // A dialog swallows clicks — it is keyboard-driven; nothing
-            // beneath it takes the pointer.
-            Input::Terminal(Event::Mouse(_)) if dialog.is_some() => false,
-            Input::Terminal(Event::Mouse(MouseEvent {
-                kind: MouseEventKind::Down(MouseButton::Left),
-                column,
-                row,
-                ..
-            })) => {
-                let target = {
-                    let state = host.state.borrow();
-                    let area = app_area(terminal.get_frame().area(), qr);
-                    uic_tui::dom::hit_test(&state.doc, area, column, row)
-                };
-                if let Some(target) = target {
-                    host.click_at(target, column, row)?;
-                    let doubled = last_click.is_some_and(|(col, row_at, at)| {
-                        col == column && row_at == row && at.elapsed() < DOUBLE_CLICK
-                    });
-                    if doubled {
-                        // The click's re-render may have swapped the node;
-                        // resolve the cell fresh, like the click itself did.
-                        let fresh = {
-                            let state = host.state.borrow();
-                            let area = app_area(terminal.get_frame().area(), qr);
-                            uic_tui::dom::hit_test(&state.doc, area, column, row)
-                        };
-                        if let Some(fresh) = fresh {
-                            host.dblclick(fresh)?;
+                // A dialog swallows clicks — it is keyboard-driven; nothing
+                // beneath it takes the pointer.
+                Input::Terminal(Event::Mouse(_)) if dialog.is_some() => false,
+                Input::Terminal(Event::Mouse(MouseEvent {
+                    kind: MouseEventKind::Down(MouseButton::Left),
+                    column,
+                    row,
+                    ..
+                })) => {
+                    let target = {
+                        let state = host.state.borrow();
+                        let area = app_area(terminal.get_frame().area(), qr);
+                        uic_tui::dom::hit_test(&state.doc, area, column, row)
+                    };
+                    if let Some(target) = target {
+                        host.click_at(target, column, row)?;
+                        let doubled = last_click.is_some_and(|(col, row_at, at)| {
+                            col == column && row_at == row && at.elapsed() < DOUBLE_CLICK
+                        });
+                        if doubled {
+                            // The click's re-render may have swapped the node;
+                            // resolve the cell fresh, like the click itself did.
+                            let fresh = {
+                                let state = host.state.borrow();
+                                let area = app_area(terminal.get_frame().area(), qr);
+                                uic_tui::dom::hit_test(&state.doc, area, column, row)
+                            };
+                            if let Some(fresh) = fresh {
+                                host.dblclick(fresh)?;
+                            }
+                            last_click = None;
+                        } else {
+                            last_click = Some((column, row, std::time::Instant::now()));
                         }
-                        last_click = None;
-                    } else {
-                        last_click = Some((column, row, std::time::Instant::now()));
                     }
+                    target.is_some()
                 }
-                target.is_some()
+                Input::Terminal(Event::Resize(..)) => true,
+                // A paste while a prompt shows belongs to its input line.
+                Input::Terminal(Event::Paste(text)) if dialog.is_some() => {
+                    dialog.as_mut().expect("a shown dialog").dialog.paste(&text);
+                    true
+                }
+                // One bulk insert into the focused widget and one `input`
+                // event — a pasted pairing token lands whole, in one render.
+                Input::Terminal(Event::Paste(text)) => host.paste(&text)?,
+                Input::Terminal(_) => false,
+            };
+            if !crossterm::event::poll(Duration::ZERO)? {
+                break;
             }
-            Input::Terminal(Event::Resize(..)) => true,
-            Input::Terminal(_) => false,
-        };
+            input = Input::Terminal(crossterm::event::read()?);
+        }
         if changed {
             if let Some(bridge) = bridge.as_deref_mut() {
                 publish(host, node, bridge)?;
@@ -911,6 +941,46 @@ mod tests {
             host.dispatch_key(key).unwrap();
         }
         assert_eq!(host.prop_json(driver.node, "peer").unwrap(), "\"abc\"");
+    }
+
+    #[test]
+    fn a_pasted_credential_lands_whole_in_the_reply_box() {
+        let (mut host, nodes) = deck_host();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let state = Arc::new(Mutex::new(PanelState::default()));
+        let endpoints = Arc::new(Mutex::new(None));
+        let driver = PanelDriver {
+            node: nodes.panel,
+            qr: nodes.qr,
+            navbar: nodes.navbar,
+            bar: nodes.bar,
+            todo_pane: nodes.todo_pane,
+            pairing_pane: nodes.pairing_pane,
+            state: &state,
+            commands: &tx,
+            endpoints: &endpoints,
+            lan: "192.0.2.1".into(),
+            clipboard: crate::clipboard::ClipboardWatch::default(),
+        };
+        let invite = PanelState {
+            mode: PanelMode::Invite,
+            link: "https://host/p2p/#abc".into(),
+            status: "share the invite".into(),
+            connected: None,
+            reset_label: "start over".into(),
+            step: Step::Init,
+        };
+        apply_panel(&invite, &mut host, driver.node).unwrap();
+        apply_screen(&mut host, &driver, nodes.todo, invite.mode).unwrap();
+
+        // One paste, one input event — the whole credential in one render,
+        // not a keystroke hail.
+        let link = "https://host/p2p/#dWljMVBhc3RlZFRva2Vu";
+        assert!(host.paste(link).unwrap());
+        assert_eq!(
+            host.prop_json(driver.node, "peer").unwrap(),
+            format!("{link:?}")
+        );
     }
 
     #[test]
