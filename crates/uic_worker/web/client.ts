@@ -1,7 +1,7 @@
 // The page-side client of the worker host: a session facade over
 // postMessage whose surface matches the wasm sessions', so the same pane
 // scaffolding drives a worker-hosted terminal. Methods return empty
-// strings — frames arrive pushed through `onAnsi`.
+// strings; frames arrive pushed through `onAnsi`.
 
 export type WorkerInit = {
     cols: number;

@@ -7,7 +7,7 @@
 //! ```
 //!
 //! Arrows/Home/End navigate, ArrowRight/Left expand and collapse, a click
-//! toggles — all handled by the component's own LitElement code. Esc quits.
+//! toggles, all handled by the component's own LitElement code. Esc quits.
 
 use std::path::Path;
 use std::time::Instant;

@@ -15,7 +15,7 @@ pub fn translate_mouse(kind: &str) -> Option<MouseEventKind> {
 }
 
 /// Translates a DOM `KeyboardEvent` (its `key`, `ctrlKey`, `altKey`,
-/// `shiftKey`) into the terminal key event the runtime understands —
+/// `shiftKey`) into the terminal key event the runtime understands,
 /// the shared vocabulary of `uic_tui::keys`. Returns `None` for keys a
 /// terminal has no notion of, like bare modifiers.
 pub fn translate_key(key: &str, ctrl: bool, alt: bool, shift: bool) -> Option<KeyEvent> {

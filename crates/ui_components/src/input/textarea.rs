@@ -1,8 +1,8 @@
-//! `<input-textarea>` — multi-line text input with CSS-driven auto-grow
+//! `<input-textarea>`: multi-line text input with CSS-driven auto-grow
 //! (`field-sizing: content` up to `max-lines`), in the shared input chrome.
 //!
 //! The commit behavior matches `<input-text>` (trim; empty becomes null with
-//! `allow-null`); the trim logic is duplicated rather than inherited — the
+//! `allow-null`); the trim logic is duplicated rather than inherited: the
 //! component model is flat, unlike the catalog's mixin chain.
 //! In the terminal, Enter inserts a newline and Tab (focus leave) commits,
 //! matching the browser's `@change`-on-blur.
@@ -35,7 +35,7 @@ pub struct InputTextarea {
 }
 
 impl InputTextareaLogic for InputTextarea {
-    /// Mirrored for the browser in `textarea.impl.ts` — keep both in sync.
+    /// Mirrored for the browser in `textarea.impl.ts`; keep both in sync.
     fn on_change(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         let raw = event.target_value.as_deref().unwrap_or("");
         let trimmed = raw.trim();

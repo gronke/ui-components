@@ -57,7 +57,7 @@ fn a_paste_bulk_inserts_into_the_focused_widget() {
 
     assert!(session.widget_paste("hi there"));
     assert_eq!(session.widget_value(input).as_deref(), Some("hi there"));
-    // A second paste continues from the caret — insert, not replace.
+    // A second paste continues from the caret: insert, not replace.
     assert!(session.widget_paste("!"));
     assert_eq!(session.widget_value(input).as_deref(), Some("hi there!"));
     // Nothing focused: the paste has no target.

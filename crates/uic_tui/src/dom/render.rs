@@ -1,8 +1,8 @@
 //! Painting from the retained DOM: walks the laid document onto the ratatui
 //! frame, mapping the small set of Bootstrap text classes to terminal styles
 //! and hosting the rat widgets living in the node payloads. State the old
-//! pipeline resolved from expressions per frame — placeholders, disabled,
-//! the error outline — reads straight off attributes here, the way
+//! pipeline resolved from expressions per frame (placeholders, disabled,
+//! the error outline) reads straight off attributes here, the way
 //! stylesheet selectors read them in the browser.
 
 use ratatui::layout::{Alignment, Rect};
@@ -53,8 +53,8 @@ fn paint(
     }
     let node = match &laid.kind {
         LaidKind::Text { text, .. } => {
-            // The layout prepared the string — run-boundary spaces decided,
-            // interior whitespace collapsed — so the paint renders it
+            // The layout prepared the string (run-boundary spaces decided,
+            // interior whitespace collapsed), so the paint renders it
             // verbatim, wrapped like the browser flows prose (`trim: false`
             // keeps prepared boundary and non-breaking spaces).
             let (style, center) = css::text_style(inherited);
@@ -78,7 +78,7 @@ fn paint(
             return;
         }
         LaidKind::Generated { owner, which, text } => {
-            // Generated content paints from the owner's pseudo style — the
+            // Generated content paints from the owner's pseudo style: the
             // cascade resolved color/emphasis against the owner's inherited
             // values (json-viewer's `color: inherit` marker).
             let pseudo = styles.get(owner).and_then(|e| match which {
@@ -104,7 +104,7 @@ fn paint(
             .map(|e| e.style.clone())
             .unwrap_or_else(|| inherited.inherited());
         if computed.background != inherited.background {
-            // An element's own background fills its box — a component's
+            // An element's own background fills its box: a component's
             // `:host { background-color }` paints the whole component
             // area, not just its text runs. `Highlight` stays a
             // text-run effect (the mark).
@@ -120,8 +120,8 @@ fn paint(
             // The cascade reserves the cells; the ring colors stay the
             // runtime's: error wins over focus on the input group, like
             // the browser keeping the red outline on a focused invalid
-            // input — read off the component's reflected attribute, its
-            // `[error]` stylesheet selector. Other bordered blocks (the
+            // input (read off the component's reflected attribute, its
+            // `[error]` stylesheet selector). Other bordered blocks (the
             // card) stay static dark gray (ADR 0017).
             let classes = effective_classes(doc, node);
             let border = if classes.iter().any(|c| c == "input-group") {
@@ -194,7 +194,7 @@ fn paint_widget(
     let dim = disabled.then(|| Style::new().dim());
     widget.adapter.paint(frame, rect, dim);
     // rat has no notion of placeholders or text alignment; both are paint
-    // features. The alignment applies at rest — editing stays left-aligned,
+    // features. The alignment applies at rest; editing stays left-aligned,
     // where the caret math lives. Widgets painting their own value text
     // (the select's closed label) skip this pass.
     if !widget.adapter.paints_value() {

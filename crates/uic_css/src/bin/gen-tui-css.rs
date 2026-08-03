@@ -1,7 +1,7 @@
 //! Generates `bootstrap-tui.gen.css` by filtering the real compiled
 //! Bootstrap (vendored by build.rs) through the dialect: only rules whose
 //! selectors parse and whose declarations name supported properties
-//! survive, values staying in Bootstrap's own units — the engine's cell
+//! survive, values staying in Bootstrap's own units; the engine's cell
 //! conversion does the math at computed-value time.
 //!
 //! ```sh
@@ -24,7 +24,7 @@ fn main() {
     let (sheet, report) = parse_stylesheet(&source);
 
     // The utility filter: the terminal adopts Bootstrap's utility layer, not
-    // its element reboot — bare-element base rules stay ua.css territory.
+    // its element reboot; bare-element base rules stay ua.css territory.
     // A selector survives when its subject compound carries a class or an
     // attribute (or is :root, the custom-property carrier).
     let mut kept_rules = 0usize;
@@ -96,7 +96,7 @@ fn main() {
 
 fn keep_selector(selector: &Selector<TuiSelectors>) -> bool {
     // `iter()` walks the subject (rightmost) compound up to the first
-    // combinator — exactly the utility test's scope.
+    // combinator, exactly the utility test's scope.
     selector.iter().any(|component| {
         matches!(
             component,

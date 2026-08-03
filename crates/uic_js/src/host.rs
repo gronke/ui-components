@@ -1,5 +1,5 @@
 //! The embedded engine: one Boa context, the module loader, and the entry
-//! points the demos and tests drive — mount, property writes, key and click
+//! points the demos and tests drive: mount, property writes, key and click
 //! delivery, focus.
 
 use std::cell::RefCell;
@@ -71,8 +71,8 @@ impl JsHost {
         self.loader.insert(specifier, source);
     }
 
-    /// Registers every `.js` module of a vendored dist tree — subdirectories
-    /// included, each under its dist-root-relative path — and loads the
+    /// Registers every `.js` module of a vendored dist tree (subdirectories
+    /// included, each under its dist-root-relative path) and loads the
     /// entry (itself possibly a subpath): the byte-unmodified npm package
     /// enters the engine here.
     pub fn load_dist_dir(&mut self, dir: &std::path::Path, entry: &str) -> Result<(), Error> {
@@ -111,7 +111,7 @@ impl JsHost {
 
     /// Loads a vendored npm package by name: the ESM entry derives from its
     /// own manifest (`exports` "." → `module` → `main`), the package tree
-    /// registers path-preserving, and the entry evaluates — any lit element
+    /// registers path-preserving, and the entry evaluates; any lit element
     /// enters the engine here, no per-package knowledge required.
     pub fn load_package(
         &mut self,
@@ -177,7 +177,7 @@ impl JsHost {
         Ok(())
     }
 
-    /// Reads a component property through the mocked accessor as JSON text —
+    /// Reads a component property through the mocked accessor as JSON text,
     /// the outbound mirror of [`set_prop`](Self::set_prop).
     pub fn prop_json(&mut self, node: NodeId, name: &str) -> Result<String, Error> {
         let handle = self.state.borrow_mut().handle(node);
@@ -197,27 +197,27 @@ impl JsHost {
 
     /// Installs the clipboard backend `navigator.clipboard` reads and the
     /// host's own [`clipboard_read`](Self::clipboard_read) shares. Callable
-    /// any time before the first read — the natives register regardless.
+    /// any time before the first read; the natives register regardless.
     #[cfg(feature = "clipboard")]
     pub fn install_clipboard(&self, backend: std::rc::Rc<dyn crate::clipboard::ClipboardBackend>) {
         crate::clipboard::install(backend);
     }
 
-    /// The installed clipboard's text (the loop's auto-continue reads it) —
+    /// The installed clipboard's text (the loop's auto-continue reads it);
     /// `None` with no backend or an empty clipboard.
     #[cfg(feature = "clipboard")]
     pub fn clipboard_read(&self) -> Option<String> {
         crate::clipboard::read()
     }
 
-    /// One queued dialog question, oldest first — the runtime's
+    /// One queued dialog question, oldest first; the runtime's
     /// alert/confirm/prompt land here for the host to present.
     #[cfg(feature = "dialogs")]
     pub fn take_dialog_request(&mut self) -> Option<crate::dialogs::DialogRequest> {
         crate::dialogs::take()
     }
 
-    /// Answers a dialog: resolves its promise (a JSON value — alert `null`,
+    /// Answers a dialog: resolves its promise (a JSON value; alert `null`,
     /// confirm `true`/`false`, prompt a string or `null`) and drains the
     /// jobs so the awaiting component continues; a bare eval would leave
     /// the continuation parked on the microtask queue.
@@ -239,7 +239,7 @@ impl JsHost {
         self.dispatch(&stroke)
     }
 
-    /// Delivers a keydown in the shared vocabulary (`uic_tui::keys`) —
+    /// Delivers a keydown in the shared vocabulary (`uic_tui::keys`);
     /// every modifier flag reaches the runtime's event. An uncancelled
     /// keydown then runs the focused widget as the browser's editing
     /// default action; a text change synthesizes the bubbling `input`,
@@ -276,7 +276,7 @@ impl JsHost {
 
     /// Delivers a paste to the focused widget: one bulk insert through the
     /// widget's own paste handling, then the single bubbling `input` a
-    /// browser paste fires — whose listeners read the full text through
+    /// browser paste fires, whose listeners read the full text through
     /// `event.target.value`. Returns whether the text changed.
     pub fn paste(&mut self, text: &str) -> Result<bool, Error> {
         let Some(focused) = self.state.borrow().focused else {
@@ -291,7 +291,7 @@ impl JsHost {
         Ok(changed)
     }
 
-    /// Delivers a bubbling click at the node — the pointer entry after a
+    /// Delivers a bubbling click at the node: the pointer entry after a
     /// `uic_tui::dom::hit_test`.
     pub fn click(&mut self, node: NodeId) -> Result<(), Error> {
         let handle = self.state.borrow_mut().handle(node);
@@ -300,8 +300,8 @@ impl JsHost {
     }
 
     /// The pointer entry with the cell it landed on: a widget node takes
-    /// focus first and the caret drops under the pointer — the browser's
-    /// click-into-an-input semantics — then the bubbling click delivers.
+    /// focus first and the caret drops under the pointer (the browser's
+    /// click-into-an-input semantics), then the bubbling click delivers.
     pub fn click_at(&mut self, node: NodeId, column: u16, row: u16) -> Result<(), Error> {
         let (handle, widgeted) = {
             let mut state = self.state.borrow_mut();
@@ -316,7 +316,7 @@ impl JsHost {
         self.run_jobs()
     }
 
-    /// Delivers a bubbling double click — hosts with a clock synthesize it
+    /// Delivers a bubbling double click; hosts with a clock synthesize it
     /// after two quick clicks on one node, the browser's own order.
     pub fn dblclick(&mut self, node: NodeId) -> Result<(), Error> {
         let handle = self.state.borrow_mut().handle(node);
@@ -328,7 +328,7 @@ impl JsHost {
         Ok(self.context.eval(Source::from_bytes(source.as_bytes()))?)
     }
 
-    /// Drains the microtask queue — lit schedules updates on it.
+    /// Drains the microtask queue; lit schedules updates on it.
     pub fn run_jobs(&mut self) -> Result<(), Error> {
         self.context.run_jobs()?;
         Ok(())
@@ -336,7 +336,7 @@ impl JsHost {
 }
 
 /// The package's ESM entry per its manifest: `exports` "." (conditions
-/// `import`/`module`/`default`, nested), then `module`, then `main` —
+/// `import`/`module`/`default`, nested), then `module`, then `main`,
 /// normalized without the leading `./`.
 fn package_entry(manifest: &str) -> Option<String> {
     fn export_target(value: &serde_json::Value) -> Option<String> {

@@ -4,7 +4,7 @@
 //! This is lit-html's architecture ported: templates go through a real HTML5
 //! parser, and the binding dialect (`?attr`, `.prop`, `@event`, `${hole}`)
 //! rides through as ordinary attributes and text. Attribute names lowercase
-//! on the way, per spec — the parts compiler recovers case from the template
+//! on the way, per spec; the parts compiler recovers case from the template
 //! source by index, exactly like lit. Malformed input never fails; the
 //! diagnostics collect on [`Document::parse_errors`].
 
@@ -183,7 +183,7 @@ impl<T: Default> Document<T> {
     /// scaffolding; the parsed roots become [`Document::root`]'s children.
     ///
     /// `context` names the element the fragment algorithm assumes around the
-    /// input — usually `"body"`; `"template"` parses template internals.
+    /// input, usually `"body"`; `"template"` parses template internals.
     pub fn parse_fragment(source: &str, context: &str) -> Self {
         let mut doc = Document::new();
         let context_elem = doc.new_element_node(

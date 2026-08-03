@@ -1,12 +1,12 @@
 // The one wire seam (ADR 0013): string payloads over whatever carries them.
-// Demo-grade by design — a dead wire stays dead (no reconnect), one
+// Demo-grade by design: a dead wire stays dead (no reconnect), one
 // listener per event, sends before open drop silently.
 
 export interface Wire {
     send(text: string): void;
     onMessage(callback: (text: string) => void): void;
     onOpen(callback: () => void): void;
-    /** Fires once when the wire goes away — the far side closed, the
+    /** Fires once when the wire goes away: the far side closed, the
      * transport tore down, or close() was called here. */
     onClose(callback: () => void): void;
     close(): void;

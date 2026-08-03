@@ -1,4 +1,4 @@
-//! Single-line text editing — serves `text-input` AND `number-input`: the
+//! Single-line text editing; serves `text-input` AND `number-input`: the
 //! number's parsing and comma-decimal formatting are the component's job,
 //! so the terminal side is one adapter.
 

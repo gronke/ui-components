@@ -1,7 +1,7 @@
 // The connected screen's chrome, shared by both hosts: brand, the
 // connection badge, the address the wire stands on, and the disconnect
 // control that returns to the pairing screen. Presentation only, the
-// pair-panel mold — properties in, intent out through the polled `command`
+// pair-panel mold: properties in, intent out through the polled `command`
 // property (plus the guarded CustomEvent where the platform has events).
 // justify-content never reaches the terminal's layout, so the right edge
 // rides a flex-grow spacer instead.
@@ -55,8 +55,8 @@ export class StatusNavbar extends LitElement {
         return this;
     }
 
-    // The pair-panel seam: a click writes the polled property, and — where
-    // the platform has events — dispatches the same intent so a browser
+    // The pair-panel seam: a click writes the polled property, and (where
+    // the platform has events) dispatches the same intent so a browser
     // controller can just listen.
     private emit(command: string): void {
         this.command = command;

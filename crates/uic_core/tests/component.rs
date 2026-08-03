@@ -117,7 +117,7 @@ fn zoned_property_is_property_only_and_notifies_by_js_name() {
     assert_eq!(events[0].value, Value::Zoned(zoned));
 }
 
-/// An object-map property — the state shape (ADR 0013).
+/// An object-map property: the state shape (ADR 0013).
 #[derive(CustomElement, Default)]
 #[custom_element(tag = "test-state", template = "<p>ok</p>")]
 struct TestState {

@@ -30,7 +30,7 @@ fn js_err(err: impl std::fmt::Display) -> JsError {
 }
 
 /// Anchors this crate's object so a consumer cdylib keeps the `TuiSession`
-/// wasm-bindgen export (and the inventory ceremony) through the linker — the
+/// wasm-bindgen export (and the inventory ceremony) through the linker; the
 /// demo's wasm entry calls it beside the catalog's own `link`.
 #[inline(never)]
 pub fn link() {}
@@ -52,7 +52,7 @@ impl TuiSession {
     #[wasm_bindgen(constructor)]
     pub fn new(cols: u16, rows: u16) -> Result<TuiSession, JsError> {
         // Run the inventory constructors and install the panic hook once. The
-        // catalog is the consumer's to link — this host is catalog-agnostic,
+        // catalog is the consumer's to link; this host is catalog-agnostic,
         // and the demo's wasm entry (apps/web-demo-tui) anchors ui_components
         // so `__wasm_call_ctors` finds its registrations.
         LINK.call_once(|| {
@@ -96,14 +96,14 @@ impl TuiSession {
     }
 
     /// Replays an option list property as JSON rows of
-    /// `{value, short?, label?}` — options are their own data type, distinct
+    /// `{value, short?, label?}`; options are their own data type, distinct
     /// from a plain array (ADR 0005): a host mounting a bare `<input-select>`
     /// feeds the rows through here so they land as `Value::Options`.
     pub fn set_options_json(&mut self, index: u32, json: &str) -> Result<(), JsError> {
         self.set_option_rows_json(index, "options", json)
     }
 
-    /// The same replay for any option-rows property by name — a suggestion
+    /// The same replay for any option-rows property by name: a suggestion
     /// input's `suggestions`, or whatever a component declares as options.
     pub fn set_option_rows_json(
         &mut self,
@@ -118,7 +118,7 @@ impl TuiSession {
 
     /// Calls back with one JSON argument per notify event:
     /// `{"type", "property", "value", "oldValue"}`. The callback must only
-    /// hand the data on — calling back into the session would trip the
+    /// hand the data on; calling back into the session would trip the
     /// wasm-bindgen borrow guard.
     pub fn on_notify(&mut self, index: u32, event: &str, callback: js_sys::Function) {
         self.app.on(index as usize, event, move |notify| {
@@ -182,8 +182,8 @@ impl TuiSession {
         Ok(self.out.take())
     }
 
-    /// Feeds the pane's pasted text as one bracketed-paste event — one bulk
-    /// insert into the focused widget — and returns the ANSI the redraw
+    /// Feeds the pane's pasted text as one bracketed-paste event (one bulk
+    /// insert into the focused widget) and returns the ANSI the redraw
     /// produced.
     pub fn paste(&mut self, text: &str) -> Result<String, JsError> {
         // Draw before dispatching, like the terminal event loop: widget
@@ -228,14 +228,14 @@ impl TuiSession {
         std::mem::take(&mut self.quit)
     }
 
-    /// The screen as plain text rows — the assertion hook for tests.
+    /// The screen as plain text rows: the assertion hook for tests.
     pub fn screen_text(&self) -> String {
         self.app.terminal().backend().screen_text()
     }
 }
 
 /// Parses JSON rows of `{value, short?, label?}` into option data
-/// (ADR 0005) — the wire format of [`TuiSession::set_options_json`].
+/// (ADR 0005), the wire format of [`TuiSession::set_options_json`].
 pub fn options_from_json(json: &str) -> Result<Vec<SelectOption>, serde_json::Error> {
     #[derive(serde::Deserialize)]
     struct Row {

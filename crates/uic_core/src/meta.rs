@@ -15,22 +15,22 @@ pub enum JsType {
     String,
     Number,
     Boolean,
-    /// `Temporal.ZonedDateTime | null` — object-valued, property-only
+    /// `Temporal.ZonedDateTime | null`: object-valued, property-only
     /// (no attribute, no reflection); Rust side is `Option<Zoned>`.
     Zoned,
-    /// `SelectOption[]` — object-valued, property-only; Rust side is
+    /// `SelectOption[]`: object-valued, property-only; Rust side is
     /// `Vec<SelectOption>` and starts empty (ADR 0005).
     Options,
-    /// `Record<string, unknown>` — object-valued, property-only; Rust side
+    /// `Record<string, unknown>`: object-valued, property-only; Rust side
     /// is `ObjectMap` and starts empty (ADR 0013).
     Object,
-    /// `unknown[]` — object-valued, property-only; Rust side is `Vec<Value>`
+    /// `unknown[]`: object-valued, property-only; Rust side is `Vec<Value>`
     /// and starts empty, the carrier of iterated rows (ADR 0001).
     Array,
 }
 
 impl JsType {
-    /// The TypeScript type of the JS-facing field — the one source for the
+    /// The TypeScript type of the JS-facing field: the one source for the
     /// generated class and the manifest.
     pub fn ts_type(&self) -> &'static str {
         match self {
@@ -94,7 +94,7 @@ impl DefaultValue {
         }
     }
 
-    /// The TypeScript initializer literal, `None` for undefined fields — the
+    /// The TypeScript initializer literal, `None` for undefined fields; the
     /// one source for the generated class and the manifest. Strings are
     /// single-quoted with escapes.
     pub fn ts_literal(&self) -> Option<String> {
@@ -164,7 +164,7 @@ pub struct HandlerMeta {
     pub kind: HandlerKind,
 }
 
-/// The full definition of one custom element — everything the render targets
+/// The full definition of one custom element: everything the render targets
 /// and generators need, as `&'static` data registered with `inventory`.
 #[derive(Debug)]
 pub struct ComponentDef {
@@ -246,7 +246,7 @@ impl ComponentDef {
             .find(|p| p.attribute == Some(attribute))
     }
 
-    /// Lookup by the JavaScript property name — template bindings on nested
+    /// Lookup by the JavaScript property name; template bindings on nested
     /// custom elements (`.value=${…}`) are JS-facing.
     pub fn property_by_js_name(&self, js_name: &str) -> Option<&'static PropertyMeta> {
         self.properties.iter().find(|p| p.js_name == js_name)

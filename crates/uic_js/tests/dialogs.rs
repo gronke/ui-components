@@ -1,6 +1,6 @@
 //! The dialogs feature end-to-end: the runtime's alert/confirm/prompt
 //! queue their questions for the host and park promises that only a host
-//! answer settles — there are no timers in the mocked runtime, so the
+//! answer settles; there are no timers in the mocked runtime, so the
 //! host's `answer_dialog` (eval + job drain) is the one way forward.
 
 use uic_js::{DialogKind, JsHost};
@@ -27,7 +27,7 @@ fn confirm_rides_the_queue_and_the_answer_settles_it() {
     assert_eq!(request.message, "drop the current attempt?");
     assert_eq!(request.default, None);
 
-    // Nothing settles on its own — no timers exist in the runtime.
+    // Nothing settles on its own; no timers exist in the runtime.
     host.run_jobs().unwrap();
     assert_eq!(text_of(&mut host, "picked"), "unset");
 
@@ -49,7 +49,7 @@ fn prompt_carries_its_default_and_returns_text_or_null() {
     host.answer_dialog(request.id, "\"terminal\"").unwrap();
     assert_eq!(text_of(&mut host, "name"), "terminal");
 
-    // A cancel answers null — the browser's own shape; an omitted default
+    // A cancel answers null, the browser's own shape; an omitted default
     // prefills empty, also the browser's shape.
     host.eval("void prompt('again?').then((v) => { globalThis.name = String(v); });")
         .unwrap();
@@ -102,8 +102,8 @@ customElements.define('asks-first', AsksFirst);
 "#;
 
 // The component spelling of the cross-host contract: `confirm(…)` awaited
-// (or then-ed) reads the same in both hosts — the browser answers its sync
-// boolean, the terminal resolves through the host — and the answer
+// (or then-ed) reads the same in both hosts (the browser answers its sync
+// boolean, the terminal resolves through the host), and the answer
 // re-renders like any other state change.
 #[test]
 fn a_component_confirm_answer_re_renders() {

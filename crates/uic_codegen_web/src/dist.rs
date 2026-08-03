@@ -13,7 +13,7 @@
 //! └── package.json                          type: module, lit as peer
 //! ```
 //!
-//! The emitted modules import only the bare `lit` specifier — consumable via
+//! The emitted modules import only the bare `lit` specifier, consumable via
 //! any bundler, an import map, or a web_modules vendor tree.
 
 use std::fs;

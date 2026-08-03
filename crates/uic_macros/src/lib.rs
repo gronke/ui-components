@@ -4,7 +4,7 @@
 //!
 //! - builds the `&'static ComponentDef` (tag, properties, handlers, computed
 //!   names, embedded template/scss/impl sources) and submits it to the
-//!   `inventory` registry — the `customElements.define` analog,
+//!   `inventory` registry (the `customElements.define` analog),
 //! - validates the template at compile time with the same `uic_template`
 //!   parser the runtimes use,
 //! - generates the per-component `<Name>Logic` trait carrying exactly the

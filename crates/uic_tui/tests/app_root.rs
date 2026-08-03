@@ -23,7 +23,7 @@ fn state(entries: &[(&str, Value)]) -> ObjectMap {
         .collect()
 }
 
-/// The text inside the card border, trimmed — row probes stay readable
+/// The text inside the card border, trimmed; row probes stay readable
 /// although every form row now starts and ends with the card's `│`.
 fn inner(line: &str) -> &str {
     line.trim()
@@ -104,7 +104,7 @@ fn select_pick_lands_in_state() {
     let events = probe(&mut app, el, "state-changed");
 
     // Document order: the tab bar, date, its embedded timezone select,
-    // range start and end, note, amount — the seventh Tab reaches the pick
+    // range start and end, note, amount; the seventh Tab reaches the pick
     // select.
     for _ in 0..7 {
         key(&mut app, KeyCode::Tab);

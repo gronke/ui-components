@@ -1,6 +1,6 @@
 // navigator.clipboard over the host natives (src/clipboard.rs). The backend
 // is synchronous; these wrap it in resolved promises so the same component
-// code — `await navigator.clipboard.readText()` — runs in a real browser
+// code (`await navigator.clipboard.readText()`) runs in a real browser
 // and here alike. Installed only when the clipboard feature registered the
 // natives; without it navigator.clipboard stays absent.
 

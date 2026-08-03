@@ -7,7 +7,7 @@ import type { Transport } from './transport.js';
 export type AppState = Record<string, unknown>;
 
 // Canonical serialization: top-level keys sorted, matching the Rust side's
-// ObjectMap order — the string is the dedupe identity of a state.
+// ObjectMap order; the string is the dedupe identity of a state.
 export function canon(state: AppState): string {
   return JSON.stringify(
     Object.fromEntries(Object.entries(state).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),

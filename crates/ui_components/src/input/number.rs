@@ -1,4 +1,4 @@
-//! `<input-number>` — numeric input with international separator parsing
+//! `<input-number>`: numeric input with international separator parsing
 //! (`1.234,5`, `1,5`, `1234.5`) and comma-decimal display, in the shared
 //! input chrome.
 //!
@@ -48,7 +48,7 @@ pub struct InputNumber {
 
 /// Port of the catalog's `getFloat`: comma or dot decimals, dots as thousand
 /// separators when grouped in threes; `None` for anything malformed.
-/// Mirrored in `number.impl.ts` — keep both in sync.
+/// Mirrored in `number.impl.ts`; keep both in sync.
 fn get_float(raw: &str) -> Option<f64> {
     let mut dots = 0;
     let mut commas = 0;
@@ -128,7 +128,7 @@ impl InputNumberLogic for InputNumber {
         }
     }
 
-    /// Mirrored for the browser in `number.impl.ts` — keep both in sync.
+    /// Mirrored for the browser in `number.impl.ts`; keep both in sync.
     fn on_change(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         let raw = event
             .target_value

@@ -12,7 +12,7 @@ use uic_sync::pair::{decode_payload, link_payload, link_reply, reply_digest, Set
 
 /// The system clipboard behind uic_js's backend trait, so `navigator.
 /// clipboard` and the host's own read share one arboard connection.
-/// Construction fails on a headless host — then the reads yield `None` and
+/// Construction fails on a headless host; then the reads yield `None` and
 /// the affordance simply never fires.
 pub(crate) struct SystemClipboard(RefCell<Option<arboard::Clipboard>>);
 
@@ -45,7 +45,7 @@ pub(crate) struct Find {
     pub reply_to_us: bool,
 }
 
-/// Whether the text carries a peer's swap offer we could pair with — a
+/// Whether the text carries a peer's swap offer we could pair with: a
 /// decodable `actpass` payload (the `uic1` magic head makes this certain)
 /// that is not our own. `reply_to_us` marks a reply naming our current
 /// invite (the digest matches), which the loop treats as the peer we
@@ -63,14 +63,14 @@ pub(crate) fn classify(text: &str, own_payload: &str) -> Option<Find> {
     })
 }
 
-/// The gap between reads — a pairing credential is not time-critical, and a
+/// The gap between reads; a pairing credential is not time-critical, and a
 /// hot loop reading the clipboard would be rude.
 const POLL_EVERY: Duration = Duration::from_secs(1);
 
 /// The read throttle: it gates how often the loop reads the clipboard and
 /// reports only when the contents CHANGED, so an unchanged clipboard costs
 /// nothing and the same credential is never offered twice. It holds no
-/// reader — the loop reads through the host's clipboard backend.
+/// reader; the loop reads through the host's clipboard backend.
 #[derive(Default)]
 pub(crate) struct ClipboardWatch {
     last: Option<String>,

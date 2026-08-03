@@ -53,7 +53,7 @@ export function fromAttribute(value: string | null, options: any): unknown {
 // Does any prototype own an accessor for the name (a decorator put it
 // there)? A module-level function on purpose: Boa 0.21 panics when a
 // closure created inside a class constructor captures a local lexical
-// binding — see the boa_quirks canary.
+// binding; see the boa_quirks canary.
 export function hasPrototypeAccessor(el: any, name: string): boolean {
     let proto = Object.getPrototypeOf(el);
     while (proto) {

@@ -1,6 +1,6 @@
 //! Two build steps through the in-house toolchain: the npm packages declared
 //! in package.json vendor into `$OUT_DIR/vendor/`, and the TypeScript
-//! runtime under js/src/ compiles per module into `$OUT_DIR/js/` — the
+//! runtime under js/src/ compiles per module into `$OUT_DIR/js/`; the
 //! loader's module table is generated from the tree, so adding a runtime
 //! module is adding a file.
 
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use web_modules::vendor::{specs_from_package_json, vendor};
 
-/// The dependency names of the manifest — the generic presence check:
+/// The dependency names of the manifest, the generic presence check:
 /// every vendored package carries its own package.json once extracted.
 fn dependency_names(manifest: &Path) -> Vec<String> {
     let json: serde_json::Value =

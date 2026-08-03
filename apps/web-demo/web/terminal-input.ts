@@ -32,7 +32,7 @@ export function wireTerminalInput(options: {
 
   // With every key preventDefault()ed above and no terminal modes enabled,
   // onData only carries pastes (chords, context menu, middle click) and
-  // ESC-prefixed query auto-replies — never typed text. xterm folds the
+  // ESC-prefixed query auto-replies, never typed text. xterm folds the
   // pasted line breaks to \r; the session normalizes them.
   term.onData((data: string) => {
     if (!data || data.includes('\u001b')) return;

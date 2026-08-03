@@ -2,7 +2,7 @@
 //! renders an ordinary `<input>`, the element type mounts its rat widget
 //! (ADR 0026), an uncancelled keydown runs the widget as the browser's
 //! editing default action, the synthesized `input` event reads the live
-//! text back through `target.value`, and the widget — text AND caret —
+//! text back through `target.value`, and the widget (text AND caret)
 //! survives the component echoing the value through its subtree-swap
 //! re-render.
 
@@ -95,7 +95,7 @@ fn keystrokes_drive_the_widget_and_input_events_read_back() {
     assert_eq!(host.prop_json(node, "inputs").unwrap(), "2");
     assert_eq!(host.prop_json(node, "keydowns").unwrap(), "2");
 
-    // A caret move is keydown-only; typing then lands mid-string — the
+    // A caret move is keydown-only; typing then lands mid-string; the
     // widget (and its caret) survived the echo re-renders in between.
     host.dispatch(&KeyStroke::new("ArrowLeft")).unwrap();
     assert_eq!(host.prop_json(node, "inputs").unwrap(), "2");
@@ -173,7 +173,7 @@ customElements.define('date-proof', DateProof);
 
 #[test]
 fn data_tui_still_overrides_detection() {
-    // The explicit marker mounts a widget on any tag — the extension
+    // The explicit marker mounts a widget on any tag, the extension
     // point detection deliberately leaves alone.
     let mut host = JsHost::new().unwrap();
     host.load_module("test:override", OVERRIDE).unwrap();
@@ -190,7 +190,7 @@ fn a_plain_date_input_mounts_the_date_adapter() {
     host.load_module("test:datefield", DATEFIELD).unwrap();
     let node = host.mount("date-proof", &[]).unwrap();
 
-    // Typing digits fills the year section of the mask — a text adapter
+    // Typing digits fills the year section of the mask; a text adapter
     // would have produced plain "2026", so this pins the date detection.
     for key in ["2", "0", "2", "6"] {
         host.dispatch_key(key).unwrap();
@@ -219,7 +219,7 @@ fn an_external_value_write_resets_the_widget_text() {
 
     // A remote snapshot (the live-sync path) writes a different text: the
     // echo-skip does not apply, the widget re-syncs, the caret parks at
-    // the end — further typing appends.
+    // the end; further typing appends.
     host.set_prop(node, "text", "\"xyz\"").unwrap();
     host.dispatch_key("!").unwrap();
     assert_eq!(host.prop_json(node, "text").unwrap(), "\"xyz!\"");

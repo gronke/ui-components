@@ -23,11 +23,8 @@ fn main() {
     npm_tree(&web.join("src"), &npm.join(PACKAGE));
     // The sync tooling's tree lands beside the app's: the pages import both
     // under their package names from the shared npm root.
-    uic_sync::npm_tree(
-        &npm.join("@gronke/uic-sync"),
-        env!("CARGO_PKG_VERSION"),
-    )
-    .expect("bake the sync tooling tree");
+    uic_sync::npm_tree(&npm.join("@gronke/uic-sync"), env!("CARGO_PKG_VERSION"))
+        .expect("bake the sync tooling tree");
     println!("cargo:rustc-env=UIC_LIT_DEMO_NPM_ROOT={}", npm.display());
 
     // The browser dist: import-map entries derive from each vendored
@@ -49,7 +46,7 @@ fn main() {
 }
 
 /// The compiled `@gronke/lit-todo` tree: each `web/src/*.ts` compiles
-/// beside a generated manifest, and both hosts consume the result —
+/// beside a generated manifest, and both hosts consume the result:
 /// `JsHost::load_package` natively, the browser build as a source root.
 fn npm_tree(src: &Path, out: &Path) {
     uic_npm::emit_tree(

@@ -187,7 +187,7 @@ fn roots_stack_and_tab_crosses_their_boundary() {
     );
 }
 
-/// The option wire format of `TuiSession::set_options_json` — the deliberate
+/// The option wire format of `TuiSession::set_options_json`: the deliberate
 /// array escape hatch beside the state-shaped `set_prop_json` (ADR 0005):
 /// JSON rows in through `options_from_json`, applied as the options property
 /// of a bare select.
@@ -237,7 +237,7 @@ fn the_theme_attribute_flips_the_resolved_variables() {
 
     // The host attribute selects the dark variable block; source order
     // lets [data-bs-theme=dark] win over the light :root at equal
-    // specificity — this pins the generated sheet's block order.
+    // specificity; this pins the generated sheet's block order.
     app.set_dom_attr(0, "data-bs-theme", Some("dark"));
     app.draw().unwrap();
     let dark = out.take();
@@ -302,7 +302,7 @@ fn option_rows_seed_by_property_name() {
     let el = app.mount("input-suggestion").unwrap();
     app.set_attr(el, "label", "Word");
     // The rows land as Value::Options (ADR 0005), the type a plain JSON
-    // array cannot express — the widget offers them once the popup opens.
+    // array cannot express; the widget offers them once the popup opens.
     app.set_prop(
         el,
         "suggestions",

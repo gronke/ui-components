@@ -1,6 +1,6 @@
 //! The application host: mounted components live as element nodes in one
 //! document, layout and paint read the tree, and keys and the pointer travel
-//! it — focus is a node, not an index into template order, and unrendered
+//! it: focus is a node, not an index into template order, and unrendered
 //! conditional branches are unfocusable because their nodes do not exist.
 
 use crossterm::event::{
@@ -33,7 +33,7 @@ pub struct App<B: Backend> {
     blurred: bool,
     listeners: Vec<((usize, String), Listener)>,
     status: Option<Box<dyn Fn() -> String>>,
-    /// The content area of the last paint — what plain-node hit testing
+    /// The content area of the last paint: what plain-node hit testing
     /// resolves against (the widget path keeps its per-adapter areas).
     content_area: Rect,
 }
@@ -43,7 +43,7 @@ pub struct App<B: Backend> {
 #[cfg(not(target_arch = "wasm32"))]
 impl App<ratatui::backend::CrosstermBackend<std::io::Stdout>> {
     /// Takes over the terminal (alternate screen, raw mode, mouse capture,
-    /// bracketed paste — a paste arrives as one `Event::Paste`, not a key
+    /// bracketed paste; a paste arrives as one `Event::Paste`, not a key
     /// hail).
     pub fn new() -> Result<Self, Error> {
         let terminal = ratatui::try_init()?;
@@ -72,8 +72,8 @@ impl App<ratatui::backend::CrosstermBackend<std::io::Stdout>> {
         loop {
             self.draw()?;
             let mut event = crossterm::event::read()?;
-            // Coalesce a burst — an unbracketed paste's key hail, held-key
-            // autorepeat, drag streams — into one draw: handle everything
+            // Coalesce a burst (an unbracketed paste's key hail, held-key
+            // autorepeat, drag streams) into one draw: handle everything
             // already buffered, then paint once.
             loop {
                 if self.handle_event(&event) == Control::Quit {
@@ -104,7 +104,7 @@ impl<B: Backend> App<B> {
         }
     }
 
-    /// Mounts a registered custom element as a root — the
+    /// Mounts a registered custom element as a root: the
     /// `document.createElement` + append moment, firing `connected`.
     /// Returns the root index for attribute and listener access.
     pub fn mount(&mut self, tag: &str) -> Result<usize, Error> {
@@ -142,7 +142,7 @@ impl<B: Backend> App<B> {
     /// Subscribes to a mounted root's notify events.
     ///
     /// Listeners run synchronously inside the update, under the `&mut self`
-    /// borrow — a callback must not call back into the app (no draw, no
+    /// borrow; a callback must not call back into the app (no draw, no
     /// set_prop). The wasm session's borrow guard enforces this in the
     /// browser; native embedders queue follow-up work instead (the
     /// BroadcastChannel pattern: deliver, return, apply asynchronously).
@@ -161,7 +161,7 @@ impl<B: Backend> App<B> {
         &self.terminal
     }
 
-    /// The underlying terminal, mutably — backend-specific control, like a
+    /// The underlying terminal, mutably: backend-specific control, like a
     /// browser host resizing its pane.
     pub fn terminal_mut(&mut self) -> &mut Terminal<B> {
         &mut self.terminal
@@ -172,7 +172,7 @@ impl<B: Backend> App<B> {
         self.mounts.len()
     }
 
-    /// A plain DOM attribute write on a mounted host element — the
+    /// A plain DOM attribute write on a mounted host element: the
     /// browser's setAttribute for names outside observedAttributes. The
     /// next draw's cascade sees it (`[data-bs-theme]` and friends); no
     /// update cycle runs.
@@ -252,7 +252,7 @@ impl<B: Backend> App<B> {
     pub fn handle_event(&mut self, event: &Event) -> Control {
         let control = self.route_event(event);
         // Live text the widget's handling produced routes into the
-        // template's `@input` binding — with the popup open or closed.
+        // template's `@input` binding, with the popup open or closed.
         self.flush_widget_input();
         control
     }
@@ -366,7 +366,7 @@ impl<B: Backend> App<B> {
         }
     }
 
-    /// Widgets reachable by focus, in document order — disabled widgets are
+    /// Widgets reachable by focus, in document order; disabled widgets are
     /// skipped, and unrendered branches are absent by construction.
     fn focusables(&self) -> Vec<NodeId> {
         self.doc
@@ -452,7 +452,7 @@ impl<B: Backend> App<B> {
     }
 
     /// Places the caret under the pointer, extends the selection on drag,
-    /// or opens a select's list — the click semantics of the browser,
+    /// or opens a select's list: the click semantics of the browser,
     /// dispatched to the focused widget's adapter.
     fn place_cursor(&mut self, column: u16, row: u16, extend: bool) {
         if let Some(widget) = self.focused_widget_mut() {
@@ -481,7 +481,7 @@ impl<B: Backend> App<B> {
 
     /// Routes a key press while an overlay is open (overlays are modal).
     /// Returns whether the event was consumed; the adapter's outcome
-    /// decides — a pick commits, Tab reports unconsumed so the global
+    /// decides: a pick commits, Tab reports unconsumed so the global
     /// commit-and-focus handling still runs.
     fn handle_popup_event(&mut self, event: &Event) -> bool {
         if let Event::Mouse(mouse) = event {
@@ -525,7 +525,7 @@ impl<B: Backend> App<B> {
 
     /// Routes the focused widget's pending live text into the `@input`
     /// binding its template declares, and bubbles an `input` event through
-    /// the document — the browser's per-keystroke event beside
+    /// the document, the browser's per-keystroke event beside
     /// `commit_focused`'s change.
     fn flush_widget_input(&mut self) {
         let Some(node) = self.focused else {
@@ -551,7 +551,7 @@ impl<B: Backend> App<B> {
 
     /// The focused widget commits: its text routes into the `@change`
     /// binding the template declares, and a `change` event bubbles through
-    /// the document — both halves of the browser's change-on-commit.
+    /// the document, both halves of the browser's change-on-commit.
     fn commit_focused(&mut self) {
         let Some(node) = self.focused else {
             return;
@@ -575,7 +575,7 @@ impl<B: Backend> App<B> {
     }
 
     /// Dispatches a click on a plain element into the nearest `@click`
-    /// template binding, and bubbles a DOM `click` through the document —
+    /// template binding, and bubbles a DOM `click` through the document,
     /// the two halves the widget commit path has for `@change`.
     fn dispatch_click_at(&mut self, column: u16, row: u16) -> bool {
         let area = self.content_area;

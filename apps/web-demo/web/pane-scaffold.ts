@@ -80,7 +80,7 @@ export function wireTerminalPane(options: {
             return;
         }
         // The session first: its full-repaint ANSI targets the new size, so
-        // the terminal must match before the write — and a session error
+        // the terminal must match before the write, and a session error
         // leaves the terminal untouched.
         const ansi = session.resize(next, rows);
         term.resize(next, rows);

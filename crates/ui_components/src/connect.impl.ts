@@ -1,6 +1,6 @@
 // The browser twin of `connect.rs` (ADR 0002, ADR 0014): the same query
 // interface, async through Promises. Keep the InMemorySource matching rules
-// in sync with the Rust side — the parity fixtures replay both.
+// in sync with the Rust side; the parity fixtures replay both.
 
 import type { SelectOption } from './uic-runtime.js';
 

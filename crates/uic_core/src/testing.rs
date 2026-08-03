@@ -1,7 +1,7 @@
 //! Unit-test helpers for component logic: the runtime's update cycle in
 //! miniature (feature `testing`).
 //!
-//! [`cycle`] replicates what the hosts do per trigger — the trigger's writes
+//! [`cycle`] replicates what the hosts do per trigger: the trigger's writes
 //! join a [`Changed`] batch, `will_update` runs once over that batch's
 //! snapshot (its own writes join the same batch), and the notify pass
 //! reports the result. Reflect, commit and `updated` stay host territory;

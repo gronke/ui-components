@@ -1,14 +1,14 @@
 // The browser's pairing transport controller. It owns the swap lifecycle
 // and hands the finished wire to the page through a single 'wire' event.
 // Its reactive state speaks the panel's own vocabulary (PanelMode et al),
-// so the render below is a plain pass-through — no rename layer;
-// the cross-tab organization — which tab holds a session, how an opened
-// link reaches it, how a session hands over to another tab — lives in
+// so the render below is a plain pass-through, no rename layer;
+// the cross-tab organization (which tab holds a session, how an opened
+// link reaches it, how a session hands over to another tab) lives in
 // @gronke/uic-sync's session module (ADR 0032). Pairing is a mutual
 // exchange with no third party (ADR 0028): each side sends its invite and
 // opens the other's. The UI itself is the shared <pair-panel> (ADR 0029).
 // Browser-only by nature (WebRTC), so it never runs under the mocked
-// terminal lit — the panel does.
+// terminal lit; the panel does.
 //
 // A tab plays up to three roles in a takeover (ADR 0032): the NEW tab that
 // opened a reply and asks to take the session over; the OLD tab that owns
@@ -48,7 +48,7 @@ const SLOW_HINT_SECS = 15;
 type ConnectRole = 'opener' | 'inviter' | 'plain';
 
 /** The connecting status with the elapsed seconds folded in, so the wait
- * shows progress — the return link travels by hand and the peer may take a
+ * shows progress: the return link travels by hand and the peer may take a
  * while to open it. Past the slow mark the opener is nudged to check they
  * opened it. Twin of `session.rs` `connecting_status`. */
 function connectingStatus(role: ConnectRole, secs: number): string {
@@ -64,18 +64,18 @@ function connectingStatus(role: ConnectRole, secs: number): string {
 }
 
 // Module-scoped on purpose: Chrome garbage-collects unreferenced
-// BroadcastChannels, listeners and all — a function-local channel goes
+// BroadcastChannels, listeners and all; a function-local channel goes
 // silently deaf once its scope ends.
 const sessions = new TabSessions();
 
-/** Important pairing events go to the console — the hint line shows one
+/** Important pairing events go to the console: the hint line shows one
  * state, the log keeps the history (and the payloads, for debugging). */
 function note(...parts: unknown[]): void {
     console.info('[p2p]', ...parts);
 }
 
 /** Clipboard with the graceful path: plain http on a LAN address has no
- * clipboard API — the text stays selectable either way. Callers invoke
+ * clipboard API; the text stays selectable either way. Callers invoke
  * this first thing in the tap handler; Safari only honors writes that
  * start inside the gesture. */
 async function copied(text: string, what: string): Promise<string> {
@@ -111,7 +111,7 @@ export class PairWizard extends LitElement {
 
     private side: PairSwap | null = null;
     private paired = false;
-    /** The peer being chased and how it reached us — a fresh invite (the peer
+    /** The peer being chased and how it reached us: a fresh invite (the peer
      * initiates and waits on our reply) or a reply to our own invite. Neither
      * can honestly retry a failed connect, so this only shapes the status and
      * the honest failure. */
@@ -120,7 +120,7 @@ export class PairWizard extends LitElement {
      * when no connect stands. */
     private connectTimer: ReturnType<typeof setInterval> | null = null;
     /** A message the next fresh invite should show instead of the generic
-     * prompt — the honest reason a connect could not resume — carried across
+     * prompt (the honest reason a connect could not resume), carried across
      * the mint that would otherwise clobber it (the terminal's
      * `session.rs` `carry_status`, mirrored). */
     private carryStatus: string | null = null;
@@ -129,7 +129,7 @@ export class PairWizard extends LitElement {
     /** Reading the clipboard needs the async API; the button press is the
      * permission opt-in, a rejection turns the affordance back off. */
     private canPaste = !!navigator.clipboard && 'readText' in navigator.clipboard;
-    /** The last clipboard text a focus read acted on — the same content is
+    /** The last clipboard text a focus read acted on; the same content is
      * not routed again, so dismissing the conflict prompt (which refocuses
      * the window) cannot re-ask for it in a loop. */
     private lastClip: string | null = null;
@@ -138,7 +138,7 @@ export class PairWizard extends LitElement {
     private ctrlWire: ControlWire | null = null;
     /** The served takeover endpoint while this tab owns the session. */
     private point: TakeoverPoint | null = null;
-    /** The session digest a reply link named — the takeover channel key,
+    /** The session digest a reply link named: the takeover channel key,
      * inherited across a takeover so chained handovers keep working. */
     private takeDigest: string | null = null;
     /** True while a deliberate re-wire is in flight: the old wire's close
@@ -173,7 +173,7 @@ export class PairWizard extends LitElement {
             this.booted = true;
             this.boot();
             // Returning to the tab with a credential already copied
-            // continues the step — the same auto-continue the terminal's
+            // continues the step: the same auto-continue the terminal's
             // clipboard watch does, behind the browser's permission.
             window.addEventListener('focus', () => this.readClipboard());
             // Changing the URL to a peer link mid-session is picked up live,
@@ -183,7 +183,7 @@ export class PairWizard extends LitElement {
     }
 
     // The page owns the screens (pairing card vs navbar + todo) and
-    // branches on the mode — announced here so the glue can just listen.
+    // branches on the mode, announced here so the glue can just listen.
     updated(changed: Map<string, unknown>): void {
         if (changed.has('mode')) {
             this.dispatchEvent(new CustomEvent('mode-changed', { detail: this.mode, bubbles: true }));
@@ -209,8 +209,8 @@ export class PairWizard extends LitElement {
     }
 
     /** Opening a peer link (at load or a live hash change): consume it once
-     * — a reload or bookmark lands on the clean idle page, the payload never
-     * lingering in history — and route it through the cross-tab session
+     * (a reload or bookmark lands on the clean idle page, the payload never
+     * lingering in history) and route it through the cross-tab session
      * machinery (a waiting sibling tab claims it; otherwise this tab pairs). */
     private openCarried(carried: string): void {
         note('opened through a peer link');
@@ -298,7 +298,7 @@ export class PairWizard extends LitElement {
             return;
         }
         this.starting = true;
-        // A renewal supersedes the previous swap — stop its counter and close
+        // A renewal supersedes the previous swap: stop its counter and close
         // it so its RTCPeerConnection does not dangle (the terminal recycle()
         // twin); every path reaching here with a live wire nulled this.side.
         this.endConnecting();
@@ -318,7 +318,7 @@ export class PairWizard extends LitElement {
         note('side ready — own payload:', side.payload);
         // A link built in reply to an opened invite names it: the `.{digest}`
         // suffix routes the reply to the exact tab that invited (still one
-        // URL-safe token — every parser cuts before the dot).
+        // URL-safe token; every parser cuts before the dot).
         const page = new URL(location.pathname, location.href).href;
         this.link = inviteLink(page, side.payload, peerAtHand ? replyDigest(peerAtHand) : undefined);
         this.resetLabel = 'start over';
@@ -327,7 +327,7 @@ export class PairWizard extends LitElement {
 
         if (peerAtHand) {
             // Opened through the peer's fresh invite: their payload is here,
-            // so this side connects at once — but the return leg goes by
+            // so this side connects at once, but the return leg goes by
             // hand, so send the reply back and they connect on opening it. The
             // connecting counter owns the status from here.
             this.pursuit = { peer: peerAtHand, fresh: true };
@@ -336,8 +336,8 @@ export class PairWizard extends LitElement {
         } else {
             this.pursuit = null;
             this.step = 1;
-            // A carried message — the honest reason a connect could not
-            // resume — wins over the generic prompt, then clears so the next
+            // A carried message (the honest reason a connect could not
+            // resume) wins over the generic prompt, then clears so the next
             // mint starts fresh.
             this.status = this.carryStatus ?? 'Send your invite, then open theirs below to connect.';
             this.carryStatus = null;
@@ -345,7 +345,7 @@ export class PairWizard extends LitElement {
     }
 
     /** One side of the swap pairs with the peer payload whenever it FIRST
-     * arrives — pasted, scanned, or opened as a link; later arrivals are
+     * arrives: pasted, scanned, or opened as a link; later arrivals are
      * ignored, the connection stands. Exactly one side greets: the lexically
      * smaller payload, unless a takeover forces the roles (the remote holds
      * the canonical state, the fresh tab must not greet with an empty one). */
@@ -364,7 +364,7 @@ export class PairWizard extends LitElement {
             return;
         }
         this.paired = true;
-        // The wait is legitimate — the connection completes only once BOTH
+        // The wait is legitimate: the connection completes only once BOTH
         // sides applied each other's payload, and the peer opens this side's
         // link by hand. A ticking counter shows the wait is live (the swap
         // itself stays patient); the counter word owns the status.
@@ -403,8 +403,8 @@ export class PairWizard extends LitElement {
     }
 
     /** A connect failed. Neither case can honestly retry: a fresh-invite
-     * pursuit would need a fresh swap, whose new reply link the peer — who
-     * opened the first — never sees; a reply-to-ours failure can't resume,
+     * pursuit would need a fresh swap, whose new reply link the peer (who
+     * opened the first) never sees; a reply-to-ours failure can't resume,
      * the peer's copy of our payload went stale. Both fail honestly (the raw
      * error is on the console); a fresh pairing is the way back. */
     private retryOrFail(error: unknown): void {
@@ -418,7 +418,7 @@ export class PairWizard extends LitElement {
         }
         // A reply-to-ours failure, or no pursuit at all: renew a plain invite
         // so a fresh exchange can start. The honest message rides carryStatus
-        // onto that fresh invite (startSide reads and clears it) — a direct
+        // onto that fresh invite (startSide reads and clears it); a direct
         // assignment here loses to the mint's own status a beat later.
         this.starting = false;
         this.carryStatus =
@@ -445,7 +445,7 @@ export class PairWizard extends LitElement {
         this.point = new TakeoverPoint(this.takeDigest ?? replyDigest(this.side!.payload));
         this.point.onRequest((payload) => this.forwardTakeover(payload));
         this.point.onDone((byPayload) => {
-            // The new owner serves this same channel — only the OLD one
+            // The new owner serves this same channel; only the OLD one
             // retires on the cue.
             if (byPayload !== this.side?.payload) {
                 this.retire();
@@ -453,7 +453,7 @@ export class PairWizard extends LitElement {
         });
 
         this.dispatchEvent(new CustomEvent('wire', { detail: { wire, greet }, bubbles: true }));
-        // The wire stands — the pursuit is over, no retry to keep.
+        // The wire stands: the pursuit is over, no retry to keep.
         this.pursuit = null;
         this.connected = true;
         this.step = 3;
@@ -491,7 +491,7 @@ export class PairWizard extends LitElement {
         }, TAKEOVER_TIMEOUT_MS);
     }
 
-    /** The REMOTE end's half: the other side moves to a new tab — answer
+    /** The REMOTE end's half: the other side moves to a new tab; answer
      * with a fresh swap and re-form the connection on it. The old wire
      * stays up until the new one opened, so a failed handover loses
      * nothing. */
@@ -587,7 +587,7 @@ export class PairWizard extends LitElement {
     }
 
     /** The navbar's way back: close the wire and the spent swap on purpose
-     * and mint a fresh invite — no reload, the pairing screen returns with
+     * and mint a fresh invite; no reload, the pairing screen returns with
      * a new link (the rows persist either way). Nulling the wire first
      * keeps its close event from painting "dropped" over the fresh
      * invite. */
@@ -611,14 +611,14 @@ export class PairWizard extends LitElement {
     }
 
     private reset(): void {
-        // The way out of any session — waiting, connected, dropped, spent or
-        // moved — is a fresh page: links are consumed once, so a reload
+        // The way out of any session (waiting, connected, dropped, spent or
+        // moved) is a fresh page: links are consumed once, so a reload
         // lands on the clean invite page and everything starts over (the
         // rows persist through localStorage).
         location.reload();
     }
 
-    /** A different credential arrived while a pairing was in flight — ask
+    /** A different credential arrived while a pairing was in flight: ask
      * before dropping the current attempt for it (the browser's `confirm`
      * is the terminal's host dialog's twin). */
     private async confirmSwitch(raw: string): Promise<void> {
@@ -631,7 +631,7 @@ export class PairWizard extends LitElement {
     }
 
     /** Drops the current attempt and opens the new credential on a fresh
-     * swap — the spent one can never re-pair. */
+     * swap; the spent one can never re-pair. */
     private async switchTo(raw: string): Promise<void> {
         this.ctrlWire?.close();
         this.ctrlWire = null;
@@ -712,10 +712,10 @@ export class PairWizard extends LitElement {
         this.openedPeer(text);
     }
 
-    /** A link or code reached us — detect what it is and step accordingly.
+    /** A link or code reached us: detect what it is and step accordingly.
      * A reply naming our invite means the peer already applied our payload:
      * connect at once (step 3). A reply for a different invite is neither
-     * ours to answer nor a fresh invite — say so. No digest is a fresh
+     * ours to answer nor a fresh invite: say so. No digest is a fresh
      * invite: the peer initiates, so present the reply link they must open
      * (step 2) and connect behind it. Shared by paste, scan and boot. */
     private openedPeer(raw: string): void {
@@ -739,7 +739,7 @@ export class PairWizard extends LitElement {
             return;
         }
         // The swap behind this side already ran (a prior connect consumed it)
-        // and can never re-pair — stepping to connect would strand an inert
+        // and can never re-pair; stepping to connect would strand an inert
         // card, so renew a fresh invite and say why instead of dialing.
         if (side.spent()) {
             this.starting = false;
@@ -766,7 +766,7 @@ export class PairWizard extends LitElement {
 
     render() {
         // The shared panel is the whole UI; this element only feeds it state
-        // and answers its intents. The camera video stays here — a
+        // and answers its intents. The camera video stays here, a
         // browser-only surface the panel does not carry.
         return html`<pair-panel
                 .mode=${this.mode}

@@ -2,7 +2,7 @@
 
 use crate::{AttrPart, Attribute, Element, Expr, Node, ParseError, Template};
 
-/// `[a-z_][a-z0-9_]*` — the loop-variable naming rule for `as=…` bindings.
+/// `[a-z_][a-z0-9_]*`: the loop-variable naming rule for `as=…` bindings.
 fn is_ident(s: &str) -> bool {
     let mut chars = s.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_lowercase() || c == '_')
@@ -163,7 +163,7 @@ impl<'s> Parser<'s> {
                 "unsupported expression: holes take a property or computed name, or !name",
             )
         })?;
-        // `${base.field}` — a member of a loop variable in scope (ADR 0001).
+        // `${base.field}`: a member of a loop variable in scope (ADR 0001).
         let member_field = if self.starts_with(".") {
             if negated {
                 return Err(self.error_at(offset, "a loop variable member cannot be negated"));
@@ -204,7 +204,7 @@ impl<'s> Parser<'s> {
         })
     }
 
-    /// `[a-z_][a-z0-9_]*` — property, computed, and handler names follow the
+    /// `[a-z_][a-z0-9_]*`: property, computed, and handler names follow the
     /// Rust field naming of the component definition.
     fn parse_ident(&mut self) -> Result<String, ()> {
         let start = self.pos;
@@ -221,7 +221,7 @@ impl<'s> Parser<'s> {
         Ok(self.src[start..self.pos].to_string())
     }
 
-    /// `[a-z][a-z0-9-]*` — tags are written lowercase; a dash marks a custom
+    /// `[a-z][a-z0-9-]*`: tags are written lowercase; a dash marks a custom
     /// element.
     fn parse_tag_name(&mut self) -> Result<&'s str, ParseError> {
         let start = self.pos;
@@ -238,7 +238,7 @@ impl<'s> Parser<'s> {
         Ok(&self.src[start..self.pos])
     }
 
-    /// `[a-zA-Z_][a-zA-Z0-9_-]*` — attribute, property, and event names.
+    /// `[a-zA-Z_][a-zA-Z0-9_-]*`: attribute, property, and event names.
     fn parse_attr_name(&mut self) -> Result<&'s str, ParseError> {
         let start = self.pos;
         match self.peek() {
@@ -430,7 +430,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    /// `@event=${handler}` — the value must be a bare handler name.
+    /// `@event=${handler}`: the value must be a bare handler name.
     fn parse_handler_value(&mut self, event: &str) -> Result<String, ParseError> {
         let offset = self.pos;
         if !self.eat("${") {

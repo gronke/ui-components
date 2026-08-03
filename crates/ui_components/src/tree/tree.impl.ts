@@ -1,4 +1,4 @@
-// The browser logic twin of `mod.rs` — keep both walks in sync.
+// The browser logic twin of `mod.rs`; keep both walks in sync.
 
 type TreeNode = { id?: string; label?: string; children?: TreeNode[] };
 

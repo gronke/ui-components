@@ -1,4 +1,4 @@
-//! The live bridge — one state between the terminal and every client — and
+//! The live bridge (one state between the terminal and every client) and
 //! the web server around it: the Rust twin of `@gronke/uic-sync`'s
 //! `wire.ts` + `sync.ts` glue, per property over `STATE_FIELDS`, canonical
 //! snapshots deduped by byte equality (ADR 0013). It stays in the app
@@ -17,7 +17,7 @@ use web_modules::{serve, Frontend};
 
 static DIST: Dir = include_dir!("$OUT_DIR/dist");
 
-/// The reactive properties the live bridge mirrors — one shared state
+/// The reactive properties the live bridge mirrors: one shared state
 /// (ADR 0013's one-object story, spelled per property). TS twin:
 /// `STATE_FIELDS` in `web/src/todo-app.ts`, which the browser pages import.
 pub(crate) const STATE_FIELDS: [&str; 4] = ["draft", "editing", "items", "selected"];
@@ -36,7 +36,7 @@ pub(crate) type BridgeEnds = (
     Arc<Mutex<String>>,
 );
 
-/// The bridge plus its feeding ends, seeded with the current snapshot —
+/// The bridge plus its feeding ends, seeded with the current snapshot;
 /// `live` hands the ends to the web server, `p2p` to the pairing thread.
 pub(crate) fn live_bridge(
     host: &mut JsHost,
@@ -54,7 +54,7 @@ pub(crate) fn live_bridge(
 }
 
 /// The canonical snapshot of the app's shared state, serialized through the
-/// component's own accessors. Keys sort at every depth — npm-utils turns on
+/// component's own accessors. Keys sort at every depth; npm-utils turns on
 /// serde_json's preserve_order in this binary, and the sync tooling's codec
 /// dedupes by byte equality (ADR 0013).
 pub(crate) fn state_snapshot(

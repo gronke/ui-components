@@ -1,7 +1,7 @@
 // The page's ICE policy. The library defaults to no iceServers (one
 // network, mDNS candidates); this page opts into a public STUN server so
 // peers on different networks still find a route, and 'uic-ice' in
-// localStorage appends any further RTCIceServer list — a TURN relay with
+// localStorage appends any further RTCIceServer list; a TURN relay with
 // credentials makes hostile NATs reachable without putting a server in
 // the repo.
 import type { PairOptions } from '../@gronke/uic-sync/pair.js';

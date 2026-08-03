@@ -1,6 +1,6 @@
 //! Emits the LitElement-variant TypeScript class for one component:
 //! plain class, `static properties`, light DOM, `el-<name>` host class,
-//! notify pass in `update()` — the shape of upstream hand-written
+//! notify pass in `update()`, the shape of upstream hand-written
 //! components (see web_modules' lit-element example), with delegating
 //! members into the co-located impl partial.
 
@@ -217,7 +217,7 @@ pub fn emit_component(def: &'static ComponentDef) -> String {
 
 fn property_options(prop: &PropertyMeta) -> String {
     // Property-only (object-valued) properties: no converter runs
-    // (attribute: false) and the default `!==` hasChanged applies —
+    // (attribute: false) and the default `!==` hasChanged applies:
     // reference semantics like the catalog.
     let mut options = if prop.js_type.is_property_only() {
         vec!["attribute: false".to_string()]

@@ -1,7 +1,7 @@
 // The terminal palette from Bootstrap's own variables: the runtime speaks
 // plain ANSI colors (a real terminal keeps the user's scheme), and this
 // maps those slots to the stylesheet's custom properties AS RESOLVED ON THE
-// SCREEN ELEMENT — both theme variants are always on offer, and the screen
+// SCREEN ELEMENT: both theme variants are always on offer, and the screen
 // picks one by wearing data-bs-theme (dark here, while the site wears
 // light; flip either and its colors follow).
 export function bootstrapTheme(screen: HTMLElement): Record<string, string> {

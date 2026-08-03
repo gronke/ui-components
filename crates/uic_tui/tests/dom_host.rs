@@ -57,7 +57,7 @@ fn data_flows_down_into_child_components() {
     let mut host = host("input-date-range");
     // The interval decomposes in will_update, the ends flow into the two
     // input-date children as `.value` writes, and each child's own
-    // will_update rejects the garbage — visible in the CHILD's DOM.
+    // will_update rejects the garbage, visible in the CHILD's DOM.
     host.set_attr("value", "bad/worse");
 
     let html = host.outer_html();
@@ -148,7 +148,7 @@ fn boolean_parts_reach_children_as_absent_attributes() {
     );
 }
 
-/// A parent binding an optional member onto a child property — the fixture
+/// A parent binding an optional member onto a child property: the fixture
 /// of the property-part contract at the child boundary (ADR 0008).
 #[derive(CustomElement, Default)]
 #[custom_element(
@@ -189,7 +189,7 @@ fn a_nothing_hole_still_writes_null_into_the_child() {
     assert_eq!(seen.borrow().as_slice(), ["draft"]);
 
     // The member goes null: the hole resolves to Nothing, and Nothing still
-    // WRITES — the child receives `value = null` (the browser's
+    // WRITES: the child receives `value = null` (the browser's
     // `el.prop = null`) and notifies. Skipping the write here would strand
     // the child on the stale value.
     host.set_prop("text", Value::Null);

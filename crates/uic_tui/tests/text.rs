@@ -1,5 +1,5 @@
 //! TestBackend tests for plain text nodes: ASCII whitespace collapses like
-//! the browser flows prose, while non-breaking spaces survive as content —
+//! the browser flows prose, while non-breaking spaces survive as content,
 //! including at the start of a line, where a trimming wrap would eat them.
 
 mod support;
@@ -43,7 +43,7 @@ fn wrapped_prose_stays_flush_without_the_trim() {
     app.set_prop(el, "line", Value::from("alpha beta gamma delta epsilon"));
     let frame = screen(&mut app);
     assert!(frame.contains("epsilon"), "prose wraps:\n{frame}");
-    // Continuation lines start at the block's left edge — the untrimmed
+    // Continuation lines start at the block's left edge; the untrimmed
     // wrap must not leak separator spaces onto them.
     for line in frame.lines() {
         assert!(!line.starts_with(' '), "flush lines:\n{frame}");

@@ -9,7 +9,7 @@ pub mod app_root;
 pub use app_root::AppRoot;
 
 /// Anchors this crate's object code so `inventory` keeps `<app-root>`'s
-/// registration through the linker — the demo twin of `ui_components::link`.
+/// registration through the linker, the demo twin of `ui_components::link`.
 /// A consumer that mounts or generates `app-root` calls this after
 /// `ui_components::link()`.
 #[inline(never)]

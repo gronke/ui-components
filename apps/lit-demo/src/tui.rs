@@ -1,6 +1,6 @@
 //! The terminal plumbing: setup/restore, the frame layout around the app
 //! (status line, the docked QR pane), input polling and the event loop that
-//! drives the mounted component — plus the `<pair-panel>` driver mirroring
+//! drives the mounted component, plus the `<pair-panel>` driver mirroring
 //! a pairing session's view onto the DOM and its commands back out.
 
 use std::sync::{Arc, Mutex};
@@ -22,8 +22,8 @@ pub(crate) type Terminal = ratatui::Terminal<ratatui::backend::CrosstermBackend<
 pub(crate) type StatusLine = Arc<Mutex<String>>;
 
 /// The terminal loop's handle on the mounted panel: mirror its state in,
-/// forward its commands out. The deck's QR element rides along — the panel
-/// state's link is its data (ADR 0029) — and so do the navbar and the
+/// forward its commands out. The deck's QR element rides along (the panel
+/// state's link is its data, ADR 0029) and so do the navbar and the
 /// deck's wrapper divs, the pairing-first screen gates.
 pub(crate) struct PanelDriver<'a> {
     pub node: NodeId,
@@ -34,17 +34,17 @@ pub(crate) struct PanelDriver<'a> {
     pub pairing_pane: NodeId,
     pub state: &'a Arc<Mutex<PanelState>>,
     pub commands: &'a mpsc::UnboundedSender<Command>,
-    /// The live wire's nominated route, written by the pairing thread —
+    /// The live wire's nominated route, written by the pairing thread,
     /// shown while the todo screen stands; the LAN address otherwise.
     pub endpoints: &'a Arc<Mutex<Option<String>>>,
     pub lan: String,
-    /// The clipboard read throttle — p2p rides beside the panel it drives.
+    /// The clipboard read throttle; p2p rides beside the panel it drives.
     pub clipboard: crate::clipboard::ClipboardWatch,
 }
 
 /// The pairing-first screen rule: the todo (with the navbar) shows while a
-/// wire stands or just dropped — the badge goes red on a blip and the
-/// disconnect control offers the way back — and the pairing card owns every
+/// wire stands or just dropped (the badge goes red on a blip and the
+/// disconnect control offers the way back) and the pairing card owns every
 /// other mode.
 fn todo_screen(mode: uic_sync::session::PanelMode) -> bool {
     use uic_sync::session::PanelMode;
@@ -61,8 +61,8 @@ fn set_hidden(host: &JsHost, node: NodeId, hidden: bool) {
     }
 }
 
-/// The first descendant matching a selector, resolved on the live document
-/// — how the screen swap finds the input to hand focus to.
+/// The first descendant matching a selector, resolved on the live document:
+/// how the screen swap finds the input to hand focus to.
 fn descendant_matching(host: &JsHost, root: NodeId, selector: &str) -> Option<NodeId> {
     let mut state = host.state.borrow_mut();
     let handle = state.handle(root);
@@ -71,10 +71,10 @@ fn descendant_matching(host: &JsHost, root: NodeId, selector: &str) -> Option<No
 }
 
 /// Swaps the deck between its two screens by toggling `hidden` on the plain
-/// wrapper divs (attribute writes only — nothing re-commits, the todo's
+/// wrapper divs (attribute writes only; nothing re-commits, the todo's
 /// live state stays put) and hands focus to the screen's input: keys go to
 /// the focused node whether or not it is visible, so the handoff is what
-/// keeps typing meaningful. Runs on every mode change — the pairing card
+/// keeps typing meaningful. Runs on every mode change; the pairing card
 /// swaps its body per mode, so the focus target has to re-resolve anyway.
 fn apply_screen(
     host: &mut JsHost,
@@ -90,7 +90,7 @@ fn apply_screen(
         descendant_matching(host, todo, "input.draft")
     } else {
         // Invite renders the reply textarea; other pairing bodies have no
-        // input — focus stays where it is until one appears.
+        // input; focus stays where it is until one appears.
         descendant_matching(host, panel.node, "textarea")
     };
     if let Some(target) = target {
@@ -99,7 +99,7 @@ fn apply_screen(
     Ok(())
 }
 
-/// Mirrors a session view onto the mounted panel — the terminal's half of
+/// Mirrors a session view onto the mounted panel, the terminal's half of
 /// the `<pair-panel>` property contract (ADR 0029). serde_json spells the
 /// Option as true/false/null, exactly the tri-state `connected` expects.
 fn apply_panel(
@@ -121,7 +121,7 @@ fn apply_panel(
     Ok(())
 }
 
-/// A string property off a mounted node — `prop_json` speaks JSON, so a
+/// A string property off a mounted node; `prop_json` speaks JSON, so a
 /// missing value reads as `null` and everything else decodes.
 fn prop_string(
     host: &mut JsHost,
@@ -151,7 +151,7 @@ fn app_key(stroke: KeyStroke) -> Option<KeyStroke> {
 }
 
 /// Brackets the run with terminal setup and restore. Bracketed paste makes
-/// a paste arrive as one `Event::Paste` instead of a key hail — one bulk
+/// a paste arrive as one `Event::Paste` instead of a key hail: one bulk
 /// insert, one render.
 pub(crate) fn with_terminal(
     run: impl FnOnce(&mut Terminal) -> Result<(), Box<dyn std::error::Error>>,
@@ -173,7 +173,7 @@ pub(crate) fn with_terminal(
 }
 
 /// The join URL as a scannable half-block code, painted black on white like
-/// the shared widget — a camera wants dark modules on a light ground
+/// the shared widget: a camera wants dark modules on a light ground
 /// whatever the terminal theme (ADR 0029).
 pub(crate) struct QrPane {
     text: String,
@@ -184,7 +184,7 @@ pub(crate) struct QrPane {
 }
 
 impl QrPane {
-    /// The code plus two border columns and one padding column per side —
+    /// The code plus two border columns and one padding column per side;
     /// `app_area` and `draw` must agree on the same answer.
     fn pane_width(&self) -> u16 {
         self.width + 4
@@ -211,7 +211,7 @@ pub(crate) fn qr_pane(url: &str, title: &'static str) -> Option<QrPane> {
 const MIN_APP_WIDTH: u16 = 40;
 
 /// The app's rectangle after the status line and, when it fits, the join
-/// pane — draw and mouse hit-testing share the same answer.
+/// pane; draw and mouse hit-testing share the same answer.
 fn app_area(frame_area: ratatui::layout::Rect, qr: Option<&QrPane>) -> ratatui::layout::Rect {
     let mut area = frame_area;
     if area.height > 1 {
@@ -243,7 +243,7 @@ enum DialogSource {
     Host(HostIntent),
 }
 
-/// What a host dialog's "accept" carries out — today, connecting to a
+/// What a host dialog's "accept" carries out: today, connecting to a
 /// pairing credential that arrived mid-pairing (the conflict prompt).
 enum HostIntent {
     AcceptPeer(String),
@@ -264,7 +264,7 @@ fn clipboard_tick(
     if !matches!(last_panel.mode, uic_sync::session::PanelMode::Invite) {
         return false;
     }
-    // The read goes through the mocked DOM's clipboard backend — the same
+    // The read goes through the mocked DOM's clipboard backend, the same
     // one navigator.clipboard exposes to JS. `clipboard` and `commands` are
     // disjoint fields, so the throttle borrows mutably while the send stays.
     let Some(text) = panel
@@ -302,7 +302,7 @@ fn clipboard_tick(
     true
 }
 
-/// The JSON a JS dialog answers with — the browser's own return shapes.
+/// The JSON a JS dialog answers with: the browser's own return shapes.
 fn dialog_answer(dialog: &uic_tui::dialog::Dialog, ok: bool) -> String {
     use uic_tui::dialog::DialogKind;
     match dialog.kind {
@@ -363,7 +363,7 @@ fn draw(
         }
         uic_tui::dom::paint_document(frame, area, &mut s.doc, focused);
         // Painted last so it overlays the document, the QR pane and the
-        // status line — the buffer's last write wins (the popup rule).
+        // status line: the buffer's last write wins (the popup rule).
         if let Some(dialog) = dialog {
             uic_tui::dialog::paint_dialog(frame, full, dialog);
         }
@@ -412,17 +412,17 @@ pub(crate) fn run(
     let mut last_click: Option<(u16, u16, std::time::Instant)> = None;
     let mut last_status = status.lock().expect("status line").clone();
     let mut last_panel = PanelState::default();
-    // The last peer the loop dialed — a clipboard find or paste matching it
+    // The last peer the loop dialed; a clipboard find or paste matching it
     // is not a conflict, just the credential we already expect.
     let mut last_peer: Option<String> = None;
-    // A modal dialog — a component's alert/confirm/prompt, or a host
+    // A modal dialog: a component's alert/confirm/prompt, or a host
     // question. While one shows, every key is its own and clicks are
     // swallowed; the session keeps mirroring beneath it.
     let mut dialog: Option<ActiveDialog> = None;
     draw(host, terminal, status, qr, None)?;
     loop {
-        // Coalesce a buffered burst — an unbracketed paste's key hail,
-        // held-key autorepeat — into one publish/command/draw tail: handle
+        // Coalesce a buffered burst (an unbracketed paste's key hail,
+        // held-key autorepeat) into one publish/command/draw tail: handle
         // everything already queued, then run the tail once.
         let mut input = next_input(bridge.as_deref_mut())?;
         let mut changed = false;
@@ -441,7 +441,7 @@ pub(crate) fn run(
                     apply_state(host, node, &state)?;
                     true
                 }
-                // A dialog owns the keyboard first — before is_quit, or Escape
+                // A dialog owns the keyboard first: before is_quit, or Escape
                 // would quit the app instead of closing the box. Ctrl+C still
                 // hard-quits; ^D and the page never see these keys.
                 Input::Terminal(Event::Key(key)) if dialog.is_some() => {
@@ -488,7 +488,7 @@ pub(crate) fn run(
                     Some(stroke) if stroke.is_quit() => return Ok(()),
                     // ^D disconnects app-globally: control chords never reach
                     // the focused widget, so typing cannot collide with it. The
-                    // session answers with a close and a fresh invite — the
+                    // session answers with a close and a fresh invite; the
                     // pairing screen comes back on the mode mirror below.
                     Some(stroke) if stroke.ctrl && stroke.key == "d" && panel.is_some() => {
                         if let Some(panel) = panel.as_ref() {
@@ -505,7 +505,7 @@ pub(crate) fn run(
                     },
                     None => false,
                 },
-                // A dialog swallows clicks — it is keyboard-driven; nothing
+                // A dialog swallows clicks: it is keyboard-driven; nothing
                 // beneath it takes the pointer.
                 Input::Terminal(Event::Mouse(_)) if dialog.is_some() => false,
                 Input::Terminal(Event::Mouse(MouseEvent {
@@ -549,7 +549,7 @@ pub(crate) fn run(
                     true
                 }
                 // One bulk insert into the focused widget and one `input`
-                // event — a pasted pairing token lands whole, in one render.
+                // event; a pasted pairing token lands whole, in one render.
                 Input::Terminal(Event::Paste(text)) => host.paste(&text)?,
                 Input::Terminal(_) => false,
             };
@@ -593,7 +593,7 @@ pub(crate) fn run(
                 }
             }
         }
-        // The p2p pairing thread narrates into the shared status line —
+        // The p2p pairing thread narrates into the shared status line;
         // its changes repaint too, not only the app's own.
         let status_changed = {
             let now = status.lock().expect("status line");
@@ -630,13 +630,13 @@ pub(crate) fn run(
                     .filter(|_| todo_screen(now.mode))
                     .unwrap_or_else(|| panel.lan.clone());
                 host.set_prop(panel.navbar, "address", &serde_json::to_string(&address)?)?;
-                // A mode move swaps the screen (and the focus with it) —
+                // A mode move swaps the screen (and the focus with it),
                 // after apply_panel, so the new body exists to focus into.
                 if now.mode != last_panel.mode {
                     apply_screen(host, panel, node, now.mode)?;
                 }
                 // A conflict prompt outlives its moment when the step it
-                // asked about moves on — the question is moot, drop it.
+                // asked about moves on: the question is moot, drop it.
                 if let Some(active) = &dialog {
                     if matches!(active.source, DialogSource::Host(_))
                         && active.step != now.step.as_u8()
@@ -653,7 +653,7 @@ pub(crate) fn run(
             false
         };
         // A component may have asked a question this iteration; show the
-        // oldest waiting one when the box is free (one at a time — the
+        // oldest waiting one when the box is free (one at a time; the
         // queue holds the rest).
         let dialog_opened = if dialog.is_none() {
             match host.take_dialog_request() {
@@ -677,7 +677,7 @@ pub(crate) fn run(
     }
 }
 
-/// The dialog box for a runtime request — the browser's own default
+/// The dialog box for a runtime request, with the browser's own default
 /// button focus (confirm and prompt land on ok).
 fn dialog_from(request: &uic_js::DialogRequest) -> uic_tui::dialog::Dialog {
     use uic_js::DialogKind;
@@ -710,7 +710,7 @@ mod tests {
     }
 
     // A component's confirm rides the queue, the loop's dialog box answers
-    // it, and the awaiting component continues — the whole JS-dialog path
+    // it, and the awaiting component continues: the whole JS-dialog path
     // minus the terminal I/O.
     #[test]
     fn a_component_confirm_answers_through_the_dialog_box() {
@@ -768,7 +768,7 @@ mod tests {
         assert_eq!(short.width, 180);
     }
 
-    // Load a baked module under its package specifier — the moved pairing UI
+    // Load a baked module under its package specifier; the moved pairing UI
     // resolves from @gronke/uic-sync (ADR 0029), the deck from the app.
     fn load_module_from(host: &mut JsHost, package: &str, file: &str) {
         let src = std::fs::read_to_string(
@@ -846,7 +846,7 @@ mod tests {
             clipboard: crate::clipboard::ClipboardWatch::default(),
         };
 
-        // Boot: pairing-first — the deck ships the todo and the bar hidden.
+        // Boot: pairing-first; the deck ships the todo and the bar hidden.
         assert!(hidden(&host, nodes.todo_pane), "todo hidden at boot");
         assert!(hidden(&host, nodes.bar), "bar hidden at boot");
         assert!(
@@ -973,7 +973,7 @@ mod tests {
         apply_panel(&invite, &mut host, driver.node).unwrap();
         apply_screen(&mut host, &driver, nodes.todo, invite.mode).unwrap();
 
-        // One paste, one input event — the whole credential in one render,
+        // One paste, one input event: the whole credential in one render,
         // not a keystroke hail.
         let link = "https://host/p2p/#dWljMVBhc3RlZFRva2Vu";
         assert!(host.paste(link).unwrap());

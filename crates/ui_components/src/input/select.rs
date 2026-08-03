@@ -1,4 +1,4 @@
-//! `<input-select>` — the generic dropdown of the catalog's select family.
+//! `<input-select>`: the generic dropdown of the catalog's select family.
 //! Options are data (ADR 0005): a `SelectOption` list assigned as a property
 //! or produced by a computed, rendered as the two-layer front/back select in
 //! the browser and as a dropdown widget in the terminal.
@@ -29,7 +29,7 @@ pub struct InputSelect {
     pub options: Vec<SelectOption>,
 }
 
-/// Whether the empty selection commits null — the catalog couples this to a
+/// Whether the empty selection commits null; the catalog couples this to a
 /// `default` being present (`default !== undefined`).
 pub(crate) fn allow_null(default: &Value) -> bool {
     !matches!(default, Value::Undefined)
@@ -88,7 +88,7 @@ pub(crate) fn normalize_empty_value(ctx: &mut Ctx, changed: &Changed) {
 }
 
 impl InputSelectLogic for InputSelect {
-    /// Mirrored for the browser in `select.impl.ts` — keep both in sync.
+    /// Mirrored for the browser in `select.impl.ts`; keep both in sync.
     fn select_options(&self, store: &uic_core::PropertyStore) -> Value {
         let options = match store.get("options") {
             Value::Options(options) => options.clone(),

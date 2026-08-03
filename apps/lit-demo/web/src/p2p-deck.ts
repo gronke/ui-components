@@ -1,16 +1,16 @@
 // The terminal's p2p arrangement (ADR 0029), pairing-first: the pairing
 // panel is the boot screen, and the navbar + todo take over once a wire
 // stands. The QR docks to the stack's right on a wide terminal, wrapping
-// below on a narrow one — real flexbox (the taffy layout) driven by this
+// below on a narrow one: real flexbox (the taffy layout) driven by this
 // element's terminal-only styles, no host rect math. Only the terminal
 // mounts it; the browser page composes its own document.
 //
 // The deck deliberately has no reactive properties: it renders exactly once,
 // so a re-commit can never swap the todo app's live state away. The screens
-// gate through the plain wrapper divs instead — the host toggles their
+// gate through the plain wrapper divs instead: the host toggles their
 // `hidden` attribute by node, which no component display rule can outrank
 // (a component's `:host { display }` would beat `[hidden]` in the cascade).
-// It also imports none of the composed elements on purpose — the terminal
+// It also imports none of the composed elements on purpose: the terminal
 // host loads those modules explicitly before mounting, and an import here
 // would drag the pairing UI into the browser's todo-app graph.
 import { css, html, LitElement } from 'lit';

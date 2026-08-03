@@ -1,16 +1,16 @@
 //! Lit-flavored template string parser and IR.
 //!
-//! One parser serves both authoring forms — inline template strings and
-//! `.html` files — and both render targets (generated Lit TypeScript, TUI).
+//! One parser serves both authoring forms (inline template strings and
+//! `.html` files) and both render targets (generated Lit TypeScript, TUI).
 //!
 //! The dialect is an HTML subset with lit-html binding sigils:
 //!
-//! - `${name}` — text hole referencing a property or computed property
-//! - `attr="a ${name} b"` / `attr=${name}` — attribute value with holes
-//! - `?attr=${name}` / `?attr=${!name}` — boolean attribute
-//! - `.prop=${name}` — element property
-//! - `@event=${handler}` — event handler reference
-//! - `<template if=${name}>…</template>` — conditional subtree (`!name` negates;
+//! - `${name}`: text hole referencing a property or computed property
+//! - `attr="a ${name} b"` / `attr=${name}`: attribute value with holes
+//! - `?attr=${name}` / `?attr=${!name}`: boolean attribute
+//! - `.prop=${name}`: element property
+//! - `@event=${handler}`: event handler reference
+//! - `<template if=${name}>…</template>`: conditional subtree (`!name` negates;
 //!   nesting expresses AND)
 //!
 //! Hole expressions are deliberately closed to bare identifiers and `!ident`:
@@ -48,7 +48,7 @@ pub enum Node {
         cond: Expr,
         then: Vec<Node>,
     },
-    /// `<template for=${each} as=item>…</template>` — repeats the body once
+    /// `<template for=${each} as=item>…</template>`: repeats the body once
     /// per element of the array `each`, binding each element to `item`
     /// (ADR 0001).
     For {
@@ -78,7 +78,7 @@ impl Element {
 pub enum Attribute {
     /// `name`, `name="value"`, or `name=value` without holes.
     Static { name: String, value: String },
-    /// `name="a ${x} b"` or `name=${x}` — value assembled from parts.
+    /// `name="a ${x} b"` or `name=${x}`: value assembled from parts.
     Attr { name: String, parts: Vec<AttrPart> },
     /// `?name=${x}`.
     Bool { name: String, expr: Expr },
@@ -112,7 +112,7 @@ pub enum AttrPart {
 pub enum Expr {
     Ident(String),
     Not(String),
-    /// `${base.field}` — the `field` member of the loop variable `base`.
+    /// `${base.field}`: the `field` member of the loop variable `base`.
     Member {
         base: String,
         field: String,
@@ -242,7 +242,7 @@ pub enum SpliceError {
 }
 
 /// Replaces the single `<slot/>` element of a chrome template with the inner
-/// template's roots — the composition primitive behind `wraps_file`.
+/// template's roots, the composition primitive behind `wraps_file`.
 pub fn splice(chrome: &Template, inner: &Template) -> Result<Template, SpliceError> {
     let mut replaced = false;
     let roots = splice_nodes(&chrome.roots, &inner.roots, &mut replaced)?;

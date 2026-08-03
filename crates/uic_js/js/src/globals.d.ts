@@ -1,4 +1,4 @@
-// The host natives the runtime modules call — implemented in Rust
+// The host natives the runtime modules call, implemented in Rust
 // (src/natives.rs) and registered on the Boa context before any module
 // evaluates. Ambient-only: the build strips types, editors get the shapes.
 declare function __uic_commit(handle: number, html: string): void;
@@ -17,7 +17,7 @@ declare function __uic_widget_value(handle: number): string | null;
 declare function __uic_set_widget_value(handle: number, text: string): void;
 declare function __uic_adopt_styles(tag: string, cssText: string): number;
 declare function __uic_log(message: string): void;
-// The storage feature's natives — absent without it; the runtime probes
+// The storage feature's natives: absent without it; the runtime probes
 // with typeof before installing localStorage.
 declare function __uic_storage_get(key: string): string | null;
 declare function __uic_storage_set(key: string, value: string): void;
@@ -25,7 +25,7 @@ declare function __uic_storage_remove(key: string): void;
 declare function __uic_storage_clear(): void;
 declare function __uic_storage_key(index: number): string | null;
 declare function __uic_storage_length(): number;
-// The dialogs feature's native — absent without it; the runtime probes
+// The dialogs feature's native: absent without it; the runtime probes
 // with typeof before installing alert/confirm/prompt.
 declare function __uic_dialog_request(
     id: number,
@@ -33,7 +33,7 @@ declare function __uic_dialog_request(
     message: string,
     defaultValue: string | null,
 ): void;
-// The clipboard feature's natives — absent without it; the runtime probes
+// The clipboard feature's natives: absent without it; the runtime probes
 // with typeof before installing navigator.clipboard.
 declare function __uic_clipboard_read(): string | null;
 declare function __uic_clipboard_write(text: string): boolean;

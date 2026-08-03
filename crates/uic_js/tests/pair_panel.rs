@@ -1,4 +1,4 @@
-//! The shared `<pair-panel>` (ADR 0029) under the scripted host — the REAL
+//! The shared `<pair-panel>` (ADR 0029) under the scripted host: the REAL
 //! component, compiled from `@gronke/uic-sync`'s web root. The panel used
 //! to live in the demo app, out of `uic_js`'s reach, so this test could only
 //! stub it; now it ships in `uic_sync`, and the scripted-host library hosts
@@ -76,13 +76,13 @@ fn properties_drive_the_render() {
 fn buttons_signal_intent_through_the_command_property() {
     let (mut host, panel) = panel_host();
 
-    // Idle: "create an invite" writes command="invite" — the only channel back
+    // Idle: "create an invite" writes command="invite", the only channel back
     // to the terminal host (no events under Boa).
     let invite = node_by(&host, "invite");
     host.click(invite).unwrap();
     assert_eq!(host.prop_json(panel, "command").unwrap(), "\"invite\"");
 
-    // The host reads, acts, clears — the next click writes afresh.
+    // The host reads, acts, clears; the next click writes afresh.
     host.set_prop(panel, "command", "null").unwrap();
     host.set_prop(panel, "mode", "\"invite\"").unwrap();
     host.set_prop(panel, "resetLabel", "\"start over\"")

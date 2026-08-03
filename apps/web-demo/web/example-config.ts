@@ -1,5 +1,5 @@
 // The example page's contract: one JSON script tag carries everything the
-// shared boot needs — the component, its seeds, the terminal geometry and
+// shared boot needs: the component, its seeds, the terminal geometry and
 // the notify wiring. build.rs writes it per page from the manifest.
 
 export type OptionRow = { value: string; short?: string; label?: string };
@@ -11,7 +11,7 @@ export type ExampleConfig = {
     attrs: Record<string, string>;
     /** Plain-valued property seeds (JSON-expressible). */
     props: Record<string, unknown>;
-    /** Option-rows properties — their own data type, not plain arrays (ADR 0005). */
+    /** Option-rows properties: their own data type, not plain arrays (ADR 0005). */
     optionProps: Record<string, OptionRow[]>;
     /** The notify events that sync the panes, each carrying one property. */
     notify: { event: string; prop: string }[];

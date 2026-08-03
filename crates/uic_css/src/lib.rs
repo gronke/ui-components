@@ -1,5 +1,5 @@
 //! CSS for the terminal: a closed dialect parsed with servo's cssparser
-//! and selectors crates, cascaded over the retained `uic_dom` document —
+//! and selectors crates, cascaded over the retained `uic_dom` document;
 //! parsing with a drop report, selector matching with component scoping
 //! (`:host`, clamped ancestor walks), four cascade origins, custom
 //! properties with `var()` and additive `calc()`, and the computed-style

@@ -1,15 +1,15 @@
 //! Async data connectors (ADR 0014): the query side of `input-suggestion`.
 //!
 //! A [`QuerySource`] answers a typed text with matching option rows through a
-//! delivery callback — the push shape both targets share. The browser twin
+//! delivery callback, the push shape both targets share. The browser twin
 //! (`connect.impl.ts`, emitted as `components/uic-connectors.ts`) spells the
 //! same interface as `query(text): Promise<SelectOption[]>`; the
 //! `InMemorySource` matching rules are pinned across targets by the parity
 //! fixtures.
 //!
-//! Sources deliver on their own schedule: an in-memory source immediately —
-//! inside the TUI that is within the current update cycle, so the popup
-//! repaints in the same frame — while a remote browser source resolves later
+//! Sources deliver on their own schedule: an in-memory source immediately
+//! (inside the TUI that is within the current update cycle, so the popup
+//! repaints in the same frame) while a remote browser source resolves later
 //! and lands through a property write. The terminal runtime has no executor,
 //! so a Rust source that cannot answer synchronously needs a host-driven
 //! pump (the ADR 0013 deliver-return-apply pattern).
@@ -17,7 +17,7 @@
 use uic_core::SelectOption;
 
 /// The browser twin, emitted by the web codegen as
-/// `components/uic-connectors.ts` — keep it in sync with this module.
+/// `components/uic-connectors.ts`; keep it in sync with this module.
 pub const WEB_TS: &str = include_str!("connect.impl.ts");
 
 /// Receives the rows a [`QuerySource`] resolved for one query.

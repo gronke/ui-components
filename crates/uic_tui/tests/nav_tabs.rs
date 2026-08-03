@@ -81,7 +81,7 @@ fn an_external_value_moves_the_selection() {
     app.set_attr(el, "value", "about");
     let picks = probe(&mut app, el, "value-changed");
 
-    // Left from the synced "about" lands back on the first tab — proof the
+    // Left from the synced "about" lands back on the first tab, proof the
     // highlight followed the external write, not the last local pick.
     key(&mut app, KeyCode::Left);
 
@@ -97,7 +97,7 @@ fn an_unknown_value_falls_back_to_the_first_tab() {
     let picks = probe(&mut app, el, "value-changed");
 
     // The fallback highlight sits on the first tab, so Right steps to the
-    // second — mirroring the browser rows' Math.max(0, findIndex) rule.
+    // second, mirroring the browser rows' Math.max(0, findIndex) rule.
     key(&mut app, KeyCode::Right);
 
     let picks = picks.borrow();

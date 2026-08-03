@@ -1,5 +1,5 @@
-// Serverless WebRTC pairing: the offer and answer travel as compact text —
-// small enough for a QR code — instead of full SDP through a signaling
+// Serverless WebRTC pairing: the offer and answer travel as compact text
+// (small enough for a QR code) instead of full SDP through a signaling
 // server. Candidates gather completely before encoding (no trickle), and
 // their addresses ride verbatim: browsers hand out mDNS hostnames, which
 // resolve between peers on one network. Hostile NATs would need iceServers
@@ -23,7 +23,7 @@ const CONNECT_TIMEOUT_MS = 45000;
 /** The reply-routing digest (fnv1a-32, 8 hex chars) of an invite payload. A
  * return link answering an invite carries `.{digest}` after its own payload,
  * so the same-browser handover routes the reply to the exact tab that
- * invited. A routing hint only — the payload's own credential guards stay
+ * invited. A routing hint only; the payload's own credential guards stay
  * the security. Rust twin: `src/pair.rs` `reply_digest`; the pinned vector
  * is replyDigest('abc') === '1a47e90b'. */
 export function replyDigest(payload: string): string {
@@ -41,7 +41,7 @@ export interface PairOptions {
 
 /** The payload carried by a link, pasted text or scanned code: the invite
  * is the whole fragment, so the payload sits after `#` in a link and at
- * the front of a bare code — the base64url run from there (a reply link's
+ * the front of a bare code: the base64url run from there (a reply link's
  * `.{digest}` suffix is cut with the rest). Text with no payload passes
  * through for the decode to reject. Rust twin: `src/pair.rs`
  * `link_payload`. */
@@ -51,7 +51,7 @@ export function linkPayload(text: string): string {
     return match ? match[1]! : trimmed;
 }
 
-/** The reply-routing digest riding a return link (`#<payload>.<digest>`) —
+/** The reply-routing digest riding a return link (`#<payload>.<digest>`):
  * the invite it answers, so the same-browser handover reaches the exact
  * tab that sent it. Null on a plain invite. */
 export function linkReply(text: string): string | null {
@@ -68,18 +68,18 @@ export function inviteLink(pageHref: string, payload: string, replyTo?: string):
 }
 
 export interface PairSwap {
-    /** The symmetric payload — both sides exchange theirs blindly. */
+    /** The symmetric payload; both sides exchange theirs blindly. */
     payload: string;
     /** Feeds the peer's swap payload; resolves when the channel opens. */
     connect(peer: string): Promise<Wire>;
-    /** True once a connect attempt consumed the offer — a spent swap can
+    /** True once a connect attempt consumed the offer; a spent swap can
      * never pair again (succeed or fail), only a fresh one can. */
     spent(): boolean;
     close(): void;
 }
 
 /** The compact payload: ice credentials, DTLS fingerprint, setup role and
- * the candidate [address, port] tuples — everything a minimal
+ * the candidate [address, port] tuples: everything a minimal
  * data-channel-only SDP rebuilds from. */
 interface Compact {
     u: string;
@@ -90,7 +90,7 @@ interface Compact {
 }
 
 /** WebKit hides RTCPeerConnection from in-app browsers and non-HTTPS
- * pages — a ReferenceError names the variable, this names the way out. */
+ * pages; a ReferenceError names the variable, this names the way out. */
 function requireRtc(): void {
     if (typeof RTCPeerConnection === 'undefined') {
         throw new Error(
@@ -99,7 +99,7 @@ function requireRtc(): void {
     }
 }
 
-/** The role a compact payload plays — offers negotiate (`actpass`), answers
+/** The role a compact payload plays: offers negotiate (`actpass`), answers
  * commit to a side. `null` for text that is no payload at all; the guards
  * below and scanners deciding whether to keep looking both branch on it. */
 export function payloadRole(text: string): 'offer' | 'answer' | null {
@@ -121,7 +121,7 @@ export function payloadRole(text: string): 'offer' | 'answer' | null {
 /** Symmetric, order-free pairing: BOTH sides create offers over a
  * negotiated data channel (stream 0 on either end, no in-band
  * announcement), exchange payloads blindly, and each synthesizes the
- * peer's ANSWER locally — the DTLS roles derive deterministically from the
+ * peer's ANSWER locally; the DTLS roles derive deterministically from the
  * fingerprints (the lower one plays the client), and ICE resolves its own
  * role conflict. Neither side needs to know who "started". */
 export async function swap(options?: PairOptions): Promise<PairSwap> {
@@ -146,7 +146,7 @@ export async function swap(options?: PairOptions): Promise<PairSwap> {
                 );
             }
             // A second payload after the exchange would tear at the live
-            // connection — one swap pairs exactly once.
+            // connection; one swap pairs exactly once.
             if (pc.signalingState !== 'have-local-offer') {
                 throw new Error('uic-sync pair: this swap already paired');
             }
@@ -188,9 +188,9 @@ const UNREACHABLE =
 
 /** Resolves when the channel opens; rejects on a bounded timeout so a
  * forever-hanging "Connecting…" cannot happen. A transient `failed` is
- * tolerated on the way up — the peer opens the return link by hand, and a
+ * tolerated on the way up; the peer opens the return link by hand, and a
  * browser (Safari especially) can flag `failed` a moment before the channel
- * comes up — so the clock bounds the wait, not the first `failed`; only a
+ * comes up, so the clock bounds the wait, not the first `failed`; only a
  * deliberate `close()` (`connectionState === 'closed'`) is terminal at once.
  * The state listener outlives the promise on purpose: a transport that dies
  * AFTER we connected (the peer's tab closed, the network went away) closes
@@ -200,7 +200,7 @@ function openOrFail(pc: RTCPeerConnection, channel: RTCDataChannel): Promise<voi
     return new Promise((resolve, reject) => {
         let settled = false;
         // A dead transport never finishes close()'s procedure, so its close
-        // event would never fire on its own — dispatch it so the wire hears
+        // event would never fire on its own; dispatch it so the wire hears
         // the end either way.
         const shutTheChannel = () => {
             channel.close();
@@ -240,12 +240,12 @@ function openOrFail(pc: RTCPeerConnection, channel: RTCDataChannel): Promise<voi
                 return;
             }
             if (settled) {
-                // Already connected — a LATER death, so close the channel and
+                // Already connected: a LATER death, so close the channel and
                 // let the wire hear it.
                 shutTheChannel();
             } else if (pc.connectionState === 'closed') {
                 // A deliberate teardown before we connected is terminal; a
-                // bare `failed` is not — the timer bounds that wait.
+                // bare `failed` is not; the timer bounds that wait.
                 settled = true;
                 clearTimeout(timer);
                 reject(new Error(UNREACHABLE));
@@ -311,7 +311,7 @@ function buildSdp(compact: Compact): string {
     ].join('\r\n');
 }
 
-// The wire layout, declaratively — the single place the payload's shape
+// The wire layout, declaratively: the single place the payload's shape
 // lives. The Rust twin mirrors this table verbatim (`src/pair.rs`,
 // `LAYOUT`): field order, kinds and enum values must match byte for byte,
 // and the Rust golden vector pins them. Kinds: `str8` is u8 length + ASCII,
@@ -332,7 +332,7 @@ const ADDR_V6 = 1;
 const ADDR_MDNS = 2;
 const ADDR_NAME = 3;
 
-// The payload's magic head ("uic1") — four bytes so any reader tells a
+// The payload's magic head ("uic1"): four bytes so any reader tells a
 // uic:p2p credential for certain instead of guessing from structure;
 // decodePayload rejects anything without it. Rust twin: `MAGIC` in
 // `src/pair.rs`.

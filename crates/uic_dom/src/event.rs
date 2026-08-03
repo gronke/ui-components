@@ -1,6 +1,6 @@
 //! DOM events over the retained tree: the whatwg dispatch subset one
-//! light-DOM tree needs — capture, target and bubble phases, both stop
-//! flags, cancelation — with listeners registered directly per node the way
+//! light-DOM tree needs (capture, target and bubble phases, both stop
+//! flags, cancelation), with listeners registered directly per node the way
 //! lit's EventPart attaches them (no delegation; bubbling reaches ancestor
 //! handlers).
 
@@ -178,7 +178,7 @@ pub(crate) struct ListenerEntry<T> {
 
 impl<T> Document<T> {
     /// Registers directly on the node, lit-EventPart-style. The callback
-    /// receives the document mutably — the public DOM API works inside
+    /// receives the document mutably; the public DOM API works inside
     /// handlers.
     pub fn add_event_listener(
         &mut self,
@@ -205,8 +205,8 @@ impl<T> Document<T> {
     }
 
     /// The whatwg dispatch: capture from the root down, the target (both
-    /// listener kinds, registration order), then — only for bubbling events
-    /// — back up. Returns `!default_prevented`, like `dispatchEvent`.
+    /// listener kinds, registration order), then, only for bubbling events,
+    /// back up. Returns `!default_prevented`, like `dispatchEvent`.
     pub fn dispatch_event(&mut self, target: NodeId, event: &mut Event) -> bool {
         event.target = Some(target);
         let path: Vec<NodeId> = self.ancestors(target).collect();
@@ -242,7 +242,7 @@ impl<T> Document<T> {
     /// Runs the node's matching listeners; `capture: None` at the target
     /// takes both kinds. The id snapshot means listeners added to this node
     /// during dispatch wait for the next event, while removed ones are
-    /// skipped — the spec's behavior.
+    /// skipped (the spec's behavior).
     fn invoke_listeners(&mut self, node: NodeId, event: &mut Event, capture: Option<bool>) {
         let Some(entries) = self.listeners.get(&node) else {
             return;

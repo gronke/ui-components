@@ -54,14 +54,14 @@ impl WebCodegen {
         self
     }
 
-    /// Emit only the components with `dist = true` — the publish view.
+    /// Emit only the components with `dist = true`: the publish view.
     /// The default (everything) is the dev-server view.
     pub fn dist_only(mut self, on: bool) -> Self {
         self.dist_only = on;
         self
     }
 
-    /// Emits an additional hand-written module into `components/` — shared
+    /// Emits an additional hand-written module into `components/`: shared
     /// TS twins that are not component partials, like the data connectors
     /// (`ui_components::connect::WEB_TS`, ADR 0014).
     pub fn extra_module(mut self, file_name: impl Into<String>, source: &'static str) -> Self {
@@ -248,7 +248,7 @@ fn required_impl_exports(def: &ComponentDef) -> BTreeSet<String> {
 
 /// The parameter count of a one-line `export function <name>(…)`
 /// signature; `None` for consts, multi-line signatures and anything the
-/// heuristic cannot read — those stay name-checked only.
+/// heuristic cannot read; those stay name-checked only.
 pub(crate) fn exported_arity(source: &str, name: &str) -> Option<usize> {
     for line in source.lines() {
         let line = line.trim_start();
@@ -328,7 +328,7 @@ fn check_impl_exports(def: &'static ComponentDef) -> Result<(), CodegenError> {
         });
     }
     // The names cover presence; simple function signatures also pin the
-    // arity — handlers take (el, event), computed properties (el).
+    // arity: handlers take (el, event), computed properties (el).
     let mut wrong = Vec::new();
     let mut check = |name: String, expected: usize| {
         if let Some(found) = exported_arity(web_impl, &name) {

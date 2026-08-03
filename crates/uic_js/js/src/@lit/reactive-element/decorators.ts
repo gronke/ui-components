@@ -1,7 +1,7 @@
 // @lit/reactive-element produces the decorators upstream; `lit/decorators`
 // re-exports them. The shape is dictated by the published artifacts, not by
 // us: esbuild-compiled dists call __decorateClass with (prototype, name,
-// descriptor) at runtime — the pinned fixture does. Dists built with the
+// descriptor) at runtime; the pinned fixture does. Dists built with the
 // TC39 standard protocol get that shape when a fixture needs it.
 
 import { accessorDescriptor, queryAllNodes } from '../../runtime.js';

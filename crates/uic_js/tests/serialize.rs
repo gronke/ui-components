@@ -1,6 +1,6 @@
 //! The serializer polyfill: lit's binding prefixes recover from the static
 //! strings, text and attribute values escape, and property bindings map to
-//! the browser contract — `.value` becomes the attribute on value-carrying
+//! the browser contract: `.value` becomes the attribute on value-carrying
 //! elements only, `.hidden` becomes the attribute, everything else drops.
 
 use uic_js::JsHost;
@@ -109,7 +109,7 @@ fn value_bindings_reach_value_carrying_elements_only() {
     let textarea = committed(&mut host, node, "value-textarea");
     assert!(textarea.contains(r#"value="long""#), "{textarea}");
     // lit-SSR's rule: a custom element's `value` PROPERTY is not the
-    // browser attribute contract — it must not serialize.
+    // browser attribute contract; it must not serialize.
     let custom = committed(&mut host, node, "value-custom");
     assert!(!custom.contains("value="), "{custom}");
 }

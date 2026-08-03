@@ -1,5 +1,5 @@
 // The page's Bootstrap color mode: a stored choice wins, the OS scheme
-// decides otherwise, and subscribers hear every change — the terminal pane
+// decides otherwise, and subscribers hear every change: the terminal pane
 // re-derives its palette and repaints. The template's inline head script
 // applies the same rule before first paint.
 

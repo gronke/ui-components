@@ -9,7 +9,7 @@
 //!   sources live (`WEB_MODULES_EMBEDDED=1` forces the embedded bake).
 //! - `cargo run -p uic_lit_demo -- live` → both at once, one state: the
 //!   terminal app also serves the browser build, and every client shares
-//!   the terminal's state over a WebSocket — edits anywhere land
+//!   the terminal's state over a WebSocket: edits anywhere land
 //!   everywhere. The terminal shows the join URL as a scannable QR pane
 //!   and listens on every interface so phones on the network can join.
 //! - `cargo run -p uic_lit_demo -- p2p [link-or-code]` → a serverless peer:
@@ -22,7 +22,7 @@
 //!   watching the system clipboard to auto-continue a step.
 //! - `--backend memory://` (default) keeps the terminal's localStorage in
 //!   memory; an SQLite location (`sqlite://todos.db` or a bare path)
-//!   persists it between runs. `serve` ignores it — the browser has the
+//!   persists it between runs. `serve` ignores it; the browser has the
 //!   real thing.
 //! - `UIC_LIT_DEMO_ADDR=host:port` moves the listener (default
 //!   `127.0.0.1:8090`; live defaults to `0.0.0.0:8090`).
@@ -50,16 +50,16 @@ use tui::{qr_pane, run, with_terminal, PanelDriver, StatusLine};
 
 const PACKAGE: &str = "@gronke/lit-todo";
 
-/// One Lit todo app, two hosts — no mode runs it in this terminal.
+/// One Lit todo app, two hosts; no mode runs it in this terminal.
 #[derive(Parser)]
 struct Cli {
     /// Where the terminal's localStorage lives: memory:// or an SQLite
-    /// location (sqlite://<path> or a bare path). serve ignores it — the
+    /// location (sqlite://<path> or a bare path). serve ignores it; the
     /// browser has the real thing.
     #[arg(long, global = true, default_value = "memory://")]
     backend: BackendArg,
     /// Watch the system clipboard in p2p to auto-continue a pairing step,
-    /// and expose it to the page as navigator.clipboard. Off unless asked —
+    /// and expose it to the page as navigator.clipboard. Off unless asked;
     /// a pasted or scanned link always pairs regardless.
     #[arg(long, global = true)]
     clipboard: bool,
@@ -78,7 +78,7 @@ enum Mode {
         /// The invite link or pairing code from the other side
         link: Option<String>,
         /// Host the pairing page from this process and point invites at
-        /// this machine — one command instead of a separate `serve`.
+        /// this machine: one command instead of a separate `serve`.
         #[arg(long)]
         serve: bool,
     },
@@ -113,7 +113,7 @@ impl std::str::FromStr for BackendArg {
     }
 }
 
-/// The backend the flag selected — sqlite opens (and creates) its file
+/// The backend the flag selected; sqlite opens (and creates) its file
 /// here, before any mode takes over the screen.
 fn storage_backend(
     arg: &BackendArg,
@@ -125,7 +125,7 @@ fn storage_backend(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // The QR widget registration lives in uic_tui's qr feature — the
+    // The QR widget registration lives in uic_tui's qr feature; the
     // anchor keeps its object (and the inventory constructor) linked.
     uic_tui::qr::link();
     let cli = Cli::parse();
@@ -149,7 +149,7 @@ fn mounted_host(backend: &BackendArg) -> Result<(JsHost, NodeId), Box<dyn std::e
     Ok((host, node))
 }
 
-/// The first element of a tag below the document root — how the p2p mode
+/// The first element of a tag below the document root: how the p2p mode
 /// finds the components its deck composed (the deck renders once and is
 /// never re-committed, so the nodes stay put).
 fn node_by_tag(host: &JsHost, tag: &str) -> Option<NodeId> {
@@ -157,7 +157,7 @@ fn node_by_tag(host: &JsHost, tag: &str) -> Option<NodeId> {
     state.doc.descendant_by_tag(state.doc.root(), tag)
 }
 
-/// The first element carrying a class below the document root — the deck's
+/// The first element carrying a class below the document root: the deck's
 /// plain wrapper divs, the pairing-first screen gates, resolve this way.
 fn node_by_class(host: &JsHost, class: &str) -> Option<NodeId> {
     let state = host.state.borrow();
@@ -191,7 +191,7 @@ fn live(backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
     let addr = listen_addr(SocketAddr::from(([0, 0, 0, 0], 8090)))?;
     // Fail before taking over the screen: a taken port must not degrade the
     // session into a terminal-only run with a dead URL in the status line.
-    // (The probe closes before the server binds — a benign race.)
+    // (The probe closes before the server binds, a benign race.)
     drop(std::net::TcpListener::bind(addr).map_err(|err| format!("bind {addr}: {err}"))?);
     let (mut bridge, (inbound_tx, outbound_tx, latest)) = live_bridge(&mut host, node)?;
 
@@ -244,7 +244,7 @@ fn p2p_page(serve: bool) -> Result<String, Box<dyn std::error::Error>> {
     }
     let addr = listen_addr(SocketAddr::from(([0, 0, 0, 0], 8090)))?;
     // Fail before the alt screen: a taken port must not leave a dead URL in
-    // the invite. (The probe closes before the server binds — a benign race.)
+    // the invite. (The probe closes before the server binds, a benign race.)
     drop(std::net::TcpListener::bind(addr).map_err(|err| format!("bind {addr}: {err}"))?);
     let web = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
     std::thread::spawn(move || match tokio::runtime::Runtime::new() {
@@ -271,7 +271,7 @@ fn p2p(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // One mounted root, the p2p deck: the todo card and the shared pairing
     // panel (ADR 0029) stack in a column, the QR (ADR 0029) docks beside
-    // them — responsive flexbox from the deck's own styles, no rect math.
+    // them: responsive flexbox from the deck's own styles, no rect math.
     // The extra modules are off the todo-app entry graph, so they load
     // explicitly, inside-out: the shared pairing UI from @gronke/uic-sync
     // (ADR 0029), then the todo-specific deck from the app package; the mount
@@ -300,7 +300,7 @@ fn p2p(
     host.mount("p2p-deck", &[])?;
     let node = node_by_tag(&host, "todo-app").ok_or("the deck mounts a todo-app")?;
     let panel = node_by_tag(&host, "pair-panel").ok_or("the deck mounts a pair-panel")?;
-    // The deck's own QR — captured now, while the panel is still idle and
+    // The deck's own QR, captured now, while the panel is still idle and
     // has not rendered its (terminal-hidden) inline copy; the deck never
     // re-commits, so the node stays put.
     let qr = node_by_tag(&host, "qr-code").ok_or("the deck mounts a qr-code")?;
@@ -344,7 +344,7 @@ fn p2p(
     let (command_tx, command_rx) = mpsc::unbounded_channel();
 
     // The pairing machine (uic_sync::session) runs beside the terminal
-    // loop — live()'s threading pattern — and drives the panel through
+    // loop (live()'s threading pattern) and drives the panel through
     // `panel_state`.
     let thread_state = panel_state.clone();
     let thread_endpoints = endpoints.clone();
@@ -471,7 +471,7 @@ mod cli_tests {
 
     #[test]
     fn the_clipboard_is_opt_in() {
-        // Off unless asked — reading a user's clipboard is not a default.
+        // Off unless asked; reading a user's clipboard is not a default.
         assert!(!Cli::try_parse_from(["demo", "p2p"]).unwrap().clipboard);
         assert!(
             Cli::try_parse_from(["demo", "p2p", "--clipboard"])

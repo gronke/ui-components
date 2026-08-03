@@ -1,5 +1,5 @@
 //! Character and text transformations for the terminal: whitespace
-//! collapse, wrap measurement in cells, and marker-glyph rotation — the
+//! collapse, wrap measurement in cells, and marker-glyph rotation: the
 //! pure string half of the layout, testable without a document.
 //!
 //! The rotation mapping is a curated table by necessity, not convenience:
@@ -7,15 +7,15 @@
 //! counterpart among the ~611 arrow codepoints, and the crate ecosystem
 //! accordingly offers nothing for semantic glyph rotation (only spinner
 //! frame sequences and string-order reversal). Horizontal mirroring is the
-//! one transformation with official data behind it — UAX #9's
-//! Bidi_Mirroring_Glyph, served by the `unicode-brackets` crate — the
+//! one transformation with official data behind it (UAX #9's
+//! Bidi_Mirroring_Glyph, served by the `unicode-brackets` crate), the
 //! principled source if mirroring is ever needed here.
 
 use unicode_width::UnicodeWidthStr;
 
 /// Collapses runs of ASCII whitespace to single spaces and trims the ends,
 /// like the browser flows prose. Non-breaking spaces are content, not
-/// separators — the browser renders `&nbsp;`, so the terminal keeps it too
+/// separators: the browser renders `&nbsp;`, so the terminal keeps it too
 /// (indentation would otherwise collapse away).
 pub(crate) fn collapse_whitespace(text: &str) -> String {
     words(text).collect::<Vec<_>>().join(" ")
@@ -58,7 +58,7 @@ pub(crate) fn wrapped_lines(text: &str, width: f32) -> u16 {
     lines
 }
 
-/// The widest single word — the narrowest a text can measure (MinContent).
+/// The widest single word: the narrowest a text can measure (MinContent).
 pub(crate) fn longest_word(text: &str) -> f32 {
     words(text).map(|word| word.width()).max().unwrap_or(0) as f32
 }

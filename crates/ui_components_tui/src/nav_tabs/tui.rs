@@ -1,12 +1,12 @@
 //! The terminal twin of `<nav-tabs>` (ADR 0002/0015): rat's `Tabbed` in its
-//! glued form — one row of captions, no content block — while the browser
+//! glued form (one row of captions, no content block) while the browser
 //! half in `nav_tabs.impl.ts` builds Bootstrap button rows. Registered for
 //! `data-tui="tab-bar"` through the widget registry, so the runtime needs
 //! no edit.
 //!
 //! The bound value is the single source of truth: the highlighted index
 //! derives from it at paint (falling back to the first tab), and a pick
-//! leaves through `take_input` into the `@input` route — the same binding
+//! leaves through `take_input` into the `@input` route, the same binding
 //! the browser buttons dispatch through.
 
 use uic_core::{SelectOption, Value};
@@ -45,7 +45,7 @@ impl TabBarAdapter {
     }
 
     /// The highlighted index: the bound value's row, or the first tab when
-    /// nothing matches — mirroring the browser rows' fallback.
+    /// nothing matches, mirroring the browser rows' fallback.
     fn selected_index(&self) -> Option<usize> {
         if self.options.is_empty() {
             return None;
@@ -102,7 +102,7 @@ impl WidgetAdapter for TabBarAdapter {
         self.options = options;
     }
 
-    /// Arrows switch the tab, rat's own four-key binding — Down is free
+    /// Arrows switch the tab, rat's own four-key binding; Down is free
     /// because the bar opens no overlay. The pick dispatches in the same
     /// `handle_event` call through the `@input` flush; no commit request.
     fn handle(&mut self, focused: bool, event: &Event) -> bool {
@@ -125,7 +125,7 @@ impl WidgetAdapter for TabBarAdapter {
     }
 
     /// The click path: the runtime places the "caret" right after a press
-    /// focuses the bar — here that adopts the caption under the pointer
+    /// focuses the bar; here that adopts the caption under the pointer
     /// (rat's own mouse handling stays unused, it reads the system clock).
     fn place_cursor(&mut self, column: u16, row: u16, extend: bool) {
         if extend {

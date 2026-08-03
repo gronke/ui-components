@@ -240,7 +240,7 @@ fn generated_typescript_transpiles_with_oxc() {
     }
 }
 
-/// The manifest module of one component, looked up by path — positional
+/// The manifest module of one component, looked up by path; positional
 /// indices shift whenever a component joins the catalog.
 fn module_by_path<'a>(manifest: &'a serde_json::Value, path: &str) -> &'a serde_json::Value {
     manifest["modules"]

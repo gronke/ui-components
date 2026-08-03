@@ -1,9 +1,9 @@
-//! `<uic-tree>` — an expandable tree over nested `{id, label, children?}`
+//! `<uic-tree>`: an expandable tree over nested `{id, label, children?}`
 //! nodes. A computed flattens the expanded subtrees into visible rows, so
 //! the template stays a flat loop and both logic twins express the walk the
 //! same way. The collapse markers are generated content: `::before` rules
 //! on `[aria-expanded]` rows draw and rotate them in both targets (the
-//! terminal's live in `tui-overrides.css`, the browser's in `tree.scss`) —
+//! terminal's live in `tui-overrides.css`, the browser's in `tree.scss`);
 //! no marker glyphs in the logic.
 //!
 //! A click on a branch row toggles it; a click on a leaf commits the
@@ -52,7 +52,7 @@ fn is_expanded(expanded: &[Value], id: &str) -> bool {
 }
 
 /// Depth-first over the expanded subtrees; level is 1-based like
-/// `aria-level`. Mirrored for the browser in `tree.impl.ts` — keep both
+/// `aria-level`. Mirrored for the browser in `tree.impl.ts`; keep both
 /// walks in sync.
 fn flatten(nodes: &[Value], expanded: &[Value], level: usize, rows: &mut Vec<Value>) {
     for node in nodes {
@@ -76,7 +76,7 @@ fn flatten(nodes: &[Value], expanded: &[Value], level: usize, rows: &mut Vec<Val
     }
 }
 
-/// The branch ids of the whole node tree — what a click toggles.
+/// The branch ids of the whole node tree: what a click toggles.
 fn branch_ids(nodes: &[Value], out: &mut Vec<String>) {
     for node in nodes {
         let Some(node) = node.as_object() else {

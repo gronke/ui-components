@@ -1,6 +1,6 @@
 // Web Storage over the host natives (src/storage.rs). Installed only when
 // the storage feature registered them; without it the runtime is unchanged
-// and `typeof localStorage` stays 'undefined' — the same guard components
+// and `typeof localStorage` stays 'undefined', the same guard components
 // already use for the browser's own storage-less modes.
 
 export function installStorage(): void {

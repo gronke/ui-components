@@ -82,7 +82,7 @@ pub fn expand(mut item: ItemStruct) -> syn::Result<TokenStream> {
     Ok(quote!(#item))
 }
 
-/// Guards against the attribute being placed with no derive to consume it —
+/// Guards against the attribute being placed with no derive to consume it;
 /// the injected options only mean something to `#[derive(CustomElement)]`.
 pub fn has_custom_element_derive(item: &ItemStruct) -> bool {
     item.attrs.iter().any(|attr| {

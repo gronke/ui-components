@@ -7,14 +7,11 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui_components::link();
     let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dist/npm");
-    let dist = uic_codegen_web::DistBuild::new(
-        out,
-        "@gronke/ui-components",
-        env!("CARGO_PKG_VERSION"),
-    )
-    .repository(env!("CARGO_PKG_REPOSITORY"))
-    .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
-    .run()?;
+    let dist =
+        uic_codegen_web::DistBuild::new(out, "@gronke/ui-components", env!("CARGO_PKG_VERSION"))
+            .repository(env!("CARGO_PKG_REPOSITORY"))
+            .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
+            .run()?;
     println!("npm package tree: {}", dist.root.display());
     for tag in dist.components {
         println!("  <{tag}>");

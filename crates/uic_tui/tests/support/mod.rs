@@ -97,7 +97,7 @@ pub fn probe(
     events
 }
 
-/// The foreground color of every `┌` corner, in document order — the group
+/// The foreground color of every `┌` corner, in document order; the group
 /// borders wear the focus ring, idle gray or the error red.
 pub fn corner_colors(app: &mut App<TestBackend>) -> Vec<Color> {
     app.draw().expect("draw");

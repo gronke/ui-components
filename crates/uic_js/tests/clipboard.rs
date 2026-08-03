@@ -56,7 +56,7 @@ fn navigator_clipboard_reads_and_writes_through_the_backend() {
 fn without_a_backend_the_clipboard_reads_empty() {
     let mut host = JsHost::new().unwrap();
     // navigator.clipboard still installs (the natives exist), but no backend
-    // is behind it — readText resolves empty, the host read is None.
+    // is behind it: readText resolves empty, the host read is None.
     host.eval("void navigator.clipboard.readText().then((t) => { globalThis.got = `[${t}]`; });")
         .unwrap();
     host.run_jobs().unwrap();

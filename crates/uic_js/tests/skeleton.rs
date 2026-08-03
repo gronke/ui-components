@@ -80,7 +80,7 @@ fn properties_round_trip_as_json() {
 #[test]
 fn a_nested_dist_tree_loads_across_directories() {
     // A dist spanning subdirectories: the entry imports downward, the inner
-    // module upward — both resolve because specifiers keep their paths.
+    // module upward; both resolve because specifiers keep their paths.
     let root = std::env::temp_dir().join(format!("uic-js-dist-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("lib/deep")).unwrap();
@@ -130,7 +130,7 @@ customElements.define('nested-dist', NestedDist);
 #[test]
 fn both_specifier_families_resolve() {
     // Components import through `lit/...` or straight from the producing
-    // channel `lit-html/...` — the module table serves both spellings.
+    // channel `lit-html/...`; the module table serves both spellings.
     const CHANNELS: &str = r#"
 import { html, LitElement } from 'lit';
 import { when } from 'lit/directives/when.js';

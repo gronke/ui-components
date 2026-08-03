@@ -7,7 +7,7 @@
 //! cargo run -p uic_js --example json_viewer_web data.json  # your own JSON
 //! ```
 //!
-//! Every connection gets its own session thread (one `JsHost` each — the
+//! Every connection gets its own session thread (one `JsHost` each; the
 //! host state is thread-local by design).
 
 use std::net::SocketAddr;

@@ -28,7 +28,7 @@ tokio = { workspace = true, features = ["sync"] }
 serde_json.workspace = true
 include_dir.workspace = true
 # The p2p mode: a native WebRTC peer speaking the compact payloads (ADR
-# 0028) — the codec rides uic_sync.
+# 0028); the codec rides uic_sync.
 uic_sync.workspace = true
 webrtc.workspace = true
 # The p2p clipboard watch auto-continues a pairing step when a matching

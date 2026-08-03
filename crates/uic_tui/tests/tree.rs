@@ -55,7 +55,7 @@ fn branches_wear_markers_and_clicks_toggle_their_subtrees() {
     let (readme_x, _) = locate(&mut app, "README");
     assert_eq!(docs_x, readme_x, "labels align behind the marker slot");
 
-    // A click anywhere on the row — the label cell here — expands: the
+    // A click anywhere on the row (the label cell here) expands: the
     // handler learns the row from data-id via the event dataset.
     let (x, y) = locate(&mut app, "Documents");
     click(&mut app, x, y);

@@ -1,5 +1,5 @@
 //! The paste default action on the Boa host: one bulk insert into the
-//! focused widget and exactly one bubbling `input` event — a pasted
+//! focused widget and exactly one bubbling `input` event; a pasted
 //! credential must not replay as a keystroke hail.
 
 use uic_js::JsHost;
@@ -48,7 +48,7 @@ fn a_paste_is_one_bulk_insert_and_one_input_event() {
         "one input event for the whole paste"
     );
 
-    // Typing continues from the paste — each key its own input event.
+    // Typing continues from the paste, each key its own input event.
     host.dispatch_key("!").unwrap();
     assert_eq!(host.prop_json(node, "inputs").unwrap(), "2");
     assert_eq!(

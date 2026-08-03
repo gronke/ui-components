@@ -2,8 +2,8 @@
 //! TypeScript. [`emit_tree`] compiles every `*.ts` under a source root to
 //! `*.js` and writes a dependency-free, publish-ready `package.json`.
 //!
-//! Three trees ride it — `@gronke/uic-sync`, `@gronke/uic-worker`
-//! and the lit-demo's `@gronke/lit-todo` — differing only in name,
+//! Three trees ride it (`@gronke/uic-sync`, `@gronke/uic-worker`
+//! and the lit-demo's `@gronke/lit-todo`), differing only in name,
 //! description, exports and (the app alone) peer dependencies; the emitted
 //! bytes are unchanged from the hand-written copies this replaced.
 
@@ -33,8 +33,8 @@ pub struct TreeSpec<'a> {
 
 /// Compiles every `*.ts` under `spec.web_root` (skipping `*.d.ts`) into
 /// `out`, writes the `package.json`, and returns the emitted module names
-/// sorted. The tree is dependency-free — `scaffold`'s empty `dependencies`
-/// is dropped — and the manifest fields land in one fixed order:
+/// sorted. The tree is dependency-free (`scaffold`'s empty `dependencies`
+/// is dropped) and the manifest fields land in one fixed order:
 /// `description`, `license`, `type`, `exports`, an optional
 /// `peerDependencies`, then `files`.
 pub fn emit_tree(spec: &TreeSpec, out: &Path) -> Result<Vec<String>, String> {

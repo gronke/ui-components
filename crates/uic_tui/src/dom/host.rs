@@ -5,7 +5,7 @@
 //!
 //! Data flows down the tree: attribute parts commit onto child custom-tag
 //! nodes and the child mount syncs its observed attributes from its own
-//! node, `.prop` writes apply directly to child stores — and `.value`/
+//! node, `.prop` writes apply directly to child stores, and `.value`/
 //! `.options` writes onto widget-bearing elements sync the terminal widget
 //! living in the node payload. Events flow up: a child's notify events
 //! route into the parent's `@event` template bindings AND dispatch as
@@ -48,7 +48,7 @@ fn compiled(def: &'static ComponentDef) -> Rc<CompiledTemplate> {
 
 pub(super) type Listener = Box<dyn FnMut(&NotifyEvent)>;
 
-/// Delivers notify events to every subscribed listener whose key matches —
+/// Delivers notify events to every subscribed listener whose key matches,
 /// the one listener loop behind [`DomHost`] and [`super::App`].
 pub(super) fn deliver<K>(
     listeners: &mut [(K, Listener)],
@@ -85,14 +85,14 @@ pub(crate) struct Mount {
     pub(super) bindings: Vec<EventBinding>,
     /// Child component mounts, keyed by their custom-tag node.
     pub(super) children: HashMap<NodeId, Mount>,
-    /// The attribute set last synced from the host node, per child — the
+    /// The attribute set last synced from the host node, per child; the
     /// diff drives `attribute_changed` on the way down.
     pub(super) synced_attrs: HashMap<NodeId, HashMap<String, String>>,
     cascade: u8,
 }
 
 impl DomHost {
-    /// Mounts a registered element into a fresh document — the
+    /// Mounts a registered element into a fresh document: the
     /// `document.createElement` + append moment, `connected` included.
     pub fn mount(tag: &str) -> Result<DomHost, Error> {
         let mut doc = DomDocument::new();
@@ -151,7 +151,7 @@ impl DomHost {
         self.publish(events);
     }
 
-    /// Sets a property on the component mounted at `node` — the way a test
+    /// Sets a property on the component mounted at `node`, the way a test
     /// stands in for a widget commit inside a child. Notify events route up
     /// through the template bindings and bubble through the document.
     pub fn set_prop_at(&mut self, node: NodeId, name: &str, value: impl Into<Value>) {
@@ -273,7 +273,7 @@ impl Mount {
     }
 
     /// ReactiveElement reflection: changed properties declared `reflect`
-    /// land on the host element as attributes — booleans as presence.
+    /// land on the host element as attributes, booleans as presence.
     fn reflect(&mut self, doc: &mut DomDocument, changed: &Changed) {
         for (rust_name, _) in changed.iter() {
             let Some(meta) = self.def.property(rust_name) else {
@@ -304,7 +304,7 @@ impl Mount {
     /// `attribute_changed`, `.prop` writes apply to child stores, and
     /// `.value`/`.options` writes sync the widgets in the node payloads.
     ///
-    /// Cost model: resolution is O(all holes) per commit — every hole
+    /// Cost model: resolution is O(all holes) per commit; every hole
     /// re-evaluates (computed getters included) and the per-part `PartialEq`
     /// dedupe in the parts engine keeps the tree writes minimal. A
     /// changed-properties filter over the holes would cut the resolution

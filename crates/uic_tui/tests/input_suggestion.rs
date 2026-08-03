@@ -51,7 +51,7 @@ fn host_rows_open_the_popup_and_enter_picks() {
     let el = mount(&mut app);
     let commits = probe(&mut app, el, "value-changed");
 
-    // The host answers the query between events — the deliver-return-apply
+    // The host answers the query between events: the deliver-return-apply
     // pattern of a listener that must not re-enter the app.
     type_str(&mut app, "a");
     app.set_prop(el, "suggestions", rows());

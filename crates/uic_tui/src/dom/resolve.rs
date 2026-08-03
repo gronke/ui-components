@@ -9,7 +9,7 @@ use uic_dom::NodeId;
 use super::DomDocument;
 
 /// `ident` reads the store or dispatches to a computed getter; `!ident`
-/// negates its truthiness — the template expression language, resolved to
+/// negates its truthiness: the template expression language, resolved to
 /// part values. Null and undefined clear their part, like lit's `nothing`.
 pub(super) fn resolve_hole(
     expr: &str,
@@ -94,7 +94,7 @@ pub(super) fn resolve_repeat(
 
 /// A committed part value as a property value, for `.prop` writes into
 /// children and widgets. The asymmetry is load-bearing: `Nothing` (a hole
-/// that resolved null/undefined) still WRITES — it arrives as `Value::Null`
+/// that resolved null/undefined) still WRITES: it arrives as `Value::Null`
 /// in the child, the browser's `el.prop = null`. Only `NoChange` skips the
 /// write entirely, and the parts engine emits no write for it.
 pub(super) fn part_value_to_value(value: &PartValue) -> Value {

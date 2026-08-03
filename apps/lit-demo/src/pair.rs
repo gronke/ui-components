@@ -1,5 +1,5 @@
 //! The terminal's WebRTC peer (ADR 0028): `web/pair.ts`'s symmetric swap
-//! in Rust — one negotiated data channel, candidates gathered completely
+//! in Rust: one negotiated data channel, candidates gathered completely
 //! before encoding, the peer's answer synthesized locally from its compact
 //! payload. Pairing is a mutual exchange with no third party: each side
 //! sends its token, opens the other's, and connects (ADR 0028).
@@ -37,7 +37,7 @@ type PairResult<T> = Result<T, String>;
 /// The state-bridge endpoints a wire pumps: state snapshots in, control
 /// frames split off beside them, outbound text onto the channel, and the
 /// latest snapshot for the greet. One session shares a bridge across every
-/// wire it ever runs — a handover's fresh wire pumps the same one.
+/// wire it ever runs; a handover's fresh wire pumps the same one.
 #[derive(Clone)]
 struct Bridge {
     inbound: mpsc::UnboundedSender<String>,
@@ -57,13 +57,13 @@ struct Swap {
 
 impl Swap {
     /// Gathers candidates completely (no trickle), then reduces the local
-    /// offer to the compact payload — the terminal twin of pair.ts's
+    /// offer to the compact payload, the terminal twin of pair.ts's
     /// `swap()`.
     ///
     /// The terminal runs as an ICE-LITE agent: the browser's swap always
     /// stays ICE-controlling (it applies a synthesized answer), and
     /// webrtc-rs does not resolve two controlling agents, so the terminal
-    /// must take the controlled side — lite is the one arrangement that
+    /// must take the controlled side; lite is the one arrangement that
     /// yields it. Lite gathers host candidates only (no srflx), so the
     /// terminal peers on a shared network; crossing NATs is out of scope
     /// (ADR 0028). Loopback candidates ride along so a terminal and a
@@ -72,7 +72,7 @@ impl Swap {
         Self::build(true).await
     }
 
-    /// The full (controlling) flavor, for the loopback test's other side —
+    /// The full (controlling) flavor, for the loopback test's other side;
     /// the terminal's peer is always full in production (the browser).
     #[cfg(test)]
     async fn full() -> PairResult<Swap> {
@@ -90,8 +90,8 @@ impl Swap {
             .with_media_engine(MediaEngine::default())
             .with_setting_engine(setting)
             .build();
-        // A lite agent gathers host candidates only — STUN would give it
-        // nothing — so the config stays empty; its host candidate is what
+        // A lite agent gathers host candidates only (STUN would give it
+        // nothing) so the config stays empty; its host candidate is what
         // the full peer probes.
         let config = RTCConfiguration::default();
         let pc = Arc::new(
@@ -100,7 +100,7 @@ impl Swap {
                 .map_err(|err| err.to_string())?,
         );
         // The negotiated channel, stream 0 on either end, created BEFORE
-        // the offer so the application section exists — the browser's
+        // the offer so the application section exists; the browser's
         // `{ negotiated: true, id: 0 }` is one folded field here.
         let channel = pc
             .create_data_channel(
@@ -132,12 +132,12 @@ impl Swap {
         })
     }
 
-    /// Applies the peer's payload — its ANSWER synthesized locally with
-    /// the fingerprint-derived DTLS role — and resolves once the channel
+    /// Applies the peer's payload (its ANSWER synthesized locally with
+    /// the fingerprint-derived DTLS role) and resolves once the channel
     /// opens, wired into the bridge: state snapshots land in the terminal
     /// loop via `inbound`, `uicc1.` control frames (ADR 0032) split off to
     /// `ctrl`, outbound text pumps onto the channel, and exactly one side
-    /// greets — the caller says which (the lexically smaller payload for a
+    /// greets; the caller says which (the lexically smaller payload for a
     /// plain pairing; the state-holding side, always, on a handover).
     async fn connect(
         &self,
@@ -250,7 +250,7 @@ impl Swap {
         }
 
         // UIC_LIT_DEMO_ICE_DEBUG traces the connectivity for a pairing that
-        // will not come up — the honest NAT diagnosis the demo cannot fix.
+        // will not come up, the honest NAT diagnosis the demo cannot fix.
         if std::env::var_os("UIC_LIT_DEMO_ICE_DEBUG").is_some() {
             eprintln!(
                 "[ice] role={}, the peer offers these candidates to reach:",
@@ -273,7 +273,7 @@ impl Swap {
         open_rx.await.map_err(|_| "pairing abandoned".to_string())?
     }
 
-    /// Tears the connection down — the terminal calls it before a renew so
+    /// Tears the connection down; the terminal calls it before a renew so
     /// the old wire's outbound pump stops and no stale peer keeps mirroring.
     async fn close(&self) {
         let _ = self.pc.close().await;
@@ -292,7 +292,7 @@ pub(crate) struct Wiring {
     pub endpoints: Arc<Mutex<Option<String>>>,
 }
 
-/// The wire's real route once ICE nominated it — the relay-free story the
+/// The wire's real route once ICE nominated it, the relay-free story the
 /// navbar tells: this peer's address ⇄ the other side's.
 async fn selected_pair(swap: &Swap) -> Option<String> {
     let pair = swap
@@ -309,7 +309,7 @@ async fn selected_pair(swap: &Swap) -> Option<String> {
 }
 
 /// Drives a pairing [`Session`] with this module's swaps: the pure machine
-/// decides, this loop performs — mints, closes, control frames and panel
+/// decides, this loop performs: mints, closes, control frames and panel
 /// views where the effects say. Connects are SPAWNED, not awaited: the wait
 /// for both sides to apply each other's payload can be long, and commands
 /// (a disconnect, a conflict-modal accept) must not queue behind it. Each
@@ -326,7 +326,7 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
     } = wiring;
     // Control frames (ADR 0032) split off the data channel into this pair;
     // unsolicited transport closes report their wire's gen through the
-    // other. One bridge serves the session's every wire — a handover's
+    // other. One bridge serves the session's every wire; a handover's
     // fresh wire pumps the same channels.
     let (ctrl_tx, mut ctrl_rx) = mpsc::unbounded_channel::<String>();
     let (closed_tx, mut closed_rx) = mpsc::unbounded_channel::<Gen>();
@@ -418,13 +418,13 @@ pub(crate) async fn drive_session(page: String, opener: Option<String>, wiring: 
             }
             done = done_rx.recv() => {
                 let Some((gen, outcome)) = done else { continue };
-                // The connect resolved — stop the clock (whichever way it went).
+                // The connect resolved; stop the clock (whichever way it went).
                 connecting_since = None;
                 match outcome {
                     Ok(route) => {
                         // The navbar shows the route only while connected
                         // (the loop filters on mode), so a stale success
-                        // writing here is harmless — the next Present wins.
+                        // writing here is harmless: the next Present wins.
                         *endpoints.lock().expect("endpoints slot") = route;
                         SessionEvent::Connected { gen }
                     }
@@ -466,7 +466,7 @@ mod tests {
     /// on a shared CI runner can stall without ever reaching Failed, and a
     /// `connect` that never resolves would wedge the suite until the job
     /// timeout kills it. A stalled attempt fails fast instead, and one fresh
-    /// retry absorbs the rare transient stall — a genuine regression still
+    /// retry absorbs the rare transient stall; a genuine regression still
     /// fails both attempts.
     const PAIR_DEADLINE: Duration = Duration::from_secs(60);
 
@@ -482,7 +482,7 @@ mod tests {
     }
 
     async fn loopback_pairs() {
-        // Production shape: one lite (controlled) side — the terminal — and
+        // Production shape: one lite (controlled) side, the terminal, and
         // one full (controlling) side, the browser's stand-in. Two lite or
         // two full peers cannot pair (webrtc-rs never resolves a same-role
         // ICE conflict); the terminal is always the lite one.
@@ -501,7 +501,7 @@ mod tests {
         let b_latest = Arc::new(Mutex::new(String::from("hello-from-b")));
 
         // The swap completes only once BOTH sides applied each other's
-        // payload — the connects must run concurrently. The greet flag is
+        // payload; the connects must run concurrently. The greet flag is
         // the caller's: here the plain lexical rule (ADR 0013).
         let (ra, rb) = tokio::join!(
             a.connect(
@@ -530,7 +530,7 @@ mod tests {
         ra.expect("side a opens");
         rb.expect("side b opens");
 
-        // The nominated route is readable once the wire stands — the
+        // The nominated route is readable once the wire stands; the
         // navbar's address line rides this.
         let route = selected_pair(&a).await;
         assert!(
@@ -587,7 +587,7 @@ mod tests {
 
     async fn handover_pairs() {
         // The handover shape (ADR 0032): fresh swaps re-pair while the old
-        // wire still stands, and the greet is FORCED — the state-holding
+        // wire still stands, and the greet is FORCED: the state-holding
         // side (the terminal) announces its canonical snapshot whatever the
         // payload order says, and the fresh tab stays quiet.
         let terminal = Swap::new().await.expect("fresh terminal side");
@@ -638,7 +638,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn a_closed_swap_refuses_to_connect() {
-        // close() tears the peer connection down for good — a later connect
+        // close() tears the peer connection down for good; a later connect
         // reports plainly instead of hanging. (The cross-peer drop NOTICE
         // rides ICE timeouts too slow for a test deadline; the deterministic
         // local property is what pins close() here.)

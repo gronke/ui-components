@@ -1,6 +1,6 @@
 //! `overflow-wrap: anywhere` under the scripted host: an unbreakable token
 //! (a long URL) wraps across lines instead of pinning its box one clipped
-//! line wide — min-content drops to one cell, and the existing height count
+//! line wide: min-content drops to one cell, and the existing height count
 //! and paint break the word (they always could; the measurement was the
 //! blocker).
 
@@ -10,7 +10,7 @@ use uic_tui::ratatui::Terminal;
 
 // Flex containers are where min-content decides (a definite block width
 // always wrapped): a flex item cannot shrink below its min-content, so an
-// unbreakable token pins its item wider than the screen — unless
+// unbreakable token pins its item wider than the screen, unless
 // overflow-wrap drops the minimum to one cell.
 const CARDS: &str = r#"
 import { css, html, LitElement } from 'lit';

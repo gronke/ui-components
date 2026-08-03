@@ -1,4 +1,4 @@
-//! html5ever parses into the arena — and the lit-flavored binding dialect
+//! html5ever parses into the arena, and the lit-flavored binding dialect
 //! survives the trip.
 
 use uic_dom::{Document, NodeData};

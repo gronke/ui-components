@@ -1,6 +1,6 @@
 //! The catalog's terminal widget twins (ADR 0002): the `tui.rs` adapters that
-//! back `ui_components`'s `data-tui` widgets — the tab bar and the suggestion
-//! popup — in a companion crate whose directories mirror the catalog's, so the
+//! back `ui_components`'s `data-tui` widgets (the tab bar and the suggestion
+//! popup) in a companion crate whose directories mirror the catalog's, so the
 //! twins stay legible beside their definitions while `ui_components` keeps no
 //! `uic_tui` dependency. A terminal consumer links this crate, which chains the
 //! catalog's own `link`.

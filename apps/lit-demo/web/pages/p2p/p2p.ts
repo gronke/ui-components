@@ -3,7 +3,7 @@
 // contract of ADR 0013) and the navbar + todo take the page over. A
 // takeover replaces the wire (ADR 0032): the previous attachment detaches
 // so only the live wire mirrors the app. The navbar's disconnect closes on
-// purpose — back to a fresh pairing screen, no reload.
+// purpose: back to a fresh pairing screen, no reload.
 import './pair-wizard.js';
 import '../@gronke/uic-sync/status-navbar.js';
 import { STATE_FIELDS } from '../@gronke/lit-todo/todo-app.js';
@@ -23,8 +23,8 @@ const todoPane = document.querySelector('.todo-pane');
 const pairingPane = document.querySelector('.pairing-pane');
 
 // The screen rule, the terminal's twin: the todo (with the navbar) shows
-// while a wire stands or just dropped — red badge, disconnect as the way
-// back — and the pairing screen owns every other mode. The wrappers are
+// while a wire stands or just dropped (red badge, disconnect as the way
+// back) and the pairing screen owns every other mode. The wrappers are
 // plain divs so the UA's [hidden] rule wins unopposed.
 function applyScreen(mode: PanelMode): void {
     const todo = mode === 'connected' || mode === 'dropped';

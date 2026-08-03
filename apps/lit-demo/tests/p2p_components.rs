@@ -1,5 +1,5 @@
 //! The p2p composition under the scripted (terminal) host, loaded from the
-//! real baked package so the shipped components are what runs — not trimmed
+//! real baked package so the shipped components are what runs, not trimmed
 //! copies: the shared `<qr-code>` renders its `data-tui="qr"` widget marker
 //! (ADR 0029), `<pair-panel>` signals intent through the polled `command`
 //! property (ADR 0029), and `<p2p-deck>` composes the panes with the QR
@@ -89,8 +89,8 @@ fn the_deck_composes_the_panes_and_the_qr() {
     module(&mut host, PACKAGE, "p2p-deck.js");
     let deck = host.mount("p2p-deck", &[]).unwrap();
 
-    // The deck composes the stack and the QR beside it — the structure the
-    // terminal's responsive flex layout works on — pairing-first: the todo
+    // The deck composes the stack and the QR beside it (the structure the
+    // terminal's responsive flex layout works on); pairing-first: the todo
     // and the navbar ship inside hidden wrappers, the pairing pane shows.
     let html = host.state.borrow().doc.inner_html(deck);
     assert!(html.contains("<todo-app"), "the todo card mounts: {html}");
@@ -141,7 +141,7 @@ fn the_panel_invite_embeds_the_qr_with_the_link() {
 
     let html = host.state.borrow().doc.inner_html(panel);
     // Step 1 is active by default; its body composes the shared component,
-    // fed the link as an attribute — the cross-host-safe binding.
+    // fed the link as an attribute, the cross-host-safe binding.
     assert!(
         html.contains(&format!("data=\"{link}\"")),
         "the panel embeds <qr-code> carrying the invite link: {html}"
@@ -162,7 +162,7 @@ fn the_wizard_mutes_the_steps_it_has_not_reached() {
     host.set_prop(panel, "link", &format!("{reply:?}")).unwrap();
     host.set_prop(panel, "step", "2").unwrap();
 
-    // The three step cards, in order — step 2 active, 1 done, 3 to come.
+    // The three step cards, in order: step 2 active, 1 done, 3 to come.
     // Each header's own class carries the mute; its text carries the ✓.
     let headers: Vec<(String, String)> = {
         let state = host.state.borrow();
@@ -205,7 +205,7 @@ fn the_wizard_mutes_the_steps_it_has_not_reached() {
     );
 
     // The active step 2 holds the reply link; the muted cards carry no
-    // controls (nothing to click into — the terminal has no pointer-events).
+    // controls (nothing to click into; the terminal has no pointer-events).
     let html = host.state.borrow().doc.inner_html(panel);
     assert!(html.contains(reply), "the active step shows the reply link");
     let muted_bodies_have_no_controls = {
@@ -245,7 +245,7 @@ fn the_active_connect_step_carries_the_live_status() {
     module(&mut host, SYNC, "pair-panel.js");
     let panel = host.mount("pair-panel", &[]).unwrap();
 
-    // Step 3 connects on its own — no button — so its body IS the live
+    // Step 3 connects on its own (no button), so its body IS the live
     // status; a blank card here reads as "nothing is happening" even while a
     // connect is genuinely in flight.
     host.set_prop(panel, "mode", "\"invite\"").unwrap();
@@ -301,7 +301,7 @@ fn the_acknowledge_step_shows_the_live_connecting_status() {
     let panel = host.mount("pair-panel", &[]).unwrap();
 
     // The opener owes the reply link AND is connecting; step 2 must show both,
-    // with the live seconds counter — the bug was the reply prompt alone, no
+    // with the live seconds counter; the bug was the reply prompt alone, no
     // sign a connect was in flight.
     let reply = "https://example/lit-demo/p2p/#OWN.1a2b3c4d";
     host.set_prop(panel, "mode", "\"invite\"").unwrap();

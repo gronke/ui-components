@@ -1,4 +1,4 @@
-//! `<nav-breadcrumb>` — a static breadcrumb trail. The crumbs arrive as
+//! `<nav-breadcrumb>`: a static breadcrumb trail. The crumbs arrive as
 //! `.items` data rows (`{label, href?}`, ADR 0005 spirit); a computed
 //! decorates them with the divider so both targets paint the same text
 //! separators, because CSS `::before` dividers cannot render in a terminal
@@ -27,7 +27,7 @@ impl NavBreadcrumbLogic for NavBreadcrumb {
     /// The display rows `{label, href, sep, plain}`: `sep` is empty on the
     /// first crumb and the divider afterwards; `plain` complements `href`
     /// (loop members cannot be negated, ADR 0001). Mirrored for the browser
-    /// in `nav_breadcrumb.impl.ts` — keep both in sync.
+    /// in `nav_breadcrumb.impl.ts`; keep both in sync.
     fn crumbs(&self, store: &PropertyStore) -> Value {
         let divider = match store.get("divider") {
             Value::Str(divider) => divider.clone(),

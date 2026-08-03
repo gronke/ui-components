@@ -1,6 +1,6 @@
 // The foreign terminal pane: the worker host (crates/uic_worker) runs the
 // component on the browser's own engine; this side wires its client facade
-// into the shared scaffolding. Frames arrive pushed — early ones buffer
+// into the shared scaffolding. Frames arrive pushed; early ones buffer
 // until the terminal exists.
 import { connectWorkerSession } from './client.js';
 import { wireTerminalPane } from './pane-scaffold.js';

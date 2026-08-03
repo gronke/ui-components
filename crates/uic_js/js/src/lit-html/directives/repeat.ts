@@ -1,5 +1,5 @@
 // lit-html produces repeat. Under the subtree-swap commit keys cannot pin
-// DOM identity, so repeat degrades to an unkeyed map — focus survives the
+// DOM identity, so repeat degrades to an unkeyed map; focus survives the
 // swaps by data-path re-resolution instead.
 
 export function* repeat<T>(

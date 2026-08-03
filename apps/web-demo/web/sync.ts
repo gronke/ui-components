@@ -1,6 +1,6 @@
 // Per-property sync between the two panes of an example: each notify event
 // carries one property, and a canonical-JSON brake per property stops the
-// echo — the state bridge's dedupe trick, one string per property instead
+// echo: the state bridge's dedupe trick, one string per property instead
 // of one per snapshot.
 import type { ExampleConfig } from './example-config.js';
 

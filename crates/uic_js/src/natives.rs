@@ -1,5 +1,5 @@
 //! The flat `__uic_*` natives the runtime modules call, as thin Boa
-//! wrappers over the shared host operations (`uic_tui::dom::HostState`) —
+//! wrappers over the shared host operations (`uic_tui::dom::HostState`);
 //! the browser host exposes the same bodies through its wasm session.
 
 use boa_engine::{js_string, Context, JsNativeError, JsResult, JsValue, NativeFunction};
@@ -82,7 +82,7 @@ pub(crate) fn register_natives(context: &mut Context) -> Result<(), Error> {
     )?;
 
     // The input facade: a mounted terminal widget's live text behind
-    // `el.value` — null on plain nodes, so the facade can fall back to the
+    // `el.value`; null on plain nodes, so the facade can fall back to the
     // value attribute.
     context.register_global_callable(
         js_string!("__uic_widget_value"),
@@ -303,8 +303,8 @@ fn register_dialog_natives(context: &mut Context) -> Result<(), Error> {
 }
 
 // localStorage over the backend seam (src/storage.rs): get and key return
-// null past the data, set surfaces a refused write as a thrown error — the
-// browser's quota behavior.
+// null past the data, set surfaces a refused write as a thrown error (the
+// browser's quota behavior).
 #[cfg(feature = "storage")]
 fn register_storage_natives(context: &mut Context) -> Result<(), Error> {
     use crate::storage::with_backend;
@@ -350,7 +350,7 @@ fn register_storage_natives(context: &mut Context) -> Result<(), Error> {
         }),
     )?;
 
-    // A negative index never indexes — the browser's unsigned coercion
+    // A negative index never indexes; the browser's unsigned coercion
     // lands past the data and yields null.
     context.register_global_callable(
         js_string!("__uic_storage_key"),

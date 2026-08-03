@@ -1,6 +1,6 @@
 //! The ReactiveElement flow on the TUI runtime: `will_update` before the
 //! commit, the notify dispatch in between, `updated` after it, and follow-up
-//! cycles from `updated` writes. One test owns the shared log — the order is
+//! cycles from `updated` writes. One test owns the shared log; the order is
 //! the point. The mid-cycle observer is a DOM event listener: notify events
 //! dispatch as bubbling events during the cycle, exactly the browser's
 //! timing.
@@ -33,7 +33,7 @@ fn names(changed: &Changed) -> String {
 struct LifecycleProbe {
     #[property(notify)]
     value: String,
-    /// Set by `updated` — the write that requests a follow-up cycle.
+    /// Set by `updated`, the write that requests a follow-up cycle.
     #[property(reflect)]
     echoed: bool,
 }
@@ -81,7 +81,7 @@ fn the_cycle_orders_will_update_notify_commit_updated_and_follows_up() {
     host.set_attr("value", "x");
 
     // One external write: will_update sees the batch with the OLD value,
-    // the notify event dispatches before the commit, updated runs after it —
+    // the notify event dispatches before the commit, updated runs after it,
     // and its `echoed` write drives exactly one converging follow-up cycle.
     let entries = LOG.lock().expect("log lock").clone();
     assert_eq!(

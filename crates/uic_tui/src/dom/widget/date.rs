@@ -119,7 +119,7 @@ impl WidgetAdapter for DateAdapter {
         self.input.widget.area
     }
 
-    /// The normalized local datetime, or the digit-bearing raw mask text —
+    /// The normalized local datetime, or the digit-bearing raw mask text;
     /// the component's parser completes partials (`2024-00-00 00:00:00`
     /// clamps to `2024-01-01 00:00:00`), and the pristine all-zero mask
     /// commits as empty, like an untouched browser input fires no change.
@@ -197,7 +197,7 @@ impl WidgetAdapter for DateAdapter {
     }
 
     /// Opens the calendar seeded from the widget's current date, falling
-    /// back to today (the system clock — the wasm host shims it).
+    /// back to today (the system clock; the wasm host shims it).
     fn open_overlay(&mut self) {
         let seed = self
             .date_part()
@@ -288,7 +288,7 @@ impl WidgetAdapter for DateAdapter {
         match mouse.kind {
             MouseEventKind::Down(_) => {
                 // Picks resolve against the published day rects instead of
-                // rat's mouse handling — see `place_cursor`.
+                // rat's mouse handling; see `place_cursor`.
                 let start = self.month.start_date();
                 let date = self
                     .month

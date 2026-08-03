@@ -1,5 +1,5 @@
-//! Bracketed paste on the App: one `Event::Paste` is one bulk insert —
-//! not a key hail — with the widget's line discipline applied and the
+//! Bracketed paste on the App: one `Event::Paste` is one bulk insert
+//! (not a key hail), with the widget's line discipline applied and the
 //! live-text routing intact.
 
 mod support;

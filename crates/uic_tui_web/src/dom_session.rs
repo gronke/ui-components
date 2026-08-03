@@ -1,6 +1,6 @@
 //! The native engine's host boundary: a wasm session exposing the shared
 //! host operations (`uic_tui::dom::HostState`) so the UNCHANGED mocked-lit
-//! runtime runs on the browser's own JS engine — in a worker — against the
+//! runtime runs on the browser's own JS engine (in a worker) against the
 //! retained document, cascade and paint. Boa stays the host for real
 //! terminals; here the browser is the engine and this is its `__uic_*`
 //! surface.
@@ -75,7 +75,7 @@ impl DomSession {
     }
 
     /// `__uic_query`: the matching handles. Crosses to JS as a typed
-    /// array — the worker shim wraps it in `Array.from(...)`, since the
+    /// array; the worker shim wraps it in `Array.from(...)`, since the
     /// runtime maps object facades over the result.
     pub fn query(&mut self, handle: u32, selector: &str) -> Result<Vec<u32>, JsError> {
         let matches = self
@@ -120,12 +120,12 @@ impl DomSession {
     }
 
     /// `__uic_widget_value`: a mounted widget's live text, `None` (null)
-    /// on plain nodes — the facade falls back to the value attribute.
+    /// on plain nodes; the facade falls back to the value attribute.
     pub fn widget_value(&self, handle: u32) -> Option<String> {
         self.state.widget_value(handle as usize)
     }
 
-    /// `__uic_set_widget_value` — echo-skipped like the commit sync.
+    /// `__uic_set_widget_value`, echo-skipped like the commit sync.
     pub fn set_widget_value(&mut self, handle: u32, text: &str) {
         self.state.set_widget_value(handle as usize, text);
     }
@@ -151,19 +151,19 @@ impl DomSession {
         self.state.widget_paste(text).is_some()
     }
 
-    /// Whether the node carries a mounted widget — the pointer-focus guard.
+    /// Whether the node carries a mounted widget: the pointer-focus guard.
     pub fn widget_at(&self, handle: i32) -> bool {
         handle >= 0 && self.state.has_widget(handle as usize)
     }
 
-    /// The caret under the pointer — the browser's click-into-an-input.
+    /// The caret under the pointer: the browser's click-into-an-input.
     pub fn place_caret(&mut self, handle: u32, col: u16, row: u16) {
         self.state.place_caret(handle as usize, col, row);
     }
 
     // ---- host driving ------------------------------------------------
 
-    /// Creates and appends the host element — the node half of a mount;
+    /// Creates and appends the host element: the node half of a mount;
     /// the worker then calls `__uicMount(tag, handle)`.
     pub fn create_root(&mut self, tag: &str, attrs_json: &str) -> Result<u32, JsError> {
         let parsed: serde_json::Value = serde_json::from_str(attrs_json).map_err(js_err)?;
@@ -189,7 +189,7 @@ impl DomSession {
         Ok(self.state.create_root(tag, &attrs) as u32)
     }
 
-    /// The deepest node under the cell, as a handle (`-1` misses) — the
+    /// The deepest node under the cell, as a handle (`-1` misses); the
     /// worker picks the click target and calls `__uicDeliver` itself.
     pub fn hit_test(&mut self, col: u16, row: u16) -> i32 {
         use ratatui::backend::Backend as _;

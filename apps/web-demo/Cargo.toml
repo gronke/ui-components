@@ -21,7 +21,7 @@ tokio.workspace = true
 include_dir.workspace = true
 
 [build-dependencies]
-# Build-time baking needs the compilers + Tera — no axum/tokio.
+# Build-time baking needs the compilers + Tera; no axum/tokio.
 web_modules = { workspace = true, features = ["typescript", "scss", "tera"] }
 # The component catalog and its TypeScript generator run inside this script.
 ui_components.workspace = true

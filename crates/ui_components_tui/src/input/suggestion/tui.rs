@@ -1,5 +1,5 @@
 //! The terminal twin of `<input-suggestion>` (ADR 0002/0015): rat's text
-//! editing plus a hand-painted suggestion popup — the browser half lives in
+//! editing plus a hand-painted suggestion popup; the browser half lives in
 //! `suggestion.impl.ts`. Registered for `data-tui="suggestion-input"`
 //! through the widget registry, so the runtime needs no edit.
 
@@ -61,7 +61,7 @@ impl SuggestionAdapter {
     }
 
     /// Forwards to rat's text editing and records changed text for the
-    /// `@input` route; typing resets the highlight — it belonged to the
+    /// `@input` route; typing resets the highlight: it belonged to the
     /// previous query.
     fn edit(&mut self, focused: bool, event: &Event) {
         let before = self.input.text().to_string();
@@ -136,7 +136,7 @@ impl WidgetAdapter for SuggestionAdapter {
         if self.options.is_empty() {
             self.close_overlay();
         } else if changed && self.input.focus.get() && !self.input.text().is_empty() {
-            // Rows arriving while the user types open the popup — in-cycle
+            // Rows arriving while the user types open the popup; in-cycle
             // delivery repaints it in the same frame (ADR 0014).
             self.core.set_active(true);
         }
@@ -188,7 +188,7 @@ impl WidgetAdapter for SuggestionAdapter {
     }
 
     /// Arrows move the highlight, Enter adopts it (or commits the typed
-    /// text), Esc only closes — there is nothing to revert, the popup never
+    /// text), Esc only closes: there is nothing to revert, the popup never
     /// touches the text. Everything else keeps editing while open.
     fn overlay_key(&mut self, event: &Event) -> OverlayOutcome {
         let Event::Key(key) = event else {

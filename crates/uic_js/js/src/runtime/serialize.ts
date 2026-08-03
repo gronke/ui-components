@@ -92,7 +92,7 @@ function appendTemplate(out: Out, template: TemplateResult): void {
     }
 }
 
-// The unterminated open tag at the tail of the accumulated output — where
+// The unterminated open tag at the tail of the accumulated output, where
 // a binding necessarily sits. `.value=` serializes as the value attribute
 // only on the browser's value-carrying elements (lit-SSR's rule), so a
 // custom element with a `value` property stays untouched.

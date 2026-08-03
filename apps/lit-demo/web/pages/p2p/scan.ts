@@ -3,7 +3,7 @@
 // before offering the button.
 import { linkPayload, payloadRole } from '../@gronke/uic-sync/pair.js';
 
-/** The corner of the BarcodeDetector API the scan uses — the platform type
+/** The corner of the BarcodeDetector API the scan uses; the platform type
  * is not in TS's DOM lib yet. */
 interface DetectedCode {
     rawValue: string;
@@ -18,7 +18,7 @@ declare global {
 }
 
 /** Runs the camera against QR codes until one carries a PEER's swap
- * payload — this side's own code (or stray QR noise) keeps the camera
+ * payload; this side's own code (or stray QR noise) keeps the camera
  * looking. Resolves with the raw scanned text; the stream always stops. */
 export async function scanFor(video: HTMLVideoElement, own: string): Promise<string> {
     const detector = new window.BarcodeDetector!({ formats: ['qr_code'] });

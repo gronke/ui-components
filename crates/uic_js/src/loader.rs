@@ -1,6 +1,6 @@
 //! The in-memory module loader: the build-compiled runtime modules (the
 //! mocked `lit` and friends, generated table below) plus whatever the host
-//! registers — vendored component dists, test modules. Relative specifiers
+//! registers: vendored component dists, test modules. Relative specifiers
 //! resolve against the referrer's path.
 
 use std::cell::RefCell;

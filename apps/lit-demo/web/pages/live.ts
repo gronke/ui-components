@@ -1,5 +1,5 @@
 // The live bridge: one shared state between this page, other tabs and the
-// terminal running the server. The probe keeps plain `serve` mode silent —
+// terminal running the server. The probe keeps plain `serve` mode silent:
 // no `/live` route, no connection attempt. The server greets with the
 // canonical state, so this side waits (greet stays false).
 

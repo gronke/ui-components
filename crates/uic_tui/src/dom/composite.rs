@@ -62,7 +62,7 @@ impl Mount {
     }
 
     /// Diffs the child's host-node attributes against the last synced set
-    /// and applies the changes as observed-attribute updates — additions,
+    /// and applies the changes as observed-attribute updates: additions,
     /// changes AND removals (a boolean part clearing `?disabled` arrives as
     /// an absent attribute).
     pub(super) fn sync_child_attrs(
@@ -101,7 +101,7 @@ impl Mount {
     }
 
     /// A child's notify events reach this mount through the `@event`
-    /// bindings its custom tag declares, becoming handler calls — the
+    /// bindings its custom tag declares, becoming handler calls, the
     /// browser's addEventListener-per-binding, resolved statically.
     pub(super) fn route_child_events(
         &mut self,
@@ -138,7 +138,7 @@ impl Mount {
         self.dispatch_widget_event(doc, node, "change", text)
     }
 
-    /// Routes a widget's live text into the `@input` binding — the
+    /// Routes a widget's live text into the `@input` binding, the
     /// per-keystroke half beside the commit's `@change`.
     pub(crate) fn dispatch_widget_input(
         &mut self,
@@ -189,8 +189,8 @@ impl Mount {
     }
 
     /// Routes a pointer click on a plain node into the nearest enclosing
-    /// `@click` binding — the clicked element or an ancestor within this
-    /// instance — descending into the child mount that owns the node first,
+    /// `@click` binding (the clicked element or an ancestor within this
+    /// instance), descending into the child mount that owns the node first,
     /// so an unclaimed click bubbles out of the child like the browser's.
     /// `None` when no binding anywhere claims the click.
     pub(crate) fn dispatch_click(
@@ -268,7 +268,7 @@ impl Mount {
     }
 }
 
-/// The element's `data-*` attributes with camelCased keys — the browser's
+/// The element's `data-*` attributes with camelCased keys, the browser's
 /// DOMStringMap (`data-row-id` reads as `dataset.rowId`).
 fn dataset_of(doc: &DomDocument, node: NodeId) -> ObjectMap {
     let mut dataset = ObjectMap::default();

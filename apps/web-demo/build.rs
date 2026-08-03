@@ -312,7 +312,7 @@ const EXAMPLES: &[Example] = &[
 ];
 
 /// A maintained end-to-end example: a foreign npm lit element rendered in
-/// both panes — the browser pane through the real lit family, the terminal
+/// both panes: the browser pane through the real lit family, the terminal
 /// pane through the dedicated worker on the browser's own engine (ADR
 /// 0023). The page hands the session the entry inside the rewritten worker
 /// module tree; entry and module list derive from the vendored tree at
@@ -386,7 +386,7 @@ fn foreign_entry(package_root: &Path) -> String {
     entry.trim_start_matches("./").to_string()
 }
 
-/// Every `.js` module of the vendored tree, package-root-relative — what
+/// Every `.js` module of the vendored tree, package-root-relative: what
 /// the page fetches and registers with the Boa session.
 fn foreign_modules(package_root: &Path, dir: &Path, out: &mut Vec<String>) {
     for entry in fs::read_dir(dir).expect("read vendored tree").flatten() {
@@ -409,13 +409,13 @@ fn foreign_modules(package_root: &Path, dir: &Path, out: &mut Vec<String>) {
     }
 }
 
-/// The notify wiring of a tag, from the registry — the page registers its
+/// The notify wiring of a tag, from the registry; the page registers its
 /// `on_notify` callbacks from exactly this list. The per-property pane sync
 /// carries JSON-faithful scalars only: rich types stay out, since a Zoned
 /// crossing JSON arrives as a plain string, not a Temporal instance, and
 /// the scalar `value` twin already carries the same information. A channel
 /// example consumes whole-state snapshots instead, so its rich-typed notify
-/// (the form's `state` object) must register regardless — filtering it away
+/// (the form's `state` object) must register regardless; filtering it away
 /// would sever the TUI→page direction entirely.
 fn notify_pairs(tag: &str, channel: bool) -> Vec<serde_json::Value> {
     use uic_core::JsType;
@@ -608,7 +608,7 @@ fn main() {
     }
     // Foreign examples: the packages pre-vendor here, the entry derives
     // from the real tree, and the worker module tree carries the mocked
-    // runtime beside the package with its bare lit* imports rewritten —
+    // runtime beside the package with its bare lit* imports rewritten:
     // import maps do not reach workers.
     let worker_root = out.join("gen_worker");
     let _ = fs::remove_dir_all(&worker_root);

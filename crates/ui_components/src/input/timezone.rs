@@ -1,4 +1,4 @@
-//! `<input-timezone>` — the IANA time-zone select, a thin catalog subclass
+//! `<input-timezone>`: the IANA time-zone select, a thin catalog subclass
 //! of `<input-select>`: it shares the select template and styles (`style =
 //! "input-select"`), supplies the zone list as its computed options, and the
 //! empty selection always commits null.
@@ -52,7 +52,7 @@ pub struct InputTimezone {
 }
 
 impl InputTimezoneLogic for InputTimezone {
-    /// Mirrored for the browser in `timezone.impl.ts` — keep both in sync.
+    /// Mirrored for the browser in `timezone.impl.ts`; keep both in sync.
     fn select_options(&self, store: &uic_core::PropertyStore) -> Value {
         with_default_option(TIMEZONE_OPTIONS.clone(), store.get("default"))
     }

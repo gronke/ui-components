@@ -12,7 +12,7 @@ use wasm_bindgen::prelude::*;
 
 /// Anchors the host and the catalog into this bundle. As a wasm-bindgen export
 /// it is a linker root, so wasm-ld keeps `uic_tui_web`, `ui_components` and
-/// `ui_components_demo`'s objects — and their inventory constructors — rather
+/// `ui_components_demo`'s objects (and their inventory constructors) rather
 /// than dropping them by lazy archive extraction.
 #[wasm_bindgen]
 pub fn link_catalog() {

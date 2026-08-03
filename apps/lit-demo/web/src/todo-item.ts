@@ -1,4 +1,4 @@
-// One row of the list, rendered from its attributes — a parent re-commit
+// One row of the list, rendered from its attributes: a parent re-commit
 // swaps rows in fresh, so composition data arrives as attributes.
 //
 // Light DOM: the browser styles the row through the page's Bootstrap; the
@@ -9,7 +9,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 import { terminalTheme } from './theme.js';
 
-// Editing swaps the label for a real input — the browser's native caret
+// Editing swaps the label for a real input: the browser's native caret
 // and outline, the terminal's rat widget twin by element type. The parent
 // hears its bubbling `input` events and mirrors the text into the row.
 
@@ -20,8 +20,8 @@ export class TodoItem extends LitElement {
         editing: { type: Boolean },
     };
 
-    // The terminal's look: the .check span IS the checkbox there — a real
-    // element, so its clicks hit-test apart from the row — plus the label
+    // The terminal's look: the .check span IS the checkbox there (a real
+    // element, so its clicks hit-test apart from the row) plus the label
     // colors. The browser hides .check via page.css and shows the real
     // checkbox instead; checkbox and button stay browser-only, while the
     // EDIT input is real in both hosts (its rat widget draws the caret).

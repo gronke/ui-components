@@ -1,4 +1,4 @@
-//! `<input-suggestion>` — typeahead text input: the live text leaves through
+//! `<input-suggestion>`, typeahead text input: the live text leaves through
 //! `query-changed` on every keystroke, a host answers by writing matching
 //! rows into the `suggestions` property (ADR 0014), a popup shows them, and
 //! picking one commits like typed text. Commit semantics follow the text
@@ -22,7 +22,7 @@ pub struct InputSuggestion {
     /// Committed value; `allow-null` commits null for empty input.
     #[property(notify, default = "")]
     pub value: Option<String>,
-    /// The live text, one write per keystroke — `query-changed` is the
+    /// The live text, one write per keystroke; `query-changed` is the
     /// connector hook a host answers by setting `suggestions`.
     #[property(notify, default = "")]
     pub query: String,
@@ -37,7 +37,7 @@ pub struct InputSuggestion {
 }
 
 impl InputSuggestionLogic for InputSuggestion {
-    /// Mirrored for the browser in `suggestion.impl.ts` — keep both in sync.
+    /// Mirrored for the browser in `suggestion.impl.ts`; keep both in sync.
     fn on_input(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         ctx.set("query", event.target_value.clone().unwrap_or_default());
     }

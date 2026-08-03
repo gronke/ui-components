@@ -29,8 +29,8 @@ jobs:
       # Linking every test binary beside the cache's zstd staging exhausts the
       # runner: a full disk or an out-of-memory linker both surface as a Bus
       # error. Reclaim the preinstalled bundles and docker images, put the
-      # build tree on the larger /mnt disk — lld mmaps its output, so a disk
-      # filling mid-link kills it with SIGBUS instead of ENOSPC — and add swap
+      # build tree on the larger /mnt disk (lld mmaps its output, so a disk
+      # filling mid-link kills it with SIGBUS instead of ENOSPC) and add swap
       # on the root disk, which sits idle once the build tree moved away.
       - name: Free runner disk and add swap
         run: |
@@ -79,7 +79,7 @@ jobs:
       # The workspace test binaries have run and nothing later reads them:
       # parity replays staged fixtures from the source tree, and the dist
       # step links fresh feature-hashed binaries. Deleting them returns
-      # their gigabytes to the scratch disk right before the dist links —
+      # their gigabytes to the scratch disk right before the dist links,
       # the job's fullest moment, where a heavy-delta PR can still brush
       # the disk into an ld SIGBUS.
       - name: Reclaim the run test binaries
@@ -96,7 +96,7 @@ jobs:
         run: cargo test -p uic_codegen_web --features dist --jobs 1
 
       # The workspace run staged the compiled twin and the Rust fixtures;
-      # node replays them — the cross-target parity gate.
+      # node replays them, the cross-target parity gate.
       - name: Cross-target parity
         run: node scripts/parity-check.mjs
 

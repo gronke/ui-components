@@ -1,7 +1,7 @@
 // The state owner: rows, draft and selection live here, children render
-// from attributes. Text entry is a plain `<input type="text">` — the
+// from attributes. Text entry is a plain `<input type="text">` (the
 // browser gives it the native caret, selection and focus outline, the
-// terminal mounts its rat widget twin by element type — and the bubbling
+// terminal mounts its rat widget twin by element type) and the bubbling
 // `input` event carries typing into the state. The host keydown listener
 // keeps the list chrome: Enter, arrows, and Space/Delete while no input
 // holds text.
@@ -18,12 +18,12 @@ interface TodoRow {
     done: boolean;
 }
 
-/** The reactive properties a sync harness mirrors — the app's one state
+/** The reactive properties a sync harness mirrors: the app's one state
  * contract, imported by every page that attaches a wire. Rust twin:
  * `STATE_FIELDS` in the demo's main.rs. */
 export const STATE_FIELDS: string[] = ['draft', 'editing', 'items', 'selected'];
 
-// Where the rows live between runs — the browser's own localStorage and
+// Where the rows live between runs: the browser's own localStorage and
 // the terminal's storage feature speak the same API.
 const STORE_KEY = 'uic-todos';
 
@@ -61,7 +61,7 @@ export class TodoApp extends LitElement {
     declare selected: number;
     declare editing: number;
 
-    // Transient drag source — plain field, neither reactive nor synced.
+    // Transient drag source: plain field, neither reactive nor synced.
     private dragFrom = -1;
 
     // The last snapshot written to storage. The mocked lit calls updated
@@ -95,10 +95,10 @@ export class TodoApp extends LitElement {
         draft?.focus();
     }
 
-    // The announcement the live bridge listens to — a plain Event carrying
+    // The announcement the live bridge listens to, a plain Event carrying
     // nothing: the snapshot is read off the properties. The terminal's
     // mocked lit calls updated with an empty map, so the guard keeps Boa
-    // off the (unmocked) dispatchEvent path — there the host reads state
+    // off the (unmocked) dispatchEvent path; there the host reads state
     // directly.
     updated(changed: Map<string, unknown>): void {
         if (STATE_FIELDS.some((name) => changed.has(name))) {
@@ -150,8 +150,8 @@ export class TodoApp extends LitElement {
         }
     }
 
-    // The list chrome. Editing keys never land here — the focused input
-    // consumes them natively — and Space/Delete stay editing keys unless
+    // The list chrome. Editing keys never land here (the focused input
+    // consumes them natively) and Space/Delete stay editing keys unless
     // no text is in play (the cancelable-keydown contract: preventDefault
     // suppresses the input's default action in both hosts).
     onKey(event: KeyboardEvent): void {
@@ -198,7 +198,7 @@ export class TodoApp extends LitElement {
             }
             this.selected = Math.max(this.selected - 1, 0);
         } else {
-            // A key the chrome does not consume — Tab above all — keeps its
+            // A key the chrome does not consume (Tab above all) keeps its
             // default: cancel only what was acted on.
             return;
         }
@@ -206,7 +206,7 @@ export class TodoApp extends LitElement {
     }
 
     // Typing lands in a real input; its bubbling `input` event carries the
-    // live text into the state — the draft box or the row being edited.
+    // live text into the state: the draft box or the row being edited.
     onInput(event: Event): void {
         const target = event.target as (Element & { value?: unknown }) | null;
         if (!target || typeof target.closest !== 'function') {
@@ -239,7 +239,7 @@ export class TodoApp extends LitElement {
     }
 
     // The pointer model: only checkbox interaction toggles (the input in
-    // the browser, the .check span in the terminal — closest, not matches:
+    // the browser, the .check span in the terminal; closest, not matches:
     // the terminal's hit test lands on text nodes), a plain click selects,
     // and a double click opens the row for editing.
     onItemClick(event: Event): void {
@@ -268,7 +268,7 @@ export class TodoApp extends LitElement {
         this.editing = index;
     }
 
-    // The one reorder primitive — Shift+arrows and drag both land here: the
+    // The one reorder primitive; Shift+arrows and drag both land here: the
     // row moves and the selection follows it.
     private moveItem(from: number, to: number): void {
         const items = this.items.slice();
@@ -299,7 +299,7 @@ export class TodoApp extends LitElement {
         }
     }
 
-    // Rows reorder live while the drag hovers them — remote mirrors watch
+    // Rows reorder live while the drag hovers them; remote mirrors watch
     // the move happen.
     onDragOver(event: DragEvent): void {
         event.preventDefault();
@@ -331,7 +331,7 @@ export class TodoApp extends LitElement {
         return item ? item.text : '';
     }
 
-    // Edits land in the row as they are typed — remote mirrors watch the
+    // Edits land in the row as they are typed; remote mirrors watch the
     // text change letter by letter.
     editText(text: string): void {
         const index = this.editing;
@@ -347,7 +347,7 @@ export class TodoApp extends LitElement {
         if (this.itemText(index).length === 0) {
             this.removeAt(index);
         }
-        // The keyboard returns to the entry row — in both hosts the edit
+        // The keyboard returns to the entry row; in both hosts the edit
         // input just unrendered, taking the focus down with it.
         this.focusDraft();
     }

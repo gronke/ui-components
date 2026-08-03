@@ -1,6 +1,6 @@
 // One wiring for every pane showing the state: seed the dedupe with the
 // settled boot state (booting is not news), send commits that are news,
-// apply the peers' snapshots — and record both directions for the debug
+// apply the peers' snapshots, and record both directions for the debug
 // bar.
 import { StateBridge } from './bridge.js';
 import type { AppState } from './bridge.js';

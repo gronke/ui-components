@@ -1,5 +1,5 @@
 // Browser behavior of <input-timezone>; mirrors the Rust InputTimezoneLogic
-// impl in timezone.rs — keep both in sync.
+// impl in timezone.rs; keep both in sync.
 //
 // The two targets keep specialized zone lists on purpose, side by side for
 // comparison: timezone.rs iterates chrono-tz, this file asks the browser via

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
-/// The TypeScript sources (`tui-worker.ts`, `client.ts`) — an extra root
+/// The TypeScript sources (`tui-worker.ts`, `client.ts`), an extra root
 /// for a consumer's `web_modules` build.
 pub fn web_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("web")
@@ -42,7 +42,7 @@ pub fn npm_tree(out: &Path, version: &str) -> Result<Vec<String>, String> {
 /// Compiles the mocked-lit runtime (`uic_js`'s `js/src`, handed in as
 /// `src_root`) into a served module tree under `out`: the same per-module
 /// TypeScript compile the Boa host bakes, shipped as files so the browser's
-/// own engine — in a worker — imports them natively. A build script gets the
+/// own engine (in a worker) imports them natively. A build script gets the
 /// `rerun-if-changed` for free.
 pub fn worker_runtime_tree(src_root: &Path, out: &Path) {
     println!("cargo:rerun-if-changed={}", src_root.display());
@@ -76,7 +76,7 @@ fn compile_worker_tree(root: &Path, dir: &Path, out_root: &Path) {
 }
 
 /// The bare specifier families the mocked runtime provides at the worker
-/// tree's root — a vendored component's imports of these rewrite to relative
+/// tree's root; a vendored component's imports of these rewrite to relative
 /// paths, since import maps do not reach workers.
 const MOCK_FAMILIES: &[&str] = &["lit", "lit-html", "lit-element", "@lit/"];
 

@@ -1,4 +1,4 @@
-//! The object-valued timestamp behind `date`-like properties — the Rust
+//! The object-valued timestamp behind `date`-like properties: the Rust
 //! analog of a `Temporal.ZonedDateTime` (an instant paired with an IANA
 //! time zone).
 
@@ -9,7 +9,7 @@ use chrono_tz::Tz;
 
 /// An immutable zoned timestamp.
 ///
-/// Equality is (instant, time zone id) — stricter than chrono's
+/// Equality is (instant, time zone id), stricter than chrono's
 /// instant-only comparison, so a same-instant write in a different zone
 /// still counts as a change (the catalog observes the same through
 /// reference inequality), while true no-op writes stay suppressed.

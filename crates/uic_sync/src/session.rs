@@ -1,4 +1,4 @@
-//! The pairing-session lifecycle a native host drives — the Rust half of
+//! The pairing-session lifecycle a native host drives: the Rust half of
 //! ADR 0032, sharing the `pair::Ctrl` control plane with `web/session.ts`
 //! (whose own job, cross-tab organization, stays browser-only).
 //!
@@ -6,11 +6,11 @@
 //! come out, and the WebRTC stack stays with the consumer (the lit-demo
 //! drives it through a small tokio loop). Every wire carries a monotone
 //! [`Gen`] tag; events from superseded wires are no-ops by construction,
-//! which replaces per-wire "deliberate close" flags — the machine simply
+//! which replaces per-wire "deliberate close" flags: the machine simply
 //! no longer knows the old wire when its close arrives.
 //!
 //! The machine also owns every user-facing pairing status and the
-//! [`PanelState`] it presents — the shared `<pair-panel>` property
+//! [`PanelState`] it presents: the shared `<pair-panel>` property
 //! contract, the same component both hosts render.
 
 use crate::pair::{self, Ctrl};
@@ -20,7 +20,7 @@ use crate::pair::{self, Ctrl};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Gen(u64);
 
-/// The mode vocabulary the native session produces — `as_str` spells the
+/// The mode vocabulary the native session produces; `as_str` spells the
 /// `<pair-panel>` property values. The TS wizard's union adds the
 /// browser-only members (`handed`, `moved`, `nortc`) on top.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -83,11 +83,11 @@ pub struct PanelState {
 pub enum Command {
     /// Start a fresh invite (the reset button).
     Renew,
-    /// Connect to a pasted invite — a link or a bare pairing code.
+    /// Connect to a pasted invite: a link or a bare pairing code.
     Connect(String),
     /// The host's clock, ticked while a connect is in flight: fold the
     /// elapsed seconds into the connecting status so the wait shows progress.
-    /// The machine stays clockless — the host counts, this only formats.
+    /// The machine stays clockless: the host counts, this only formats.
     Tick { secs: u64 },
 }
 
@@ -160,11 +160,11 @@ struct Pending {
     peer: String,
 }
 
-/// How a peer payload reached us — the detection that shapes step 2 and the
+/// How a peer payload reached us: the detection that shapes step 2 and the
 /// failure. A fresh invite means the peer is initiating and waits on our
-/// reply (a failed connect cannot honestly retry — a new swap means a new
+/// reply (a failed connect cannot honestly retry: a new swap means a new
 /// reply link the peer never sees); a reply to our own invite means the peer
-/// already applied our payload (a failed connect cannot resume either — their
+/// already applied our payload (a failed connect cannot resume either: their
 /// copy is stale the moment our swap dies).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PeerCase {
@@ -198,15 +198,15 @@ const RESET_TRY_AGAIN: &str = "try again";
 const CONFIRM_FAILED_STATUS: &str = "couldn't confirm the connection — the other side may still show connected; start a fresh pairing on both and exchange new links";
 
 /// The pairing session: create an invite, wait for the peer (pairing is a
-/// mutual exchange — ADR 0028), connect, stand ready to renew, and answer
+/// mutual exchange, ADR 0028), connect, stand ready to renew, and answer
 /// repair rounds (ADR 0032) with a fresh wire that replaces the old one
 /// only after it opened.
 pub struct Session {
     page: String,
-    /// The peer being chased, if any — its payload and how it reached us,
+    /// The peer being chased, if any: its payload and how it reached us,
     /// which shapes the connecting status and the honest failure.
     pursuit: Option<Pursuit>,
-    /// A one-shot status the next plain invite carries — the honest word
+    /// A one-shot status the next plain invite carries: the honest word
     /// after a pairing that could not resume.
     carry_status: Option<String>,
     phase: Phase,
@@ -222,7 +222,7 @@ impl Session {
     /// payload when an invite link launched this host. The first effect
     /// mints the own swap.
     pub fn start(page: String, opener: Option<String>) -> (Session, Vec<Effect>) {
-        // A CLI opener is a fresh invite we are answering — we hold their
+        // A CLI opener is a fresh invite we are answering: we hold their
         // payload and must send our reply back.
         let pursuit = opener.map(|peer| Pursuit {
             peer,
@@ -291,7 +291,7 @@ impl Session {
     fn minted(&mut self, gen: Gen, payload: String) -> Vec<Effect> {
         if self.is_pending(gen) {
             // The repair round's fresh wire: the answer rides the standing
-            // wire's pump, and the fresh connect greets — this side holds
+            // wire's pump, and the fresh connect greets: this side holds
             // the canonical state, whatever the payload order says.
             let peer = self.pending.as_ref().expect("pending checked").peer.clone();
             return vec![
@@ -333,7 +333,7 @@ impl Session {
                     Effect::Connect {
                         gen,
                         // Exactly one side greets: the lexically smaller
-                        // payload (ADR 0013) — a fresh pairing has no
+                        // payload (ADR 0013); a fresh pairing has no
                         // canonical-state holder yet.
                         greet: payload < pursuit.peer,
                         peer: pursuit.peer,
@@ -381,7 +381,7 @@ impl Session {
 
     fn opened(&mut self, gen: Gen) -> Vec<Effect> {
         if self.is_pending(gen) {
-            // The old wire closes only now, after the new one opened — a
+            // The old wire closes only now, after the new one opened; a
             // failed handover loses nothing. Its later close event carries
             // a stale gen and falls through silently.
             let pending = self.pending.take().expect("pending checked");
@@ -399,7 +399,7 @@ impl Session {
         if !self.is_current(gen) {
             return Vec::new();
         }
-        // The wire stands — the pursuit is over, no retry to keep.
+        // The wire stands; the pursuit is over, no retry to keep.
         self.pursuit = None;
         self.phase = Phase::Standing;
         vec![self.present(PanelState {
@@ -426,8 +426,8 @@ impl Session {
             return Vec::new();
         }
         // Neither case can honestly retry. A fresh-invite connect that failed
-        // cannot re-mint: a new swap means a new reply link, and the peer —
-        // who opened the first — never sees it, so a retry only invalidates
+        // cannot re-mint: a new swap means a new reply link, and the peer,
+        // who opened the first, never sees it, so a retry only invalidates
         // the link they are about to open. A reply-to-ours failure cannot
         // resume either: the peer's copy of our payload went stale with our
         // swap. Both fail honestly; a fresh pairing is the way back.
@@ -498,9 +498,9 @@ impl Session {
                 if let (Phase::Inviting, Some((gen, payload))) = (&self.phase, self.current.clone())
                 {
                     // A reply naming OUR invite means the peer already
-                    // applied our payload — connecting completes at once
+                    // applied our payload; connecting completes at once
                     // (step 3). A reply naming a DIFFERENT invite is neither
-                    // ours to answer nor a fresh invite — say so, touch
+                    // ours to answer nor a fresh invite: say so, touch
                     // nothing. No digest is a fresh invite: the peer is
                     // initiating and waits on our reply, so step 2 shows the
                     // reply link they must open while the connect rides
@@ -558,7 +558,7 @@ impl Session {
                     }
                 }
                 // Standing or down: the next mint consumes the peer like an
-                // opened invite would — a paste here starts a fresh chase.
+                // opened invite would; a paste here starts a fresh chase.
                 self.pursuit = Some(Pursuit {
                     peer,
                     case: PeerCase::FreshInvite,
@@ -680,7 +680,7 @@ mod tests {
         assert_eq!(view.link, "https://host/p2p/#bbb");
         assert!(view.status.contains("you connect when a peer answers"));
         assert_eq!(view.reset_label, RESET_START_OVER);
-        // No pursuit: the session waits — no connect yet.
+        // No pursuit: the session waits; no connect yet.
         assert!(!effects.iter().any(|e| matches!(e, Effect::Connect { .. })));
     }
 
@@ -697,7 +697,7 @@ mod tests {
         assert_eq!(view.mode, PanelMode::Invite);
         assert_eq!(view.step, Step::Acknowledge);
         // The opener sees a live connect (with the seconds counter) beside the
-        // instruction to send the reply — not one or the other.
+        // instruction to send the reply, not one or the other.
         assert!(view.status.contains("connecting"));
         assert!(view.status.contains("send this reply back"));
         assert_eq!(
@@ -756,14 +756,14 @@ mod tests {
     fn a_reply_for_a_different_invite_is_refused_without_connecting() {
         let (mut session, effects) = Session::start("https://host/p2p/".into(), None);
         let _ = minted(&mut session, &effects, "own");
-        // A reply whose digest names some other invite — neither ours to
+        // A reply whose digest names some other invite: neither ours to
         // answer nor a fresh invite. Say so, connect nothing.
         let effects = session.on(Event::Command(Command::Connect(
             "https://host/p2p/#peer.deadbeef".into(),
         )));
         assert!(!effects.iter().any(|e| matches!(e, Effect::Connect { .. })));
         assert!(presented(&effects).status.contains("a different invite"));
-        // The invite still stands — a correct paste next still works.
+        // The invite still stands; a correct paste next still works.
         assert_eq!(presented(&effects).mode, PanelMode::Invite);
     }
 
@@ -793,7 +793,7 @@ mod tests {
         let fresh_gen = mint_gen(&effects);
 
         // The fresh swap answers through the standing wire and connects
-        // with a FORCED greet — this side holds the canonical state.
+        // with a FORCED greet: this side holds the canonical state.
         let effects = session.on(Event::Minted {
             gen: fresh_gen,
             payload: "freshOwn".into(),
@@ -813,7 +813,7 @@ mod tests {
         assert_eq!(effects[0], Effect::Close { gen: old_gen });
         assert!(presented(&effects).status.contains("reconnected"));
 
-        // The old wire's close event is stale by gen — no dropped state.
+        // The old wire's close event is stale by gen; no dropped state.
         assert_eq!(session.on(Event::Closed { gen: old_gen }), Vec::new());
     }
 
@@ -854,7 +854,7 @@ mod tests {
 
         // A fresh-invite connect that failed cannot honestly retry: a new
         // swap means a new reply link the peer (who opened the first) never
-        // sees. Fail honestly — no re-mint, no re-connect, no bald claim.
+        // sees. Fail honestly: no re-mint, no re-connect, no bald claim.
         let effects = session.on(Event::ConnectFailed {
             gen,
             error: "the peers could not reach each other".into(),
@@ -883,7 +883,7 @@ mod tests {
         let _ = minted(&mut session, &effects, "own");
 
         // While a connect stands, the host's tick folds the elapsed seconds
-        // into the status — the wait shows progress and the action still reads.
+        // into the status; the wait shows progress and the action still reads.
         let effects = session.on(Event::Command(Command::Tick { secs: 12 }));
         let view = presented(&effects);
         assert_eq!(view.step, Step::Acknowledge);
@@ -894,7 +894,7 @@ mod tests {
         );
         assert!(view.status.contains("send this reply back"));
 
-        // A plain invite (no connect in flight) has no clock — a tick is inert.
+        // A plain invite (no connect in flight) has no clock; a tick is inert.
         let (mut idle, effects) = Session::start("https://host/p2p/".into(), None);
         let _ = minted(&mut idle, &effects, "own");
         assert!(
@@ -915,7 +915,7 @@ mod tests {
         let effects = session.on(Event::Command(Command::Connect(reply)));
         let (gen, ..) = connect_of(&effects);
 
-        // Their copy of our payload is stale the moment our swap dies —
+        // Their copy of our payload is stale the moment our swap dies;
         // no self-serving retry. Renew to a plain invite (step 1), honestly.
         let effects = session.on(Event::ConnectFailed {
             gen,

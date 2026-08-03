@@ -4,7 +4,7 @@
 use crate::meta::ComponentDef;
 
 /// One registered custom element; `#[derive(CustomElement)]` submits this via
-/// `inventory::submit!` — the `customElements.define` moment.
+/// `inventory::submit!`, the `customElements.define` moment.
 pub struct Registration(pub fn() -> &'static ComponentDef);
 
 inventory::collect!(Registration);
@@ -13,7 +13,7 @@ inventory::collect!(Registration);
 pub struct CustomElementRegistry;
 
 impl CustomElementRegistry {
-    /// `customElements.get` — looks a definition up by tag name.
+    /// `customElements.get`: looks a definition up by tag name.
     pub fn get(tag: &str) -> Option<&'static ComponentDef> {
         Self::iter().find(|def| def.tag_name == tag)
     }

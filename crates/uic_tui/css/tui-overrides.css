@@ -28,7 +28,7 @@
     padding: 0 1ch;
 }
 .card-body {
-    /* One blank row between the card's cap and its content, nothing else —
+    /* One blank row between the card's cap and its content, nothing else;
        the browser's inset does not translate to cells. */
     padding: 1lh 0 0;
 }
@@ -51,11 +51,11 @@
 /* The input-group affix keeps one cell off the value, nothing more. */
 .input-group-text { padding: 0 0 0 1ch; }
 
-/* Bootstrap's gap-2 in cells: one column, zero rows — a zero column gap
+/* Bootstrap's gap-2 in cells: one column, zero rows; a zero column gap
    would fuse the items. */
 .gap-2 { gap: 0 1ch; }
 
-/* Form controls hug their content in cells with no inner inset —
+/* Form controls hug their content in cells with no inner inset;
    Bootstrap's width: 100% and field paddings are browser-form conventions.
    The explicit utility re-asserts itself below so templates opting in with
    w-100 keep stretching. */
@@ -65,7 +65,7 @@
 }
 .w-100 { width: 100% !important; }
 
-/* <uic-tree>: the collapse markers as generated content — the browser twin
+/* <uic-tree>: the collapse markers as generated content; the browser twin
    of these rules lives in tree.scss; keep the pair in sync. */
 .uic-tree-row .uic-tree-marker {
     display: inline-flex;

@@ -1,4 +1,4 @@
-//! The object-valued map behind `Value::Object` — a plain JS object analog
+//! The object-valued map behind `Value::Object`: a plain JS object analog
 //! for state-shaped properties (ADR 0013).
 
 use std::collections::BTreeMap;

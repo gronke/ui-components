@@ -14,7 +14,7 @@ pub struct UiEvent {
     /// The notify payload when the event is a child element's `*-changed`
     /// (the browser's `event.detail.value`).
     pub detail: Option<Value>,
-    /// The bound element's `data-*` attributes, keys camelCased — the
+    /// The bound element's `data-*` attributes, keys camelCased: the
     /// browser's `event.currentTarget.dataset`, how a loop row tells the
     /// handler which item it is.
     pub dataset: ObjectMap,
@@ -30,7 +30,7 @@ impl UiEvent {
         }
     }
 
-    /// The live text of a widget as the user types — the browser's
+    /// The live text of a widget as the user types: the browser's
     /// per-keystroke `input` event; the commit stays with [`UiEvent::change`].
     pub fn input(target_value: impl Into<String>) -> Self {
         UiEvent {
@@ -63,7 +63,7 @@ impl UiEvent {
         }
     }
 
-    /// A dataset member as text — `event.data("id")` reads what the
+    /// A dataset member as text: `event.data("id")` reads what the
     /// browser twin reads as `event.currentTarget.dataset.id`.
     pub fn data(&self, key: &str) -> Option<&str> {
         self.dataset.get(key).and_then(Value::as_str)
@@ -99,7 +99,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// The property as text: the string's content, `""` for everything
-    /// else — the common read of composite derivations.
+    /// else; the common read of composite derivations.
     pub fn text(&self, rust_name: &str) -> String {
         self.store
             .get(rust_name)
@@ -109,7 +109,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// Writes suppress equal values at the store: an unchanged property
-    /// joins no batch, re-enters no `will_update` and notifies nobody —
+    /// joins no batch, re-enters no `will_update` and notifies nobody;
     /// callers need no equality guard of their own.
     pub fn set(&mut self, rust_name: &'static str, value: impl Into<Value>) {
         if let Some(old) = self.store.set(rust_name, value) {

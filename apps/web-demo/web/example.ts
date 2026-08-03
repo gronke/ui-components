@@ -70,7 +70,7 @@ function wireSlider(): void {
 
 /**
  * The editable word pool: the page plays the host answering the panes'
- * `query-changed` from the textarea's current words — the same
+ * `query-changed` from the textarea's current words, the same
  * InMemorySource semantics the form's live pool uses (ADR 0014).
  */
 function wirePool(pool: string[], element: any): {
@@ -180,7 +180,7 @@ async function boot(): Promise<void> {
         // Foreign elements carry no notify contract; the panes render the
         // same seeds independently.
     } else if (config.channel) {
-        // Whole-state snapshots over the broadcast channel — the form's
+        // Whole-state snapshots over the broadcast channel: the form's
         // cross-tab story, unchanged from the original demo.
         stateOut = wireStatePane({
             boot: (el.state ?? {}) as AppState,

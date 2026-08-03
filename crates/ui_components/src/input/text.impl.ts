@@ -1,5 +1,5 @@
 // Browser behavior of <input-text>; mirrors the Rust InputTextLogic impl in
-// text.rs — keep both in sync.
+// text.rs; keep both in sync.
 import { trimmedValue } from './uic-impl-helpers.js';
 import type { InputText } from './input-text.js';
 

@@ -1,4 +1,4 @@
-//! Magnitude measurements — run manually:
+//! Magnitude measurements; run manually:
 //!
 //! ```sh
 //! cargo test -p uic_js --release --test measure -- --ignored --nocapture

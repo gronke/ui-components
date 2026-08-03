@@ -2,7 +2,7 @@
 //! element operations.
 //!
 //! Node identity is a `Copy` [`NodeId`]. Structural operations move subtrees
-//! implicitly the way the web DOM does — appending a node that already has a
+//! implicitly the way the web DOM does: appending a node that already has a
 //! parent detaches it first. [`Document::detach`] mirrors `removeChild`
 //! (the subtree stays alive for re-insertion); [`Document::remove`] destroys
 //! a subtree and reclaims its arena slots, after which its ids are stale and
@@ -20,7 +20,7 @@ use crate::html::ElementKind;
 
 /// One document: the arena, its root node and the event-listener registry.
 ///
-/// `T` is the consumer payload carried by every element — the hook the TUI
+/// `T` is the consumer payload carried by every element: the hook the TUI
 /// runtime uses to attach widget state to its tree. Parsing and plain trees
 /// use `Document<()>`.
 pub struct Document<T = ()> {
@@ -282,7 +282,7 @@ impl<T> Document<T> {
     /// this one, detached. Elements keep their name, attributes and template
     /// contents; the consumer payload starts fresh. Every copied pair lands
     /// in `map` (source id → new id), so callers holding references into the
-    /// source — a compiled template's part plan — can resolve them against
+    /// source (a compiled template's part plan) can resolve them against
     /// the copy.
     pub fn import_node<U>(
         &mut self,
@@ -390,7 +390,7 @@ impl<T> Document<T> {
             .find(|&node| self.element(node).is_some_and(&matches))
     }
 
-    /// The first element of a tag under `from` — how a host finds the
+    /// The first element of a tag under `from`: how a host finds the
     /// components a one-shot composition mounted.
     pub fn descendant_by_tag(&self, from: NodeId, tag: &str) -> Option<NodeId> {
         self.find_element(from, |el| el.tag().as_ref() == tag)

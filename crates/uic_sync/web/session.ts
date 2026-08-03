@@ -2,14 +2,14 @@
 // how a link opened in a fresh tab reaches it, and how a session hands over
 // to another tab by re-signaling THROUGH its own live wire (a peer
 // connection cannot move between documents, but a new one can be negotiated
-// over the old one). Framework-free on purpose — BroadcastChannel is the
-// only platform API, the wire stays the `Wire` seam — so this module can
+// over the old one). Framework-free on purpose (BroadcastChannel is the
+// only platform API, the wire stays the `Wire` seam), so this module can
 // graduate into a package of its own.
 //
 // Three pieces:
 // - `ControlWire` wraps a live wire with a control plane: `uicc1.`-prefixed
 //   frames (canonical-codec JSON) carry protocol messages, everything else
-//   passes through as state. The app attaches to the wrapper — `attach`'s
+//   passes through as state. The app attaches to the wrapper; `attach`'s
 //   decode throws on non-JSON, so control frames must never reach it.
 // - `TabSessions` is the same-browser handover: an opened link offers its
 //   payload to the tabs, the owning tab claims it (a reply only in the tab
@@ -96,7 +96,7 @@ export class ControlWire implements Wire {
 /** What a claim tells the opening tab about the claiming session. */
 export type ClaimStatus = 'waiting' | 'connected';
 
-/** The session a waiting or connected tab serves to the handover channel —
+/** The session a waiting or connected tab serves to the handover channel;
  * all functions, because a takeover replaces the tab's swap in place. */
 export interface ServedSession {
     /** This side's own swap payload. */
@@ -109,7 +109,7 @@ export interface ServedSession {
     spent(): boolean;
     /** True while the wire stands. */
     connected(): boolean;
-    /** An unspent claim adopted this peer payload — pair with it. */
+    /** An unspent claim adopted this peer payload; pair with it. */
     onPeer(peer: string): void;
 }
 
@@ -117,7 +117,7 @@ export interface ServedSession {
 export interface OfferOutcomes {
     /** A tab claimed it; `status` says whether it paired or already stands. */
     handed(status: ClaimStatus): void;
-    /** A plain invite nobody claimed — this tab becomes the second side. */
+    /** A plain invite nobody claimed; this tab becomes the second side. */
     adopt(): void;
     /** A reply whose inviting session no open tab holds. */
     orphan(): void;
@@ -217,7 +217,7 @@ export class TakeoverPoint {
     }
 
     /** The new tab's half: offer the fresh payload, await the remote's. The
-     * request re-posts until answered — BroadcastChannel keeps no history,
+     * request re-posts until answered: BroadcastChannel keeps no history,
      * and the owner may still be connecting when the first post fires; the
      * owner ignores duplicates while a takeover is in flight. */
     request(ownPayload: string, timeoutMs = TAKEOVER_TIMEOUT_MS): Promise<string> {
@@ -243,7 +243,7 @@ export class TakeoverPoint {
     }
 
     /** The new tab reports the fresh wire opened; the old owner retires on
-     * it. Carries the new owner's payload — the new tab serves this very
+     * it. Carries the new owner's payload: the new tab serves this very
      * channel the moment it connects, and must not retire on its own cue. */
     done(byPayload: string): void {
         this.channel.postMessage({ type: 'takeover-done', payload: byPayload });

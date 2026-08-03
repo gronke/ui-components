@@ -1,6 +1,6 @@
 //! The dialog box under a test terminal: it paints centered over whatever
 //! lies beneath, and its keystroke handler answers the way a browser
-//! dialog does — Enter for the focused button, Escape cancels, y/n decide
+//! dialog does: Enter for the focused button, Escape cancels, y/n decide
 //! a confirm, printables land in a prompt's line.
 
 use uic_tui::dialog::{paint_dialog, Dialog, DialogChoice, DialogOutcome};

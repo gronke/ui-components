@@ -1,5 +1,5 @@
 // The focus polyfill. focus(): the previous node blurs with a focusout,
-// the next one gains a focusin — relatedTarget carries the counterpart,
+// the next one gains a focusin; relatedTarget carries the counterpart,
 // WHATWG order.
 
 import { deliver } from './events.js';

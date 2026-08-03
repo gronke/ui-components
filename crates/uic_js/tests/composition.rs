@@ -1,6 +1,6 @@
 //! A committed subtree upgrades its nested custom elements: the parent's
 //! render mounts the children it names, a re-commit upgrades the swapped-in
-//! replacements from their attributes, and events reach the composition —
+//! replacements from their attributes, and events reach the composition:
 //! printable keydowns on the host instance, template `@click` markers on
 //! the child tags.
 
@@ -131,7 +131,7 @@ fn paint(host: &JsHost, terminal: &mut Terminal<TestBackend>) -> String {
     out
 }
 
-/// The `<demo-item>` node carrying the given `text` attribute — the click
+/// The `<demo-item>` node carrying the given `text` attribute: the click
 /// target a `uic_tui::dom::hit_test` would yield.
 fn item_node(host: &JsHost, text: &str) -> Option<uic_dom::NodeId> {
     let state = host.state.borrow();
@@ -143,7 +143,7 @@ fn item_node(host: &JsHost, text: &str) -> Option<uic_dom::NodeId> {
     found
 }
 
-/// The label span inside an item — the deeper target a click on the text
+/// The label span inside an item, the deeper target a click on the text
 /// resolves to.
 fn label_node(host: &JsHost, text: &str) -> Option<uic_dom::NodeId> {
     let item = item_node(host, text)?;
@@ -155,7 +155,7 @@ fn label_node(host: &JsHost, text: &str) -> Option<uic_dom::NodeId> {
     found
 }
 
-/// The text inside the label — the deepest node a terminal hit test lands
+/// The text inside the label, the deepest node a terminal hit test lands
 /// on; discrimination must walk up from here (closest, not matches).
 fn label_text_node(host: &JsHost, text: &str) -> Option<uic_dom::NodeId> {
     let label = label_node(host, text)?;
@@ -260,7 +260,7 @@ fn modifiers_and_click_targets_reach_the_composition() {
     );
 
     // A click on the label's TEXT (the deepest hit-test target) reports
-    // editing intent; one on the row element toggles — the target's
+    // editing intent; one on the row element toggles: the target's
     // closest() walk discriminates.
     let label = label_text_node(&host, "beta").expect("beta label text");
     host.click(label).unwrap();
@@ -284,7 +284,7 @@ fn modifiers_and_click_targets_reach_the_composition() {
 
     // A double click travels the same marker machinery under its own name.
     // The toggle's re-commit swapped the children, so resolve the node
-    // fresh — exactly what a pointer's per-click hit test does.
+    // fresh, exactly what a pointer's per-click hit test does.
     let row = item_node(&host, "beta").expect("beta item after the swap");
     host.dblclick(row).unwrap();
     let after_dbl = paint(&host, &mut terminal);

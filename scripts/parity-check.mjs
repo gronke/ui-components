@@ -34,7 +34,7 @@ for (const { state, expect } of cases) {
 }
 
 // The suggest fixtures replay the Rust pool's answers through the TS twin's
-// InMemorySource — the connector half of the parity (ADR 0014).
+// InMemorySource, the connector half of the parity (ADR 0014).
 for (const { query, expect } of suggest) {
   const rows = await impl.wordPool.query(query);
   const have = rows.map(row => row.value);

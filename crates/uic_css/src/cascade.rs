@@ -1,9 +1,9 @@
-//! The cascade: four origins, importance, specificity, source order —
+//! The cascade: four origins, importance, specificity, source order,
 //! resolved into a per-node computed-style table over the document.
 //!
 //! Origin dominates importance (unlike full CSS's author rules): the
 //! overrides sheet must reliably beat generated Bootstrap, `!important`
-//! included — the model that makes a curated overlay trustworthy.
+//! included; the model that makes a curated overlay trustworthy.
 
 use std::collections::HashMap;
 
@@ -51,7 +51,7 @@ pub fn resolve_document<T>(
 ) -> StyleTable {
     let mut table = StyleTable::new();
     let root_style = ComputedStyle::default();
-    // The pseudo pass only runs when some sheet targets pseudo-elements —
+    // The pseudo pass only runs when some sheet targets pseudo-elements;
     // the catalog without adopted sheets keeps its zero-cost path.
     let has_pseudo_rules = sheets.iter().any(|sheet_ref| {
         sheet_ref.sheet.rules.iter().any(|rule| {

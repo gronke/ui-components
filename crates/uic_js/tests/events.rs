@@ -127,7 +127,7 @@ fn stop_family_on_the_last_node_gates_same_node_listeners() {
         "\"inner<inner,mid<inner,host<inner,\""
     );
 
-    // Plain stopPropagation only blocks the ancestors — the second
+    // Plain stopPropagation only blocks the ancestors; the second
     // listener on the same node still runs, the platform's distinction.
     host.set_prop(node, "stopMode", "\"host-stop\"").unwrap();
     host.set_prop(node, "log", "\"\"").unwrap();

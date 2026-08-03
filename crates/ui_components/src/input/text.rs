@@ -1,4 +1,4 @@
-//! `<input-text>` — plain text input with the shared input chrome.
+//! `<input-text>`: plain text input with the shared input chrome.
 //! Commits on change: trimmed, empty becoming null when `allow-null` is set.
 
 use uic_core::{input_shared, Ctx, CustomElement, UiEvent, Value};
@@ -28,7 +28,7 @@ pub struct InputText {
 }
 
 impl InputTextLogic for InputText {
-    /// Mirrored for the browser in `text.impl.ts` — keep both in sync.
+    /// Mirrored for the browser in `text.impl.ts`; keep both in sync.
     fn on_change(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         let raw = event.target_value.clone().unwrap_or_default();
         let trimmed = raw.trim();

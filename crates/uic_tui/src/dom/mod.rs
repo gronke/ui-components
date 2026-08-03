@@ -26,7 +26,7 @@ pub use widget::{OverlayOutcome, WidgetAdapter, WidgetPayload, WidgetRegistratio
 pub type DomDocument = uic_dom::Document<WidgetPayload>;
 
 /// Paints a document without the [`App`] host: layout, content, focused
-/// overlay. External hosts — a JS-driven document, a widget twin's tests —
+/// overlay. External hosts (a JS-driven document, a widget twin's tests)
 /// own their document and focus and call this once per frame.
 pub fn paint_document(
     frame: &mut ratatui::Frame,
@@ -38,7 +38,7 @@ pub fn paint_document(
     render::paint_popup(frame, area, doc, focused);
 }
 
-/// Resolves the deepest laid node containing the cell — the pointer entry
+/// Resolves the deepest laid node containing the cell, the pointer entry
 /// for external hosts. Recomputes layout for `area`, exactly like the paint.
 pub fn hit_test(
     doc: &DomDocument,

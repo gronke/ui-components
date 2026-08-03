@@ -63,7 +63,7 @@ pub struct ComputedStyle {
     pub max_width: Dimension,
 
     // Inherited text styling (background inherits too: the terminal has no
-    // transparency, so the enclosing paint shows through by inheritance —
+    // transparency, so the enclosing paint shows through by inheritance,
     // a documented approximation).
     pub color: Option<Color>,
     pub background: Option<Color>,
@@ -226,7 +226,7 @@ impl ComputedStyle {
                 self.italic = kw == "italic" || kw == "oblique";
             }
             ("font-size", value) => {
-                // Sub-line sizes read as dim — `small { font-size: smaller }`.
+                // Sub-line sizes read as dim: `small { font-size: smaller }`.
                 self.dim = match value {
                     Value::Keyword(kw) => kw == "smaller" || kw == "small" || kw == "x-small",
                     Value::Length(Length::Em(em)) => *em < 1.0,

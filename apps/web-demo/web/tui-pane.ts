@@ -19,7 +19,7 @@ export async function mountTuiPane(options: {
     pane: HTMLElement;
     /** The screen host, `#terminal`. */
     terminal: HTMLElement;
-    /** Runs between mount and the first paint — late seeds. */
+    /** Runs between mount and the first paint: late seeds. */
     seed?: (session: any, index: number) => void;
     /** One callback per notify event, delivered outside the session borrow. */
     onNotify?: (event: string, json: string) => void;

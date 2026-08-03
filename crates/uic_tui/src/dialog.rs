@@ -1,8 +1,8 @@
 //! Browser dialogs for terminal hosts: one centered box painted after the
-//! document (ratatui buffers are last-write-wins — the popup rule) and a
+//! document (ratatui buffers are last-write-wins, the popup rule) and a
 //! keystroke handler the host routes to first while the box shows. Alert
 //! acknowledges, confirm decides, prompt collects a line. Hosts own the
-//! modality — paint last, route first; this module is only the box.
+//! modality: paint last, route first; this module is only the box.
 
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -113,7 +113,7 @@ impl Dialog {
         }
     }
 
-    /// Bulk text into a prompt's line — the paste twin of the printable
+    /// Bulk text into a prompt's line: the paste twin of the printable
     /// arm, with the single-line discipline applied; the other kinds
     /// ignore it.
     pub fn paste(&mut self, text: &str) {
@@ -124,13 +124,13 @@ impl Dialog {
     }
 }
 
-/// One printable character — the DOM key name of a text key.
+/// One printable character: the DOM key name of a text key.
 fn printable(key: &str) -> bool {
     let mut chars = key.chars();
     matches!((chars.next(), chars.next()), (Some(c), None) if !c.is_control())
 }
 
-/// Greedy word wrap, the line count `Wrap { trim: true }` will paint —
+/// Greedy word wrap, the line count `Wrap { trim: true }` will paint;
 /// overlong words spill across lines like the renderer spills them.
 fn wrapped_line_count(text: &str, width: usize) -> usize {
     if width == 0 {
@@ -158,7 +158,7 @@ fn wrapped_line_count(text: &str, width: usize) -> usize {
     lines
 }
 
-/// Paints the dialog centered over `area` — call it AFTER the document
+/// Paints the dialog centered over `area`: call it AFTER the document
 /// paint; the buffer's last write wins, so the box overlays whatever lies
 /// beneath (the widget popups' own mechanism).
 pub fn paint_dialog(frame: &mut ratatui::Frame, area: Rect, dialog: &Dialog) {

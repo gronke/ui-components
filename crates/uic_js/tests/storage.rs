@@ -1,6 +1,6 @@
 //! The storage feature through the runtime: the `localStorage` global
-//! speaks Web Storage over the backend seam — string coercion, null past
-//! the data, the native index guard — and a component reads it as early as
+//! speaks Web Storage over the backend seam (string coercion, null past
+//! the data, the native index guard), and a component reads it as early as
 //! its constructor. Values come back as engine values and are read in
 //! Rust; the backend semantics themselves are pinned by the pure-Rust
 //! tests beside the trait (src/storage.rs).
@@ -54,7 +54,7 @@ fn removal_and_clear_forget_through_the_natives() {
 }
 
 // key(n) sorted and length come from the backend; the negative index is the
-// native's own guard — the browser's unsigned coercion lands past the data.
+// native's own guard; the browser's unsigned coercion lands past the data.
 #[test]
 fn keys_enumerate_through_the_index_guard() {
     let mut host = JsHost::new().unwrap();
@@ -116,7 +116,7 @@ customElements.define('stored-greeting', StoredGreeting);
 "#;
 
 // The backend installs before the runtime's entry module evaluates, so a
-// component can read storage as early as its constructor — the load path
+// component can read storage as early as its constructor, the load path
 // persistence rides on.
 #[test]
 fn a_component_reads_storage_in_its_constructor() {

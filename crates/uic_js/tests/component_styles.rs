@@ -1,5 +1,5 @@
 //! A component's `static styles` reach the terminal: json-viewer's own
-//! stylesheet — custom properties, `var()`, `calc()`, scoped element rules —
+//! stylesheet (custom properties, `var()`, `calc()`, scoped element rules)
 //! drives colors and indentation instead of hardcoded entries.
 
 use std::path::Path;
@@ -30,7 +30,7 @@ fn paint(host: &JsHost, terminal: &mut Terminal<TestBackend>) {
 }
 
 /// The buffer position of a substring's first cell, as (x, y). Cells count
-/// as characters — the ▶ marker is multi-byte, so a byte offset would lie.
+/// as characters; the ▶ marker is multi-byte, so a byte offset would lie.
 fn locate(terminal: &Terminal<TestBackend>, needle: &str) -> (u16, u16) {
     let buffer = terminal.backend().buffer();
     let area = buffer.area;
@@ -63,7 +63,7 @@ fn the_component_stylesheet_styles_the_terminal() {
     paint(&host, &mut terminal);
 
     // The component's `ul { padding: 0 }` beats the ua indent inside its
-    // scope: top-level keys sit at the left edge — the collapsable key
+    // scope: top-level keys sit at the left edge, the collapsable key
     // behind its two-cell ::before marker box (width: var(--line-height)).
     let (active_x, _) = locate(&terminal, "active:");
     assert_eq!(active_x, 0, "component ul reset applies within its scope");
@@ -78,7 +78,7 @@ fn the_component_stylesheet_styles_the_terminal() {
 
     // Its palette arrives through custom properties and var(): the key
     // color is --property-color (#6fb3d2), the string --string-color
-    // (#a3eea0) — exact 24-bit values, not the retired ANSI entries.
+    // (#a3eea0), exact 24-bit values, not the retired ANSI entries.
     assert_eq!(
         foreground(&terminal, tags_x, tags_y),
         Some(Color::Rgb(0x6f, 0xb3, 0xd2)),
@@ -92,7 +92,7 @@ fn the_component_stylesheet_styles_the_terminal() {
     );
 
     // Expanding `tags` (the component's own keyboard handling) indents the
-    // members by its calc(var(--indent-size) + var(--line-height)) margin —
+    // members by its calc(var(--indent-size) + var(--line-height)) margin:
     // 1.7rem, two cells.
     host.focus(root).unwrap();
     host.dispatch_key("ArrowDown").unwrap();

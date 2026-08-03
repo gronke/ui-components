@@ -1,4 +1,4 @@
-//! Renders one <input-date> frame into an in-memory terminal and prints it —
+//! Renders one <input-date> frame into an in-memory terminal and prints it,
 //! the quickest way to see what the TUI backend produces.
 
 use ratatui::backend::TestBackend;

@@ -1,6 +1,6 @@
 //! Web Storage behind the terminal runtime: a synchronous backend seam the
 //! `__uic_storage_*` natives reach the way the DOM natives reach
-//! [`HostState`](crate::HostState) — through a thread-local, because the
+//! [`HostState`](crate::HostState): through a thread-local, because the
 //! flat natives capture nothing. One backend per thread: a second host on
 //! the same thread replaces the slot, the same sharing the document state
 //! has.
@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use boa_engine::{JsNativeError, JsResult};
 
-/// A write the backend refused — thrown into the runtime, the browser's
+/// A write the backend refused: thrown into the runtime, the browser's
 /// quota behavior.
 #[derive(Debug)]
 pub struct StorageError(pub String);

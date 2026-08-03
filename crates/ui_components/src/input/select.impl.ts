@@ -1,5 +1,5 @@
 // Browser behavior of <input-select>; mirrors the Rust InputSelectLogic impl
-// in select.rs — keep both in sync.
+// in select.rs; keep both in sync.
 import type { InputSelect } from './input-select.js';
 import type { SelectOption } from './uic-runtime.js';
 

@@ -1,5 +1,5 @@
 // Browser behavior of <nav-tabs>; mirrors the Rust NavTabsLogic impl in
-// mod.rs — keep both in sync. The button rows below are this target's tab
+// mod.rs; keep both in sync. The button rows below are this target's tab
 // painting, the twin of tui.rs (ADR 0002/0015).
 import type { NavTabs } from './nav-tabs.js';
 import type { SelectOption } from './uic-runtime.js';

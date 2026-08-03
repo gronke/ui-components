@@ -7,7 +7,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// A DOM-shaped keystroke: the `KeyboardEvent.key` name plus the modifier
-/// flags — the shared currency between crossterm and every JS-facing host.
+/// flags, the shared currency between crossterm and every JS-facing host.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyStroke {
     pub key: String,
@@ -17,7 +17,7 @@ pub struct KeyStroke {
     pub meta: bool,
 }
 
-/// The named keys both sides know — one table, both directions. Function
+/// The named keys both sides know: one table, both directions. Function
 /// keys and printable characters translate programmatically.
 const NAMED: &[(&str, KeyCode)] = &[
     ("Enter", KeyCode::Enter),
@@ -48,7 +48,7 @@ impl KeyStroke {
         }
     }
 
-    /// A stroke carrying the shift flag — reorder chords and friends.
+    /// A stroke carrying the shift flag: reorder chords and friends.
     pub fn shifted(key: impl Into<String>) -> Self {
         Self {
             shift: true,
@@ -58,7 +58,7 @@ impl KeyStroke {
 
     /// The DOM name and modifiers of a terminal key event; `None` for keys
     /// the DOM contract has no name for. Printable characters keep
-    /// `shift` false — the character itself already carries the case.
+    /// `shift` false; the character itself already carries the case.
     /// `BackTab` reads as shifted `Tab`, the DOM's spelling of it.
     pub fn from_crossterm(event: &KeyEvent) -> Option<Self> {
         let shift = event.modifiers.contains(KeyModifiers::SHIFT);
@@ -99,7 +99,7 @@ impl KeyStroke {
 
     /// The terminal event of this stroke; `None` for names a terminal has
     /// no notion of, like bare modifiers. Shifted `Tab` folds into
-    /// `BackTab` while the SHIFT modifier stays set — the shape the
+    /// `BackTab` while the SHIFT modifier stays set, the shape the
     /// browser sessions always produced.
     pub fn to_crossterm(&self) -> Option<KeyEvent> {
         let mut modifiers = KeyModifiers::NONE;

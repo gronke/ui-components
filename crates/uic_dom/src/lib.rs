@@ -1,9 +1,9 @@
 //! A retained DOM for the terminal runtime: LitElement's substrate, in Rust.
 //!
 //! One arena-backed tree with the web's element operations, spec-grade
-//! parsing through html5ever's `TreeSink` — the architecture lit-html itself
+//! parsing through html5ever's `TreeSink` (the architecture lit-html itself
 //! uses in the browser: real HTML parsing, with the binding dialect riding
-//! through as plain attributes and text — and the whatwg event-dispatch
+//! through as plain attributes and text), and the whatwg event-dispatch
 //! subset with capture/bubble propagation.
 //!
 //! This crate is the foundation layer; the template parts compiler, the

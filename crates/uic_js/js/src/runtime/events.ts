@@ -1,7 +1,7 @@
 // The event polyfill: bubbling dispatch over the retained tree, merging a
 // component's addEventListener registrations with the render's template
 // listener markers. The import cycle with element.js is deferred-call-only
-// — ESM-legal, pinned by the boa_quirks cycle canary.
+// (ESM-legal, pinned by the boa_quirks cycle canary).
 
 import { instances, listenerFns } from './state.js';
 import { wrapNode } from './element.js';

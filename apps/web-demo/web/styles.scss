@@ -27,8 +27,8 @@ body:has(#debug-bar.collapsed) {
 }
 
 // The terminal pane: the same element, rendered by the TUI runtime in
-// wasm. The padding frame reads the body background of the page theme —
-// the same custom property the xterm palette maps — so screen and frame
+// wasm. The padding frame reads the body background of the page theme
+// (the same custom property the xterm palette maps) so screen and frame
 // always agree.
 #tui-pane .tui-screen {
   background: var(--bs-body-bg);
@@ -36,8 +36,8 @@ body:has(#debug-bar.collapsed) {
   padding: 0.75rem;
 }
 
-// The example panes: side by side above md — following the width slider
-// once it moved — and tabs below.
+// The example panes: side by side above md (following the width slider
+// once it moved) and tabs below.
 .example-panes {
   --pane-width: auto;
 }

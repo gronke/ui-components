@@ -8,7 +8,7 @@ qr-code {
     display: block;
 }
 
-/* Scanners want dark modules on a light ground — the code sits on its own
+/* Scanners want dark modules on a light ground: the code sits on its own
    white card whatever the page theme, and never overflows the card. */
 qr-code svg {
     display: block;

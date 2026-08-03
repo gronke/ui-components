@@ -1,7 +1,7 @@
 // The dedicated worker hosting a foreign lit element on the browser's own
 // JS engine: the wasm DomSession carries the retained document, cascade
 // and paint; the unchanged mocked-lit runtime and the component run here
-// natively, resolving through the rewritten worker module tree — import
+// natively, resolving through the rewritten worker module tree; import
 // maps do not reach workers. ANSI crosses to the page per message.
 
 type InitMessage = {
@@ -33,7 +33,7 @@ const post = (ansi: string) => {
 };
 
 // Lit schedules updates on the microtask queue; give them one turn before
-// painting — the browser's own job draining, where Boa needed run_jobs().
+// painting: the browser's own job draining, where Boa needed run_jobs().
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 async function init(message: InitMessage): Promise<void> {
@@ -68,7 +68,7 @@ async function init(message: InitMessage): Promise<void> {
     // The foreign component defines its tag against the mocked lit.
     await import(message.entry);
 
-    // One settled turn after each entry call — the drain points the Boa
+    // One settled turn after each entry call: the drain points the Boa
     // host has with run_jobs(); the component must render before focusin
     // reaches its own handlers.
     rootHandle = session.create_root(message.tag, JSON.stringify(message.attrs ?? {}));
@@ -91,7 +91,7 @@ async function input(message: InputMessage): Promise<void> {
         case 'key': {
             const focused = session.focused();
             if (focused >= 0) {
-                // The full modifier state travels — the same keydown
+                // The full modifier state travels, the same keydown
                 // contract the native Boa host delivers.
                 const prevented = (globalThis as any).__uicDeliver(focused, 'keydown', {
                     key: message.key,
@@ -138,7 +138,7 @@ async function input(message: InputMessage): Promise<void> {
                 const target = session.hit_test(message.col, message.row);
                 if (target >= 0) {
                     // A widget node takes focus and the caret lands under
-                    // the pointer — the browser's click-into-an-input.
+                    // the pointer: the browser's click-into-an-input.
                     if (typeof session.widget_at === 'function' && session.widget_at(target)) {
                         (globalThis as any).__uicFocus(target);
                         session.place_caret(target, message.col, message.row);

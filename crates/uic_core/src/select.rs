@@ -2,7 +2,7 @@
 //!
 //! Select options are data, not template structure: components expose a
 //! `Vec<SelectOption>` (stored or computed) and both render targets consume
-//! it — the generated Lit class maps it to `<option>` children, the TUI
+//! it: the generated Lit class maps it to `<option>` children, the TUI
 //! feeds it to its dropdown widget.
 
 /// One entry of a select option list.

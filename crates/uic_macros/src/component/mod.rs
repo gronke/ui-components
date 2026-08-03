@@ -275,7 +275,7 @@ pub fn expand(input: DeriveInput, source_file: Option<&Path>) -> syn::Result<Tok
 }
 
 /// `.options` bindings carry option lists (ADR 0005): they belong on
-/// `<select>` elements — whose children then come from the data — on custom
+/// `<select>` elements (whose children then come from the data), on custom
 /// elements, which receive the list as a property, or on `data-tui` widgets,
 /// whose adapters store the rows (ADR 0002).
 fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String> {
@@ -316,7 +316,7 @@ fn validate_options_bindings(nodes: &[uic_template::Node]) -> Result<(), String>
 /// Whether the element mounts a terminal widget: an explicit `data-tui`
 /// marker, or a plain form element the runtime detects by element type
 /// (ADR 0026, the shared `uic_template::native` table). A bound `type`
-/// counts conservatively — the committed value may imply a widget — and a
+/// counts conservatively (the committed value may imply a widget), and a
 /// static negative tabindex opts a presentation twin out, mirroring the
 /// mount.
 fn implies_widget(el: &uic_template::Element) -> bool {
@@ -387,7 +387,7 @@ fn validate_for_bodies(nodes: &[uic_template::Node]) -> Result<(), String> {
     Ok(())
 }
 
-/// Whether any element in the tree mounts a widget — explicit `data-tui`
+/// Whether any element in the tree mounts a widget, explicit `data-tui`
 /// or element-type detection alike.
 fn chrome_has_widget(nodes: &[uic_template::Node]) -> bool {
     use uic_template::Node;

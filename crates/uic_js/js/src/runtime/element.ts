@@ -1,5 +1,5 @@
 // The node facade polyfill: plain objects delegating to the host natives,
-// one wrapper identity per node — components resolve through `instances`
+// one wrapper identity per node; components resolve through `instances`
 // first, so an upgraded element is its own facade.
 
 import { instances } from './state.js';
@@ -87,7 +87,7 @@ export function queryAllNodes(el: any, selector: string): any[] {
     return __uic_query(el.__node, selector).map((handle) => wrapNode(handle));
 }
 
-// The nearest self-or-ancestor matching the selector — the DOM's closest().
+// The nearest self-or-ancestor matching the selector, the DOM's closest().
 // Event targets can be text nodes here (the retained tree lays them), so
 // click discrimination wants the ancestor walk, not a bare matches().
 export function closestFrom(handle: number, selector: string): any {

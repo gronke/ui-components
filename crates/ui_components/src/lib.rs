@@ -1,8 +1,8 @@
 //! The component catalog: one Rust definition per custom element.
 //!
 //! Each component module co-locates its Rust definition (`date.rs`), its
-//! lit-flavored template (`date.html`), its stylesheet (`date.scss`), and —
-//! for behavior the browser cannot derive — its web partial (`date.impl.ts`).
+//! lit-flavored template (`date.html`), its stylesheet (`date.scss`), and,
+//! for behavior the browser cannot derive, its web partial (`date.impl.ts`).
 
 pub mod connect;
 pub mod input;

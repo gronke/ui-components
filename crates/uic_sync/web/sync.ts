@@ -5,7 +5,7 @@
 // One shared `last` slot dedupes both directions; the ready/applying flags
 // keep boot and echo quiet. Exactly one side greets: the party holding the
 // canonical state announces it on open (a server, a pairing host) and the
-// other waits — two greeters would swap states and settle crossed.
+// other waits; two greeters would swap states and settle crossed.
 
 import { decode, encode } from './codec.js';
 import type { Wire } from './wire.js';

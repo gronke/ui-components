@@ -85,7 +85,7 @@ axum = "0.8"
 qrcode = { version = "0.14", default-features = false }
 base64 = "0.22"
 # The terminal's WebRTC peer (ADR 0028). 0.17 is the final tokio-coupled
-# line — master is a sans-io rewrite with a different API.
+# line; master is a sans-io rewrite with a different API.
 webrtc = "0.17"
 # The storage feature's file backend: one kv table behind the sync API it
 # mirrors. bundled compiles SQLite in, keeping builds hermetic.
@@ -109,7 +109,7 @@ codegen-units = 1
 [patch.crates-io]
 web_modules = { git = "https://github.com/gronke/web_modules", rev = "2f9e4d90ba0fc12411cd7698a52d7df5de86908e" }
 # Upstream master plus neutral cfg(not(any(unix, windows))) stubs so the TUI
-# stack compiles to wasm — the branch behind crossterm-rs/crossterm#1066;
+# stack compiles to wasm, the branch behind crossterm-rs/crossterm#1066;
 # re-pin if that PR rebases, drop when a release carrying it reaches
 # ratatui-crossterm and the rat crates.
 crossterm = { git = "https://github.com/gronke/fork-crossterm", rev = "119bc826a1afbaf358cf6695b581cf8946b48839" }

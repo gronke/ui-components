@@ -4,7 +4,7 @@
 //! The macros validate grammar and placement at compile time, but two facts
 //! only exist once a binary links: which `data-tui` kinds the widget
 //! registry serves (`inventory` submissions from any crate) and which notify
-//! events a referenced child actually declares. This walk closes that gap —
+//! events a referenced child actually declares. This walk closes that gap;
 //! a linked test is the earliest point the full registry exists:
 //!
 //! ```no_run
@@ -25,9 +25,9 @@ use crate::dom::widget::WidgetBox;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
-    /// The binding cannot work in the terminal — the lint fails on these.
+    /// The binding cannot work in the terminal; the lint fails on these.
     Error,
-    /// Legal but inert in the terminal (web-only markup) — reported only.
+    /// Legal but inert in the terminal (web-only markup); reported only.
     Warning,
 }
 
@@ -56,7 +56,7 @@ impl fmt::Display for Finding {
 
 /// Lints every registered component; the one-call entry for a test binary.
 /// Registry-level defects (nothing linked, duplicate tags, unresolved
-/// custom tags) short-circuit — the per-template walk assumes a sane
+/// custom tags) short-circuit; the per-template walk assumes a sane
 /// registry.
 pub fn check_registry() -> Vec<Finding> {
     if let Err(err) = CustomElementRegistry::assert_valid() {
@@ -75,7 +75,7 @@ pub fn check_def(def: &'static ComponentDef) -> Vec<Finding> {
     check_template(def.tag_name, def.template(), &CustomElementRegistry::get)
 }
 
-/// Lints one parsed template; `lookup` resolves child custom elements —
+/// Lints one parsed template; `lookup` resolves child custom elements,
 /// injectable so tests need no global registrations.
 pub fn check_template(
     component: &str,
@@ -94,7 +94,7 @@ pub fn check_template(
     findings
 }
 
-/// Prints warnings and panics with every error — the test-suite entry.
+/// Prints warnings and panics with every error: the test-suite entry.
 pub fn assert_tui_compatible() {
     let findings = check_registry();
     let mut errors = Vec::new();
@@ -147,7 +147,7 @@ enum Kind<'t> {
     Bound,
     /// A plain form element the mount detects by element type (ADR 0026).
     Detected,
-    /// A plain `<input>` whose `type` is a hole — the committed value
+    /// A plain `<input>` whose `type` is a hole: the committed value
     /// decides at runtime, the lint cannot see through it.
     BoundType,
 }
@@ -266,7 +266,7 @@ fn check_element(
             }
         } else if matches!(kind, Some(Kind::BoundType)) && (name == "change" || name == "input") {
             // Plausibly served: the committed type may mount a widget that
-            // dispatches these — the bound-type warning already flagged it.
+            // dispatches these; the bound-type warning already flagged it.
         } else if el.is_custom() {
             // An unresolved child tag is the registry check's finding.
             let Some(child) = lookup(&el.tag) else {
@@ -382,7 +382,7 @@ mod tests {
     // Registry-backed resolution (an inventory kind like "tab-bar") is the
     // integration gate's territory: inside this lib's cfg(test) build the
     // catalog links against the OTHER copy of uic_tui, so its submissions
-    // land in a different inventory — tests/lint.rs holds that coverage.
+    // land in a different inventory; tests/lint.rs holds that coverage.
 
     #[test]
     fn an_undispatched_event_on_a_widget_is_an_error() {
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn excluded_controls_and_twins_stay_plain_elements() {
-        // A checkbox is a pointer control, not a text widget — @click is
+        // A checkbox is a pointer control, not a text widget; @click is
         // its native path.
         let checkbox = check(r#"<input type="checkbox" @click=${on_click} />"#);
         assert!(checkbox.is_empty(), "{checkbox:?}");

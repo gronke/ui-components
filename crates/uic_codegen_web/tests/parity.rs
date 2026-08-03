@@ -64,7 +64,7 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
         web_modules::typescript::compile_str(impl_ts, Path::new("nav-breadcrumb.impl.ts")).unwrap();
     fs::write(build.join("nav-breadcrumb.impl.js"), js).unwrap();
 
-    // The fixture states: sparse, full, null-bearing and tabbed — the
+    // The fixture states: sparse, full, null-bearing and tabbed, the
     // shapes the transport delivers (ADR 0013).
     let states = [
         json!({}),
@@ -88,7 +88,7 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
             })
         })
         .collect();
-    // The suggest fixtures: the Rust pool's answers for replayed queries —
+    // The suggest fixtures: the Rust pool's answers for replayed queries;
     // the node side must resolve the same rows through the TS pool.
     let queries = ["", "a", "AP", "apple", "zzz"];
     let suggest: Vec<serde_json::Value> = queries
@@ -104,7 +104,7 @@ fn rust_fixtures_and_the_compiled_twin_stage_for_the_node_replay() {
         .collect();
 
     // The breadcrumb fixtures: items and divider through the trail's crumbs
-    // computed — the node side must decorate identically.
+    // computed; the node side must decorate identically.
     let trails = [
         (json!([]), "›"),
         (

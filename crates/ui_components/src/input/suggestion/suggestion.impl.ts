@@ -1,5 +1,5 @@
 // Browser behavior of <input-suggestion>; mirrors the Rust
-// InputSuggestionLogic impl in mod.rs — keep both in sync. The dropdown
+// InputSuggestionLogic impl in mod.rs; keep both in sync. The dropdown
 // half below is this target's popup painting, the twin of tui.rs
 // (ADR 0002/0015).
 import { trimmedValue } from './uic-impl-helpers.js';

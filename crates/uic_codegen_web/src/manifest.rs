@@ -1,4 +1,4 @@
-//! Custom Elements Manifest (v1) emission — the interchange/validation
+//! Custom Elements Manifest (v1) emission: the interchange/validation
 //! artifact describing every generated component.
 
 use serde_json::{json, Value as Json};

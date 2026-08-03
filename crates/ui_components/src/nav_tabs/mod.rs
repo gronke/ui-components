@@ -1,4 +1,4 @@
-//! `<nav-tabs>` — a value-driven Bootstrap tab bar, the catalog's first
+//! `<nav-tabs>`: a value-driven Bootstrap tab bar, the catalog's first
 //! non-input component. The rows arrive as `.options` data (ADR 0005), the
 //! selected value leaves through `value-changed`; panes are the host's job
 //! (two `<template if>` branches beside the bar, see the demo).

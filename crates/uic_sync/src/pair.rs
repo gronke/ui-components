@@ -1,4 +1,4 @@
-//! The compact pairing payload in Rust — the byte-for-byte twin of
+//! The compact pairing payload in Rust, the byte-for-byte twin of
 //! `web/pair.ts` (ADR 0028): one contract, two languages, so a terminal
 //! peer and a browser peer exchange the same pairing codes. This module
 //! is codec only; the WebRTC stack stays with the consumer.
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 /// The control-frame marker on a state wire (`web/session.ts`'s twin):
 /// protocol messages ride the live data channel as `uicc1.` + JSON, and
-/// both ends filter them off before state application — a session hands
+/// both ends filter them off before state application; a session hands
 /// over to another tab by re-signaling a fresh pairing through its own
 /// wire (ADR 0032).
 pub const CTRL_PREFIX: &str = "uicc1.";
@@ -49,7 +49,7 @@ pub fn decode_ctrl(text: &str) -> Option<Ctrl> {
 
 /// The compact payload: ice credentials (`u`/`p`), the DTLS fingerprint
 /// (`f`), the setup role (`s`) and the candidate [address, port] tuples
-/// (`c`) — everything a minimal data-channel-only SDP rebuilds from. The
+/// (`c`): everything a minimal data-channel-only SDP rebuilds from. The
 /// wire form is the declared binary layout below (`LAYOUT`), byte-pinned
 /// across the twins.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,7 +73,7 @@ pub enum Setup {
 }
 
 impl Setup {
-    /// The SDP spelling — also the layout's enum vocabulary, in wire order.
+    /// The SDP spelling, also the layout's enum vocabulary, in wire order.
     pub fn as_str(self) -> &'static str {
         match self {
             Setup::ActPass => "actpass",
@@ -113,7 +113,7 @@ impl fmt::Display for PairError {
 
 impl std::error::Error for PairError {}
 
-/// The role a compact payload plays — offers negotiate (`actpass`),
+/// The role a compact payload plays: offers negotiate (`actpass`),
 /// answers commit to a side; `None` for text that is no payload at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -130,7 +130,7 @@ pub fn payload_role(text: &str) -> Option<Role> {
     }
 }
 
-/// The wire layout, declaratively — the single place the payload's shape
+/// The wire layout, declaratively: the single place the payload's shape
 /// lives. The TS twin mirrors this table verbatim (`web/pair.ts`, `LAYOUT`):
 /// field order, kinds and enum values must match byte for byte, and the
 /// golden vector pins them.
@@ -159,8 +159,8 @@ const ADDR_V6: u8 = 1;
 const ADDR_MDNS: u8 = 2;
 const ADDR_NAME: u8 = 3;
 
-/// The payload's magic head: four bytes so any reader — a clipboard watch,
-/// a paste box — tells a uic:p2p credential for certain instead of guessing
+/// The payload's magic head: four bytes so any reader (a clipboard watch,
+/// a paste box) tells a uic:p2p credential for certain instead of guessing
 /// from structure. `decode_payload` rejects anything without it. The digit
 /// is the wire version; bump it when the layout changes. TS twin: the same
 /// `MAGIC` in `web/pair.ts`.
@@ -184,7 +184,7 @@ fn field<'a>(compact: &'a Compact, name: &str) -> &'a str {
     }
 }
 
-/// Packs a compact into the declared binary layout, bare base64url —
+/// Packs a compact into the declared binary layout, bare base64url;
 /// infallible: `Compact` holds no state the layout cannot spell.
 pub fn encode_payload(compact: &Compact) -> String {
     let mut out: Vec<u8> = Vec::with_capacity(96);
@@ -396,7 +396,7 @@ impl Cursor<'_> {
     }
 }
 
-/// Reduces a local description to the compact payload — the same lines
+/// Reduces a local description to the compact payload, the same lines
 /// pair.ts extracts: component-1 UDP candidates of the host, srflx and
 /// relay kinds (deduplicated by address:port), the ice credentials, the
 /// sha-256 fingerprint and the setup role.
@@ -449,7 +449,7 @@ fn required(sdp: &str, prefix: &str, what: &str) -> Result<String, PairError> {
 }
 
 /// The minimal data-channel-only SDP a peer rebuilds from a compact
-/// payload — byte-identical to pair.ts's buildSdp, with the setup role
+/// payload, byte-identical to pair.ts's buildSdp, with the setup role
 /// substituted (the answer synthesis picks active/passive).
 pub fn build_sdp(compact: &Compact, setup: Setup) -> String {
     let mut lines: Vec<String> = vec![
@@ -482,7 +482,7 @@ pub fn build_sdp(compact: &Compact, setup: Setup) -> String {
 /// Builds an invite link the pairing page opens: the payload as a single
 /// URL-safe fragment (`#<payload>`), so a chat app linkifies the whole URL.
 /// A link answering an opened invite appends the reply digest (`.{digest}`,
-/// still one token — parsers cut before the dot), so a browser opening it
+/// still one token; parsers cut before the dot), so a browser opening it
 /// routes the reply to the exact tab that invited. TS twin: `web/pair.ts`
 /// `inviteLink`.
 pub fn invite_link(page: &str, payload: &str, reply_to: Option<&str>) -> String {
@@ -494,9 +494,9 @@ pub fn invite_link(page: &str, payload: &str, reply_to: Option<&str>) -> String 
 
 /// The reply-routing digest (fnv1a-32, 8 hex chars) of an invite payload. A
 /// return link answering an invite carries `.{digest}` after its own payload
-/// (`#<payload>.<digest>` — still one URL-safe token; `link_payload` cuts
+/// (`#<payload>.<digest>`: still one URL-safe token; `link_payload` cuts
 /// before the dot), so the same-browser handover can route the reply to the
-/// exact tab that invited. A routing hint only — the payload's own
+/// exact tab that invited. A routing hint only: the payload's own
 /// credential guards stay the security; TS twin: `web/pair.ts` `replyDigest`.
 pub fn reply_digest(payload: &str) -> String {
     let mut hash: u32 = 0x811c9dc5;
@@ -509,7 +509,7 @@ pub fn reply_digest(payload: &str) -> String {
 
 /// The payload carried by a link, pasted text or scanned code. The invite
 /// is the whole fragment, so the payload sits after `#` when the text is a
-/// link and at the front when it is a bare code — the base64url run from
+/// link and at the front when it is a bare code: the base64url run from
 /// there (any trailing text is cut, a reply link's `.{digest}` suffix
 /// included); text with no payload returns trimmed for the caller's decode
 /// to reject.
@@ -530,12 +530,12 @@ pub fn link_payload(text: &str) -> String {
     rest[..end].to_string()
 }
 
-/// The reply-routing digest riding a return link (`#<payload>.<digest>`) —
+/// The reply-routing digest riding a return link (`#<payload>.<digest>`):
 /// the invite it answers, distinguishing a reply from a plain invite; the
 /// pairing wizard reads it against `reply_digest(own_payload)` to know
 /// whether a pasted link answers our invite (connect at once) or opens a
 /// fresh one (send our reply back). `None` on a plain invite. Mirrors the
-/// TS twin `web/pair.ts` `linkReply` exactly — a literal `#`, a base64url
+/// TS twin `web/pair.ts` `linkReply` exactly: a literal `#`, a base64url
 /// payload run, a dot, then a 4–16 char base64url digest; a bare
 /// `payload.digest` with no `#` yields `None`, as it does there.
 pub fn link_reply(text: &str) -> Option<String> {
@@ -564,9 +564,9 @@ pub fn link_reply(text: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    /// The Chrome-shaped payload — one mDNS host candidate and one STUN
+    /// The Chrome-shaped payload (one mDNS host candidate and one STUN
     /// srflx candidate, the server-reflexive address in the RFC 5737
-    /// documentation range — packed in the declared binary layout behind
+    /// documentation range), packed in the declared binary layout behind
     /// the `MAGIC` head (the leading `dWljMQ` is base64url for "uic1"). The
     /// constant pins the bytes across the twins: `web/pair.ts` must produce
     /// these exact characters for the same fields.
@@ -589,7 +589,7 @@ mod tests {
     fn the_browser_vector_round_trips_byte_identically() {
         let decoded = decode_payload(BROWSER_VECTOR).unwrap();
         assert_eq!(decoded, vector_compact());
-        // The Rust encoding must reproduce the pinned bytes exactly — the
+        // The Rust encoding must reproduce the pinned bytes exactly: the
         // binary layout behind the magic head, unpadded base64url.
         assert_eq!(encode_payload(&decoded), BROWSER_VECTOR);
         assert_eq!(payload_role(BROWSER_VECTOR), Some(Role::Offer));
@@ -597,7 +597,7 @@ mod tests {
 
     #[test]
     fn a_payload_without_the_magic_head_is_refused() {
-        // The same layout bytes minus the four-byte head — well-formed
+        // The same layout bytes minus the four-byte head: well-formed
         // base64url that decodes structurally, yet not a uic:p2p payload.
         let tagged = URL_SAFE_NO_PAD.decode(BROWSER_VECTOR).unwrap();
         let headless = URL_SAFE_NO_PAD.encode(&tagged[MAGIC.len()..]);
@@ -610,7 +610,7 @@ mod tests {
     fn every_address_shape_round_trips() {
         // IPv6 canonicalizes (RFC 5952, `::1`), plain hostnames ride the
         // length-prefixed fallback, and non-canonical input comes back
-        // canonical — the same address either way.
+        // canonical: the same address either way.
         let compact = Compact {
             u: "u16u16u16u16u16u".into(),
             p: "p32p32p32p32p32p32p32p32".into(),
@@ -674,7 +674,7 @@ mod tests {
         let compact = vector_compact();
         let parsed = parse_sdp(&build_sdp(&compact, Setup::ActPass)).unwrap();
         // The round trip normalizes every candidate to `host`, exactly the
-        // TS behavior — everything else survives verbatim.
+        // TS behavior; everything else survives verbatim.
         assert_eq!(parsed.u, compact.u);
         assert_eq!(parsed.p, compact.p);
         assert_eq!(parsed.f, compact.f);
@@ -761,7 +761,7 @@ mod tests {
         // The `#` is required (the TS regex's own shape): a bare
         // payload.digest is not a reply link.
         assert_eq!(link_reply("abc123.1a2b3c4d"), None);
-        // The digest window is 4..=16 base64url chars — shorter and longer
+        // The digest window is 4..=16 base64url chars; shorter and longer
         // runs are not digests.
         assert_eq!(link_reply("p/#abc.1a2"), None);
         assert_eq!(link_reply("p/#abc.0123456789abcdef01"), None);
@@ -790,7 +790,7 @@ mod tests {
 
     #[test]
     fn the_reply_digest_is_pinned_across_the_twins() {
-        // The fixed vector both languages must produce — the TS twin
+        // The fixed vector both languages must produce; the TS twin
         // (`web/pair.ts` replyDigest) carries the same value in its comment.
         assert_eq!(reply_digest("abc"), "1a47e90b");
         assert_eq!(reply_digest("").len(), 8);

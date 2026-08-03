@@ -1,7 +1,7 @@
 //! The qr feature's registry gate, in a consuming binary: the
 //! `data-tui="qr"` registration must survive the linker (the `link()`
 //! anchor), mount through the inventory registry during a host commit and
-//! paint its half-block render — a silently dropped registration would
+//! paint its half-block render; a silently dropped registration would
 //! degrade the element to a generic container and paint nothing.
 
 use ratatui::backend::TestBackend;

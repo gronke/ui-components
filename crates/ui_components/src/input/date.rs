@@ -1,4 +1,4 @@
-//! `<input-date>` — date (and optionally time) input with the shared input
+//! `<input-date>`: date (and optionally time) input with the shared input
 //! chrome (label, input group, hint/error line below).
 //!
 //! Temporal parity with the source catalog: partial input auto-completes to
@@ -6,7 +6,7 @@
 //! and `hide-seconds` pick the value format, and next to the `value` string
 //! the element carries a `date` object property (`Temporal.ZonedDateTime`
 //! in the browser, [`Zoned`] here). The committed instant is interpreted in
-//! `timezone ?? default_timezone ?? "UTC"` and STORED normalized to UTC —
+//! `timezone ?? default_timezone ?? "UTC"` and STORED normalized to UTC:
 //! the zones exist to read input and display output, the date itself is
 //! absolute. Timezone-only changes deliberately re-derive nothing (catalog
 //! behavior); `end-of` commits the end of the typed period instead of its
@@ -57,7 +57,7 @@ pub struct InputDate {
     /// Hides the seconds from the time.
     #[property(reflect)]
     pub hide_seconds: bool,
-    /// Commits the END of the typed period instead of its start — the
+    /// Commits the END of the typed period instead of its start: the
     /// range's end field (`2024` → `2024-12-31 23:59:59`... at the
     /// variant's precision).
     #[property(reflect)]
@@ -66,7 +66,7 @@ pub struct InputDate {
 
 /// The catalog's `parseDate`: a 1900–2099 year, an optionally dash-joined
 /// 1–2 digit month and day, an optional space or `T`, and optionally
-/// colon-joined 1–2 digit time parts — every separator optional, so
+/// colon-joined 1–2 digit time parts; every separator is optional, so
 /// compact forms (`20240305`, `2024030514`) parse too. Missing parts
 /// complete to the start of the period (month 1, day 1, midnight);
 /// out-of-range parts clamp (the catalog's Temporal `constrain`); the
@@ -83,7 +83,7 @@ fn parse_partial(raw: &str) -> Option<NaiveDateTime> {
     }
 
     // One optional separator from the set, then up to two digits; an
-    // absent part stays None while later parts may still match — exactly
+    // absent part stays None while later parts may still match, exactly
     // the catalog regex's independently optional groups.
     let mut pos = 4;
     let mut part = |seps: &[u8]| -> Option<u32> {
@@ -160,7 +160,7 @@ fn reduce_precision(
 }
 
 /// `timezone ?? default_timezone ?? UTC`; unknown identifiers fall back to
-/// UTC (the browser impl throws on construction instead — both surface the
+/// UTC (the browser impl throws on construction instead; both surface the
 /// misconfiguration without breaking the value string).
 fn current_timezone(ctx: &Ctx) -> Tz {
     for prop in ["timezone", "default_timezone"] {
@@ -292,7 +292,7 @@ impl InputDateLogic for InputDate {
 
     /// Typed commits auto-complete (`2024` → `2024-01-01 00:00:00`) and
     /// echo the normalized string. Mirrored for the browser in
-    /// `date.impl.ts` — keep both in sync.
+    /// `date.impl.ts`; keep both in sync.
     fn on_change(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         let raw = event
             .target_value
@@ -558,7 +558,7 @@ mod tests {
     #[test]
     fn commit_batch_is_echo_free() {
         // on_change sets value AND date; will_update prefers date and derives
-        // the identical value string — nothing oscillates.
+        // the identical value string; nothing oscillates.
         let (mut store, mut behavior) = setup(InputDate::definition());
         let events = commit(&mut store, &mut behavior, "2026-07-07");
         assert_eq!(

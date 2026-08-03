@@ -1,4 +1,4 @@
-//! JSON ⇄ [`Value`] conversion (feature `json`) — the wire format of
+//! JSON ⇄ [`Value`] conversion (feature `json`): the wire format of
 //! property values crossing a process or transport boundary (ADR 0013).
 
 use crate::object::ObjectMap;
@@ -42,12 +42,12 @@ pub fn value_to_json(value: &Value) -> serde_json::Value {
 /// Renders a value as its canonical JSON string: compact, keys sorted at
 /// every level. [`value_to_json`] keeps object maps sorted on its own (the
 /// [`ObjectMap`] iterates sorted), but serde_json's map flavor is a build
-/// property — feature unification anywhere in the graph can flip it to
+/// property; feature unification anywhere in the graph can flip it to
 /// insertion order (`preserve_order`), which reorders the option rows and
 /// any hand-built `json!` literal. Snapshot identities and test expectations
 /// compare this string instead of `to_string`, so byte equality never
 /// depends on the build. Numbers render as serde_json does (`1.0` keeps its
-/// point) — canonical across builds, not across languages.
+/// point), canonical across builds, not across languages.
 pub fn canonical_json(value: &Value) -> String {
     canonical_string(&value_to_json(value))
 }

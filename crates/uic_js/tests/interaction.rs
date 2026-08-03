@@ -48,7 +48,7 @@ fn node_by_path(host: &JsHost, path: &str) -> Option<uic_dom::NodeId> {
     found
 }
 
-/// A `tags.first` treeitem exists only while `tags` is expanded — the
+/// A `tags.first` treeitem exists only while `tags` is expanded; the
 /// document is the unambiguous expansion signal, the frame the visual one.
 fn expanded(host: &JsHost) -> bool {
     node_by_path(host, "tags.first").is_some()
@@ -83,7 +83,7 @@ fn keyboard_navigation_and_click_toggle() {
     host.focus(root).unwrap();
     assert_eq!(focused_path(&host).as_deref(), Some("active"));
 
-    // ArrowDown walks to `tags`; ArrowRight expands it — both handled by
+    // ArrowDown walks to `tags`; ArrowRight expands it, both handled by
     // the component's own `@keydown` handler.
     assert!(host.dispatch_key("ArrowDown").unwrap());
     assert_eq!(focused_path(&host).as_deref(), Some("name"));

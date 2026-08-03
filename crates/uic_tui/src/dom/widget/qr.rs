@@ -13,7 +13,7 @@ use uic_core::Value;
 use super::{WidgetAdapter, WidgetRegistration};
 
 /// Anchors this feature's object code so the `inventory` registration
-/// survives the linker in consuming binaries — the `ui_components::link()`
+/// survives the linker in consuming binaries, the `ui_components::link()`
 /// discipline: without a genuine symbol reference into the object, lazy
 /// archive extraction drops the registration constructor and `data-tui="qr"`
 /// degrades to a generic container.
@@ -37,7 +37,7 @@ uic_core::inventory::submit! {
 
 /// Renders `data` as a QR code in half-block characters (Dense1x2),
 /// standard polarity: dark modules are the block glyphs, light modules the
-/// background, quiet zone included. Callers paint it black on white — a
+/// background, quiet zone included. Callers paint it black on white: a
 /// camera wants dark modules on a light ground whatever the terminal theme,
 /// the same reason the browser's SVG sits on its own white card. `None` for
 /// empty data or a payload the encoder rejects (too long for any version).
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn render_scales_with_the_payload() {
         // A short payload fits a low QR version; a long one needs a bigger
-        // grid — the module count (and so the cell width) grows with it.
+        // grid; the module count (and so the cell width) grows with it.
         let (_, short_width, short_height) = render_qr("hi").expect("a short QR");
         let long = "A".repeat(300);
         let (_, long_width, long_height) = render_qr(&long).expect("a long QR");

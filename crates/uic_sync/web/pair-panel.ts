@@ -1,15 +1,15 @@
-// The pairing UI, shared by both hosts. This element is presentation only —
-// the invite link, the peer-paste box, the buttons, the status line and the
-// connection badge — driven entirely by properties a host sets and
+// The pairing UI, shared by both hosts. This element is presentation only
+// (the invite link, the peer-paste box, the buttons, the status line and the
+// connection badge), driven entirely by properties a host sets and
 // signalling intent back through the `command` property (a button click
 // writes it; the host reads and clears it). The browser also gets a real
 // CustomEvent for the same intents, but the property is the channel that
 // works under the mocked terminal lit, which has no events.
 //
-// The transport (WebRTC, the clipboard, the camera) is NOT here — each host
+// The transport (WebRTC, the clipboard, the camera) is NOT here; each host
 // owns it: the browser's pair-wizard, the terminal's Rust peer. The QR is
 // the shared <qr-code> the invite body renders (ADR 0029): the browser draws
-// an SVG, the terminal a native block-char widget — one element, two
+// an SVG, the terminal a native block-char widget: one element, two
 // renderers, the same reason todo-item keeps a `[x]` span twin. The invite
 // itself shows once per host: the browser a compact 🔗 copy-link (it has a
 // clipboard), the terminal the full link as wrapped, selectable text.
@@ -20,7 +20,7 @@ import './qr-code.js';
 /** The mode vocabulary hosts drive the panel with. The native session
  * produces the first five (Rust twin: `uic_sync::session::PanelMode`); the
  * browser wizard adds the takeover roles and the no-WebRTC dead end. Only
- * `idle` and `invite` render a body — every other mode speaks through the
+ * `idle` and `invite` render a body; every other mode speaks through the
  * status line, the badge and the action/reset buttons. */
 export type PanelMode =
     | 'idle'
@@ -49,7 +49,7 @@ export class PairPanel extends LitElement {
 
     // The terminal's look: the mapped Bootstrap subset draws the card and
     // the badge; these rules add what the map leaves unset. Host-specific
-    // slots hide here — static styles are the terminal-only layer: the
+    // slots hide here; static styles are the terminal-only layer: the
     // inline QR (the p2p deck docks it beside the panes, ADR 0029) and the
     // copy-link anchor (no clipboard) vanish, while the link text wraps
     // mid-token so the long URL reads across lines. The browser ignores
@@ -134,8 +134,8 @@ export class PairPanel extends LitElement {
         if (active && active !== document.body && this.contains(active)) {
             return;
         }
-        // The same control re-rendered, or — when a mode swap removed it,
-        // e.g. "create an invite" giving way to the invite card — the new
+        // The same control re-rendered, or (when a mode swap removed it,
+        // e.g. "create an invite" giving way to the invite card) the new
         // body's first control, so the keyboard walk continues in place.
         const successor =
             this.querySelector(`[name="${this.focusedKey}"]`) ??
@@ -145,11 +145,11 @@ export class PairPanel extends LitElement {
     }
 
     /** The one seam back to the host: a click sets the command property the
-     * host polls, and — where the platform has events — dispatches the same
+     * host polls, and (where the platform has events) dispatches the same
      * intent so a browser controller can just listen. The terminal reads
      * the property and clears it; the browser uses the event. Only
      * `connect` carries a detail (the pasted peer text); `action` stays a
-     * deliberately generic name — the panel is presentation-only and the
+     * deliberately generic name: the panel is presentation-only and the
      * host supplies the label (the tab takeover today). */
     private emit(command: string): void {
         this.command = command;
@@ -176,7 +176,7 @@ export class PairPanel extends LitElement {
     }
 
     private onCopyLink(event: Event): void {
-        // The link is for copying — navigating a waiting tab into a payload
+        // The link is for copying; navigating a waiting tab into a payload
         // would tear the session it belongs to.
         event.preventDefault();
         this.emit('copy-link');
@@ -237,9 +237,9 @@ export class PairPanel extends LitElement {
 
     // The wizard: three step cards, only the reachable one lit. The live
     // status rides inside the active card (renderStep prepends it), so the
-    // narration always sits with the step it describes — step 3 included,
+    // narration always sits with the step it describes, step 3 included,
     // which would otherwise read as a dead box. Future and done steps render
-    // a muted summary with no controls — the terminal has no pointer-events,
+    // a muted summary with no controls: the terminal has no pointer-events,
     // so a card with no buttons is a card that cannot be clicked into.
     private renderWizard() {
         return html`${this.renderStep(1, 'start a pairing', this.renderStart(), 'share your invite, open theirs')}
@@ -266,7 +266,7 @@ export class PairPanel extends LitElement {
         </section>`;
     }
 
-    // Step 1: share your invite and open theirs — the mutual exchange
+    // Step 1: share your invite and open theirs, the mutual exchange
     // (ADR 0028). The copy-link and QR are browser-only (the terminal hides
     // them and docks its own QR beside the panes); the wrapped link text is
     // the terminal's share surface.
@@ -300,7 +300,7 @@ export class PairPanel extends LitElement {
     }
 
     // Step 2: the peer opened a fresh invite, so the link is now our reply
-    // for them to open back — the connect already rides behind it.
+    // for them to open back; the connect already rides behind it.
     private renderAcknowledge() {
         return html`<a class="copy-link" href=${this.link} title="copy the reply link" @click=${this.onCopyLink}
                 >🔗 copy reply</a
@@ -310,8 +310,8 @@ export class PairPanel extends LitElement {
     }
 
     // Step 3: connecting. The step's own body is the live status the active
-    // card already carries — "Connecting…", the bounded retry attempt, or the
-    // honest reason it stopped — so it adds nothing of its own; the reset
+    // card already carries ("Connecting…", the bounded retry attempt, or the
+    // honest reason it stopped), so it adds nothing of its own; the reset
     // control below is the way to bail. It is only ever shown while a connect
     // is in flight: success leaves invite mode for the todo screen, and a
     // failure that cannot resume renews an invite back at step 1.

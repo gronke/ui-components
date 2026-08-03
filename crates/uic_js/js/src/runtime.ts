@@ -1,6 +1,6 @@
 // The runtime's face: one import surface over the polyfill modules. The
 // lit channel files and main.ts import here; each web-platform concept
-// lives — and is tested — in its own module under runtime/ (the state
+// lives (and is tested) in its own module under runtime/ (the state
 // leaf breaks the data cycles; element ⇄ events ⇄ focus cross-call only
 // inside function bodies, the deferred shape the boa_quirks cycle canary
 // pins).

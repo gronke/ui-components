@@ -2,7 +2,7 @@
 //! dialect and an `Element` view over `uic_dom::Document<T>`.
 //!
 //! Unknown pseudo-classes parse and never match (`:hover` on a terminal),
-//! so a rule with one keeps its other selectors alive — the degradation
+//! so a rule with one keeps its other selectors alive: the degradation
 //! contract applied to selector space.
 
 use std::borrow::Borrow;
@@ -78,7 +78,7 @@ pub enum PseudoClass {
     Active,
     Disabled,
     Checked,
-    /// `:dir(ltr)` / `:dir(rtl)` — the terminal renders left-to-right, so
+    /// `:dir(ltr)` / `:dir(rtl)`: the terminal renders left-to-right, so
     /// ltr matches and rtl never does.
     Dir(bool),
 }

@@ -1,5 +1,5 @@
 // Browser behavior of <input-date-range>; mirrors the Rust
-// InputDateRangeLogic impl in date_range.rs — keep both in sync.
+// InputDateRangeLogic impl in date_range.rs; keep both in sync.
 import { detailString, detailValue } from './uic-impl-helpers.js';
 import type { InputDateRange } from './input-date-range.js';
 

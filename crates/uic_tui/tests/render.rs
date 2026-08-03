@@ -17,7 +17,7 @@ fn app() -> App<TestBackend> {
 /// Dispatches without painting between events: the whole edit lands in one
 /// unpainted batch and the first frame lays the grown box out around all of
 /// it. With frames between the keys the growing textarea scrolls its first
-/// line out of view instead — that grow/scroll interaction is a widget
+/// line out of view instead; that grow/scroll interaction is a widget
 /// follow-up, and this flavor pins the batch semantics meanwhile.
 fn batch_key(app: &mut App<TestBackend>, code: KeyCode) {
     app.handle_event(&Event::Key(KeyEvent::from(code)));
@@ -541,7 +541,7 @@ fn the_number_rests_right_aligned_beside_its_unit() {
         "the value sits one cell from its unit, one cell from the edge: {row:?}"
     );
 
-    // Editing moves the text to the left, where the caret lives — one
+    // Editing moves the text to the left, where the caret lives: one
     // padding cell in from the border.
     key(&mut app, KeyCode::Char('9'));
     let editing = screen(&mut app);
@@ -611,8 +611,8 @@ fn the_embedded_zone_select_hugs_its_label_and_the_date_grows() {
     app.set_attr(el, "show-timezone", "");
     app.set_attr(el, "default-timezone", "Europe/Berlin");
 
-    // The select sizes to its closed label plus rat's marker cells — the
-    // catalog's fit-content — instead of a fixed twelve-cell box that cut
+    // The select sizes to its closed label plus rat's marker cells (the
+    // catalog's fit-content) instead of a fixed twelve-cell box that cut
     // the zone short; the date input flex-grows through the rest of the row.
     let screen = screen(&mut app);
     let value_row = screen

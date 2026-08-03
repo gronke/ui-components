@@ -1,4 +1,4 @@
-//! `<app-root>` — the demo form as one component around a `state` object.
+//! `<app-root>`: the demo form as one component around a `state` object.
 //!
 //! State trickles down: each member reaches its input child through a
 //! computed with the child's own default as the missing-member fallback, so
@@ -14,7 +14,7 @@ use uic_core::{Ctx, CustomElement, ObjectMap, PropertyStore, SelectOption, UiEve
 use ui_components::connect::{InMemorySource, QuerySource};
 
 /// The demo's static data source: a pool of words behind the shared query
-/// interface (ADR 0014). Keep in sync with `WORDS` in `app_root.impl.ts` —
+/// interface (ADR 0014). Keep in sync with `WORDS` in `app_root.impl.ts`;
 /// the parity fixtures replay both sides (public for that harness).
 pub static WORD_POOL: LazyLock<InMemorySource> = LazyLock::new(|| {
     InMemorySource::from_words([
@@ -59,7 +59,7 @@ pub struct AppRoot {
     #[property(notify)]
     pub state: ObjectMap,
     /// The suggestion rows the pool resolved for the word input's live
-    /// query — transient UI data beside the state, not a member of it.
+    /// query: transient UI data beside the state, not a member of it.
     #[property]
     pub word_suggestions: Vec<SelectOption>,
 }
@@ -72,7 +72,7 @@ fn member(store: &PropertyStore, key: &str, missing: Value) -> Value {
     }
 }
 
-/// Clone-on-write member update; an equal value leaves `state` untouched —
+/// Clone-on-write member update; an equal value leaves `state` untouched,
 /// the echo brake the browser twin mirrors in `setMember`.
 fn set_member(ctx: &mut Ctx, key: &str, value: Value) {
     let Value::Object(state) = ctx.get("state") else {
@@ -129,7 +129,7 @@ impl AppRootLogic for AppRoot {
         member(store, "word", "".into())
     }
 
-    /// The missing member stays empty — the bar's fallback-to-first shows
+    /// The missing member stays empty; the bar's fallback-to-first shows
     /// the Form tab, and the value-changed echo of a mount-time push would
     /// otherwise write `tab` into every boot state.
     fn tab(&self, store: &PropertyStore) -> Value {
@@ -144,7 +144,7 @@ impl AppRootLogic for AppRoot {
         ])
     }
 
-    /// Unknown tab values show the form — the bar's fallback-to-first rule.
+    /// Unknown tab values show the form, the bar's fallback-to-first rule.
     fn show_about(&self, store: &PropertyStore) -> Value {
         Value::Bool(member(store, "tab", "".into()) == Value::Str("about".into()))
     }
@@ -163,7 +163,7 @@ impl AppRootLogic for AppRoot {
         ])
     }
 
-    /// One line of `key: value` pairs in key order — byte-identical to the
+    /// One line of `key: value` pairs in key order, byte-identical to the
     /// browser twin's `stateLine`, the cross-target assertion hook.
     fn state_line(&self, store: &PropertyStore) -> Value {
         let Value::Object(state) = store.get("state") else {

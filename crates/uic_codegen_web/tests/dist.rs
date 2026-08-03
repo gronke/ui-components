@@ -16,7 +16,7 @@ fn dist() -> (Vec<&'static str>, PathBuf) {
         .expect("dist build succeeds");
     // The publish view: catalog components ship, the demo composition stays
     // out (dist = false on app-root, ADR 0013). The exact catalog vector is
-    // generate.rs territory — this suite asserts the npm-tree shape.
+    // generate.rs territory; this suite asserts the npm-tree shape.
     assert!(root.components.contains(&"input-date"));
     assert!(
         !root.components.contains(&"app-root"),

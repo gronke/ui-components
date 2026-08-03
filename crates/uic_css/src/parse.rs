@@ -1,6 +1,6 @@
 //! Stylesheet parsing into the closed dialect: qualified rules whose
 //! selectors parse and whose declarations name supported properties survive;
-//! everything else drops into the report — the degradation contract, made
+//! everything else drops into the report: the degradation contract, made
 //! measurable (ADR 0026's reserved slot).
 
 use cssparser::{
@@ -11,7 +11,7 @@ use selectors::parser::{ParseRelative, SelectorList, SelectorParseErrorKind};
 
 use crate::select::{TuiSelectorParser, TuiSelectors};
 
-/// The supported property names — the closed subset. Custom properties
+/// The supported property names: the closed subset. Custom properties
 /// (`--*`) are always kept.
 const SUPPORTED: &[&str] = &[
     "display",

@@ -1,6 +1,6 @@
 //! Widget state living in the DOM: every element that implies a terminal
-//! widget — a plain `<input>`/`<textarea>`/`<select>` by element type, or
-//! an explicit `data-tui` override — carries its rat widget in the document
+//! widget (a plain `<input>`/`<textarea>`/`<select>` by element type, or
+//! an explicit `data-tui` override) carries its rat widget in the document
 //! payload; node identity replaces the slot-by-template-order bookkeeping
 //! of the retired expansion pipeline.
 //!
@@ -11,7 +11,7 @@
 //! the runtime.
 //!
 //! Beyond the built-in kinds, components register their co-located widget
-//! twins through [`WidgetRegistration`] (ADR 0002) — the runtime needs no
+//! twins through [`WidgetRegistration`] (ADR 0002); the runtime needs no
 //! edit for a new `data-tui` kind.
 
 mod date;
@@ -41,20 +41,20 @@ pub struct WidgetPayload {
 /// A mounted terminal widget beside its sync bookkeeping.
 pub(crate) struct WidgetBox {
     pub adapter: Box<dyn WidgetAdapter>,
-    /// The kind the widget was built as — a changed detection (a bound
+    /// The kind the widget was built as; a changed detection (a bound
     /// `type` landing after the first mount) recreates the widget.
     pub(crate) kind: &'static str,
     /// The variant flags the widget was built with (the date's mask follows
     /// hide-time/hide-seconds); a flipped flag recreates the widget.
     pub(crate) variant: (bool, bool),
-    /// The value last pushed into the widget — the lit-style dirty check, so
+    /// The value last pushed into the widget: the lit-style dirty check, so
     /// uncommitted typing survives unrelated updates and computed bindings
     /// re-sync only when their result actually changes.
     last_synced: Option<Value>,
 }
 
 /// Registers a widget adapter for a `data-tui` kind from outside the
-/// runtime — the co-located TUI twin of a component (ADR 0002). Collected
+/// runtime: the co-located TUI twin of a component (ADR 0002). Collected
 /// through `inventory`; `WidgetBox::new` consults the registry after the
 /// built-in kinds.
 pub struct WidgetRegistration {
@@ -105,9 +105,9 @@ impl WidgetBox {
     }
 
     /// The scripted hosts' commit-time value sync, echo-skipped: a value
-    /// equal to the widget's live text only records the sync — the
+    /// equal to the widget's live text only records the sync (the
     /// component echoing back what the user just typed must not move the
-    /// caret — while a genuinely different value syncs like a property
+    /// caret), while a genuinely different value syncs like a property
     /// write.
     pub(crate) fn sync_committed(&mut self, value: &Value) {
         if self.last_synced.as_ref() == Some(value) {
@@ -122,14 +122,14 @@ impl WidgetBox {
         self.last_synced = Some(value.clone());
         self.adapter.sync(value);
         // The browser parks the caret at the end when a script assigns
-        // `value`; rat's set_text parks it at the start — align.
+        // `value`; rat's set_text parks it at the start; align.
         self.adapter.caret_to_end();
     }
 }
 
 /// The widget kind an element mounts, with its variant flags. An explicit
-/// `data-tui` wins — the extension point for registered kinds and the
-/// discriminator of the framework's own input templates — and mounts
+/// `data-tui` wins (the extension point for registered kinds and the
+/// discriminator of the framework's own input templates) and mounts
 /// anywhere, even on a `<ul>`. Plain form elements resolve by element type
 /// (ADR 0026, the shared `uic_template::native` table), except presentation
 /// twins opted out with a negative tabindex.
@@ -163,7 +163,7 @@ pub(crate) fn detect_kind(
 }
 
 /// Creates the terminal widget for every element below `root` that implies
-/// one — idempotent by the payload's kind and variant, so a changed
+/// one; idempotent by the payload's kind and variant, so a changed
 /// detection (a bound `type` landing after the bind-time mount, a flipped
 /// date mask) recreates the widget, resetting typed state on purpose.
 /// Shared by the Rust mounts and the scripted hosts' commit.
@@ -196,8 +196,8 @@ pub(crate) fn mount_widgets(doc: &mut DomDocument, root: NodeId) {
 
 /// Terminal paste text, normalized for a widget: CRLF and lone CR fold to
 /// `\n` (terminals send `\r` for line breaks inside bracketed paste), other
-/// control characters drop — a paste must not smuggle escape bytes into the
-/// frame — and a single-line target loses its line breaks entirely, the
+/// control characters drop (a paste must not smuggle escape bytes into the
+/// frame), and a single-line target loses its line breaks entirely, the
 /// browser's own input-value sanitization.
 pub(crate) fn normalize_paste(text: &str, multiline: bool) -> String {
     let mut out = String::with_capacity(text.len());
@@ -227,7 +227,7 @@ pub(crate) fn normalize_paste(text: &str, multiline: bool) -> String {
 pub enum OverlayOutcome {
     /// The overlay consumed the event.
     Consumed,
-    /// Not consumed — the global handling continues (Tab closes and falls
+    /// Not consumed: the global handling continues (Tab closes and falls
     /// through to commit-and-step, an outside press falls through to the
     /// hit test).
     Pass,
@@ -244,14 +244,14 @@ pub trait WidgetAdapter {
     /// hit-testing.
     fn area(&self) -> Rect;
 
-    /// The value a commit hands to the change handler — raw text; trimming,
+    /// The value a commit hands to the change handler: raw text; trimming,
     /// parsing and validation are the component's job, like in the browser.
     fn committed_text(&self) -> String;
 
     /// Pushes a property value into the widget.
     fn sync(&mut self, value: &Value);
 
-    /// Moves the caret behind the last character — what the browser does
+    /// Moves the caret behind the last character, what the browser does
     /// when a script assigns `value`. Only the scripted hosts call it;
     /// widgets without a movable caret ignore it.
     fn caret_to_end(&mut self) {}
@@ -266,7 +266,7 @@ pub trait WidgetAdapter {
     fn handle(&mut self, focused: bool, event: &Event) -> bool;
 
     /// The live text after the widget's own handling changed it, consumed
-    /// once — the host routes it into the template's `@input` binding, the
+    /// once; the host routes it into the template's `@input` binding, the
     /// browser's per-keystroke `input` event. Only widgets with live-text
     /// behavior report it.
     fn take_input(&mut self) -> Option<String> {
@@ -291,7 +291,7 @@ pub trait WidgetAdapter {
     }
 
     /// Places the caret under the pointer (a drag extends the selection),
-    /// or opens a select's list — the click semantics of the browser. rat's
+    /// or opens a select's list: the click semantics of the browser. rat's
     /// own mouse path stays unused everywhere: its click arming reads the
     /// system clock, which wasm32 does not have.
     fn place_cursor(&mut self, column: u16, row: u16, extend: bool);
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn control_characters_drop_but_tabs_survive() {
         // The ESC byte drops (neutralizing the sequence); its printable
-        // remnant stays — pasted log text keeps its characters.
+        // remnant stays; pasted log text keeps its characters.
         assert_eq!(normalize_paste("a\x1b[31mb\x07c\td", false), "a[31mbc\td");
         assert_eq!(normalize_paste("a\u{7f}b", true), "ab");
     }

@@ -1,8 +1,8 @@
 // Tagged structured-clone JSON: Date, Map and Set survive the wire beside
-// plain JSON, and the emitted text is canonical — object keys sort
+// plain JSON, and the emitted text is canonical: object keys sort
 // lexicographically at EVERY depth, so byte equality is state equality
 // (ADR 0013's dedupe, extended below the top level; matching Rust needs
-// its maps sorted too — serde_json's sort_all_objects).
+// its maps sorted too: serde_json's sort_all_objects).
 //
 // Numbers ride JSON.stringify, so exotic floats may differ from another
 // serializer's spelling (1e21 → "1e+21" here); integer-bearing state is
@@ -10,7 +10,7 @@
 
 const TAG = '$uic';
 // A plain key that could be mistaken for the tag gains one leading '$' on
-// encode and loses it on decode — the wrapper test stays a plain
+// encode and loses it on decode; the wrapper test stays a plain
 // own-property check, no bottom-up reviver ambiguity.
 const TAG_LIKE = /^\$+uic$/;
 const ESCAPED_TAG = /^\$\$+uic$/;

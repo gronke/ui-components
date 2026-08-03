@@ -5,13 +5,13 @@ todo-app {
     outline: none;
 }
 
-/* The keyboard lives on the app element; the ring says so — !important
+/* The keyboard lives on the app element; the ring says so: !important
    because the card's shadow-sm utility carries it too. */
 todo-app:focus-within .card {
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
 }
 
-/* The terminal's checkbox twin — the browser shows the real input. */
+/* The terminal's checkbox twin; the browser shows the real input. */
 todo-app .check {
     display: none;
 }

@@ -1,7 +1,7 @@
 //! Typed values of the closed dialect, and the cell-unit conversion.
 //!
 //! The calibration is the repo's own: one column = 0.75rem = 12px = 1ch,
-//! one row = 1.5rem = 24px = 1lh — Bootstrap's body line-height, and the
+//! one row = 1.5rem = 24px = 1lh, Bootstrap's body line-height, and the
 //! only mapping that reproduces the hardcoded class map's choices.
 
 use cssparser::{match_ignore_ascii_case, Parser, ParserInput, Token};
@@ -10,7 +10,7 @@ pub const PX_PER_COLUMN: f32 = 12.0;
 pub const PX_PER_ROW: f32 = 24.0;
 const PX_PER_REM: f32 = 16.0;
 
-/// The axis a length converts against — terminal cells are not square.
+/// The axis a length converts against; terminal cells are not square.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
     Horizontal,
@@ -31,7 +31,7 @@ pub enum Length {
 
 impl Length {
     /// Converts to cells: round half away from zero; `separator` floors a
-    /// nonzero length to one cell (borders and gaps must not vanish — the
+    /// nonzero length to one cell (borders and gaps must not vanish, the
     /// documented gap-2 rationale).
     pub fn to_cells(self, axis: Axis, separator: bool) -> Option<f32> {
         let px_per_cell = match axis {
@@ -178,7 +178,7 @@ pub fn parse_value(name: &str, raw: &str) -> Option<Value> {
     }
 }
 
-/// `rotate(90deg)`, `rotate(0)`, `none` — the single-glyph marker quirk.
+/// `rotate(90deg)`, `rotate(0)`, `none`: the single-glyph marker quirk.
 fn parse_rotation(parser: &mut Parser) -> Option<Value> {
     let token = parser.next().ok()?.clone();
     match token {
@@ -313,7 +313,7 @@ fn component<'i>(parser: &mut Parser<'i, '_>) -> Result<u8, cssparser::ParseErro
 }
 
 /// Below one half the backdrop dominates a translucent color, so painting
-/// it opaque would lie; such declarations drop instead — cells have no
+/// it opaque would lie; such declarations drop instead, as cells have no
 /// compositor (the degradation contract, ADR 0026). At or above, the color
 /// dominates and opaque is the closest honest cell.
 const ALPHA_THRESHOLD: f32 = 0.5;
@@ -412,7 +412,7 @@ mod tests {
         assert_eq!(cols(1.0), 1.0, "card padding");
         assert_eq!(cols(0.75), 1.0, "input-group-text");
 
-        // gap-2 = 0.5rem: zero rows, one column — with the separator floor.
+        // gap-2 = 0.5rem: zero rows, one column, with the separator floor.
         assert_eq!(rows(0.5), 0.0);
         assert_eq!(
             Length::Rem(0.5).to_cells(Axis::Horizontal, true).unwrap(),

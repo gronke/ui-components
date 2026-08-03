@@ -55,7 +55,7 @@ fn dir_matches_ltr_and_never_rtl() {
 fn where_host_parses() {
     let list = parse_selector_list(":where(:host)").expect(":where(:host)");
     assert_eq!(list.slice().len(), 1);
-    // Specificity of :where() is zero — the custom-property block must lose
+    // Specificity of :where() is zero; the custom-property block must lose
     // to any host-targeting override.
     assert_eq!(list.slice()[0].specificity(), 0);
 }
@@ -238,6 +238,6 @@ fn pseudo_elements_resolve_with_content_and_rotation() {
     );
     let closed = table.get(&spans[1]).unwrap().before.as_ref().unwrap();
     assert_eq!(closed.rotation, 0, "collapsed marker stays unrotated");
-    // No ::after rules — no generated box.
+    // No ::after rules, no generated box.
     assert!(table.get(&spans[0]).unwrap().after.is_none());
 }

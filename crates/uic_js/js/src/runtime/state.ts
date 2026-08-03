@@ -1,4 +1,4 @@
-// The mocked lit's shared singletons — ESM modules instantiate once, so
+// The mocked lit's shared singletons. ESM modules instantiate once, so
 // this leaf carries the state the old bootstrap closure held: the custom
 // element registry, the live instances by node handle, and the template
 // listener table every render populates. Keeping the data here breaks the

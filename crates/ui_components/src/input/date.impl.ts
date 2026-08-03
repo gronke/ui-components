@@ -1,5 +1,5 @@
 // Browser behavior of <input-date>; mirrors the Rust InputDateLogic impl in
-// date.rs — keep both in sync.
+// date.rs; keep both in sync.
 import { Temporal } from 'temporal-polyfill';
 import { detailValue } from './uic-impl-helpers.js';
 import type { InputDate } from './input-date.js';
@@ -32,7 +32,7 @@ export function onTimezoneChanged(el: InputDate, e: Event): void {
 }
 
 // The catalog's parseDate: a 1900–2099 year, then per stage one OPTIONAL
-// separator and up to two OPTIONAL digits — a group with no digits still
+// separator and up to two OPTIONAL digits; a group with no digits still
 // consumes its separator, so later parts match independently ("2024--05" →
 // day 5). No end anchor: the first unrecognized character drops itself and
 // everything after it. Out-of-range parts clamp (Temporal constrain);

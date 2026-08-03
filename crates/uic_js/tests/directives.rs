@@ -1,5 +1,5 @@
 //! The supported directive set, each proven by an inline component (the
-//! skeleton pattern) — the generic surface a third-party element relies on,
+//! skeleton pattern): the generic surface a third-party element relies on,
 //! no npm package required.
 
 use uic_js::JsHost;

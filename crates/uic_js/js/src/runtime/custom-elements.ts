@@ -1,4 +1,4 @@
-// The custom-elements polyfill: upgrades over the retained tree — the
+// The custom-elements polyfill: upgrades over the retained tree, the
 // terminal twin of customElements.define + the parser's upgrade pass.
 
 import { instances, registry } from './state.js';
@@ -24,7 +24,7 @@ export function mountAt(tag: string, handle: number): number {
 // knows upgrades once per node, and the upgrade recurses through each
 // child's own commit. A parent re-commit swaps its subtree: replaced
 // children upgrade fresh from their attributes (data flows down through
-// attribute bindings — the serialize commit drops `.prop=`), while the
+// attribute bindings; the serialize commit drops `.prop=`), while the
 // stranded old instances stay in `instances` and render into detached
 // nodes as no-ops.
 export function upgradeDescendants(handle: number): void {

@@ -26,5 +26,5 @@ export class BroadcastChannelTransport implements Transport {
 }
 
 // The WebSocket variant slots in here: send as JSON.stringify(state),
-// deliver JSON.parse(ev.data) — the identical snapshots toward a native
+// deliver JSON.parse(ev.data), the identical snapshots toward a native
 // TUI behind an axum server. The bridge and its dedupe stay unchanged.

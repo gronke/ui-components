@@ -1,5 +1,5 @@
-//! The document state a scripted host operates on — the retained document,
-//! the focus, and the JS↔node handle table — plus the flat operations every
+//! The document state a scripted host operates on (the retained document,
+//! the focus, and the JS↔node handle table), plus the flat operations every
 //! host exposes to the runtime modules: Boa natives on real terminals
 //! (`uic_js`), the browser's own engine against the wasm session
 //! (`uic_tui_web::DomSession`). One body per operation, two thin wrappers.
@@ -15,7 +15,7 @@ use super::DomDocument;
 use crate::KeyStroke;
 
 /// A widget in flight across a subtree swap: the `data-path` key and the
-/// boxed state itself — kind and variant ride inside the box.
+/// boxed state itself; kind and variant ride inside the box.
 type StashedWidget = (String, WidgetBox);
 
 /// The document and the JS↔node handle table, shared with the host's
@@ -27,7 +27,7 @@ pub struct HostState {
     handles: Vec<NodeId>,
     handle_of: HashMap<NodeId, usize>,
     /// The focused widget a subtree swap orphaned, waiting for the node
-    /// that re-renders it: a keystroke in a nested input is two commits —
+    /// that re-renders it: a keystroke in a nested input is two commits;
     /// the parent's swap destroys the input, the child's own commit
     /// re-creates it a microtask later. One slot, keyed like focus
     /// survival by `data-path` (plus the box's own kind and variant).
@@ -67,7 +67,7 @@ impl HostState {
         self.handles.get(handle).copied()
     }
 
-    /// Creates and appends the host element — the node half of a mount;
+    /// Creates and appends the host element: the node half of a mount;
     /// the runtime's `__uicMount` upgrades it afterwards.
     pub fn create_root(&mut self, tag: &str, attrs: &[(&str, &str)]) -> usize {
         let root = self.doc.root();
@@ -80,7 +80,7 @@ impl HostState {
         self.handle(node)
     }
 
-    /// Replaces the element's children with the parsed fragment — the
+    /// Replaces the element's children with the parsed fragment, the
     /// subtree-swap render path. Focus inside the swapped subtree survives
     /// by its `data-path`, the component's own stable row key; mounted
     /// widgets survive the same way, so typing and caret outlive the
@@ -145,7 +145,7 @@ impl HostState {
         if let Some((path, widget)) = self.stash.take() {
             match self.widget_slot(target, &path, &widget) {
                 Some(node) => self.install_widget(node, widget),
-                // Not this commit — keep waiting for the input's own render.
+                // Not this commit; keep waiting for the input's own render.
                 None => self.stash = Some((path, widget)),
             }
         }
@@ -153,7 +153,7 @@ impl HostState {
         // value-carrying tags as the `value` attribute; syncing it here is
         // the scripted hosts' property write, echo-skipped so a component
         // echoing back typed text never moves the caret. No attribute
-        // means an uncontrolled input — the transplanted text stays.
+        // means an uncontrolled input; the transplanted text stays.
         let controlled: Vec<(NodeId, String)> = self
             .doc
             .descendants(target)
@@ -176,7 +176,7 @@ impl HostState {
         self.dirty = true;
     }
 
-    /// The fresh node a harvested widget belongs on — the same `data-path`
+    /// The fresh node a harvested widget belongs on: the same `data-path`
     /// key focus survival uses, plus a freshly mounted widget of the same
     /// kind and variant (the mount already ran, so detection has spoken).
     fn widget_slot(&self, target: NodeId, path: &str, widget: &WidgetBox) -> Option<NodeId> {
@@ -227,7 +227,7 @@ impl HostState {
     }
 
     /// `__uic_query`: descendants matching the selector, as handles. The
-    /// selector engine is the cascade's own — servo's parser and matcher
+    /// selector engine is the cascade's own: servo's parser and matcher
     /// through uic_css (the ADR 0021 follow-up that retired the attribute
     /// micro-matcher).
     pub fn query(&mut self, handle: usize, selector: &str) -> Result<Vec<usize>, String> {
@@ -244,7 +244,7 @@ impl HostState {
         Ok(nodes.into_iter().map(|node| self.handle(node)).collect())
     }
 
-    /// Whether the element matches the selector — the same engine the
+    /// Whether the element matches the selector, by the same engine the
     /// cascade uses, `:focus` fed from the host's focus.
     pub fn matches(&self, handle: usize, selector: &str) -> Result<bool, String> {
         let Some(node) = self.node(handle) else {
@@ -278,7 +278,7 @@ impl HostState {
         self.dirty = true;
     }
 
-    /// Routes a key into the focused node's widget — the editing default
+    /// Routes a key into the focused node's widget: the editing default
     /// action the browser runs after an uncancelled keydown. Returns the
     /// new live text when the key changed it; the host synthesizes the
     /// bubbling `input` event from that.
@@ -304,7 +304,7 @@ impl HostState {
     }
 
     /// Feeds one terminal event into the focused widget and diffs the
-    /// committed text — the shared tail of the key and paste default
+    /// committed text, the shared tail of the key and paste default
     /// actions.
     fn feed_focused(&mut self, event: &Event) -> Option<String> {
         let node = self.focused?;
@@ -329,7 +329,7 @@ impl HostState {
         Some(widget.adapter.committed_text())
     }
 
-    /// `el.value = …` from scripts — echo-skipped like the commit sync.
+    /// `el.value = …` from scripts, echo-skipped like the commit sync.
     pub fn set_widget_value(&mut self, handle: usize, text: &str) {
         let Some(node) = self.node(handle) else {
             return;
@@ -344,14 +344,14 @@ impl HostState {
         }
     }
 
-    /// Whether the node carries a mounted widget — the click-focus guard.
+    /// Whether the node carries a mounted widget: the click-focus guard.
     pub fn has_widget(&self, handle: usize) -> bool {
         self.node(handle)
             .and_then(|node| self.doc.element(node))
             .is_some_and(|el| el.data.widget.is_some())
     }
 
-    /// Places the caret under the pointer — the browser's click semantics.
+    /// Places the caret under the pointer: the browser's click semantics.
     pub fn place_caret(&mut self, handle: usize, column: u16, row: u16) {
         let Some(node) = self.node(handle) else {
             return;
@@ -397,7 +397,7 @@ mod tests {
             Some("hi".into())
         );
         assert_eq!(state.widget_value(input), Some("hi".into()));
-        // Enter and ArrowUp change no text — keydown-only keys.
+        // Enter and ArrowUp change no text: keydown-only keys.
         assert_eq!(state.widget_default_action(&KeyStroke::new("Enter")), None);
         assert_eq!(
             state.widget_default_action(&KeyStroke::new("ArrowUp")),
@@ -428,7 +428,7 @@ mod tests {
         state.set_focused_handle(Some(input));
         typed(&mut state, "abc");
         state.widget_default_action(&KeyStroke::new("ArrowLeft"));
-        // The component echoes the typed text back — same value attribute.
+        // The component echoes the typed text back: same value attribute.
         state.commit(
             root,
             r#"<input data-tui="text-input" data-path="f" value="abc">"#,
@@ -471,7 +471,7 @@ mod tests {
         typed(&mut state, "mid");
         state.widget_default_action(&KeyStroke::new("ArrowLeft"));
         // The parent commit drops the input entirely (the nested child
-        // renders it a beat later) — the focused widget waits in the stash.
+        // renders it a beat later); the focused widget waits in the stash.
         state.commit(root, r#"<todo-row data-path="row"></todo-row>"#);
         assert!(state.query(root, "input").unwrap().is_empty());
         // The child's own commit re-renders the input: text AND caret back.
@@ -503,7 +503,7 @@ mod tests {
         state.set_focused_handle(Some(input));
         typed(&mut state, "ab");
         state.widget_default_action(&KeyStroke::new("ArrowLeft"));
-        // One event, whole text, at the caret — not a whole-value replace.
+        // One event, whole text, at the caret, not a whole-value replace.
         assert_eq!(state.widget_paste("XY"), Some("aXYb".into()));
         // A second paste continues from the moved caret.
         assert_eq!(state.widget_paste("Z"), Some("aXYZb".into()));
@@ -585,7 +585,7 @@ mod tests {
         state.set_focused_handle(Some(input));
         typed(&mut state, "abc");
         // The same data-path re-renders as a date input: a different kind,
-        // so the typed text resets with the fresh adapter — a kind flip is
+        // so the typed text resets with the fresh adapter; a kind flip is
         // configuration, like a variant flip.
         state.commit(root, r#"<input type="date" data-path="f" value="">"#);
         let fresh = state.query(root, "input").unwrap()[0];
@@ -603,7 +603,7 @@ mod tests {
         assert!(!state.matches(root, ":dir(rtl)").unwrap());
         assert!(state.matches(root, "x-demo.host").unwrap());
         // Garbage still errors loudly instead of mismatching. (An
-        // unterminated bracket is NOT garbage — CSS error recovery closes
+        // unterminated bracket is NOT garbage; CSS error recovery closes
         // it at end of input.)
         assert!(state.query(root, "~").is_err());
         assert!(state.matches(root, ":nonsense-pseudo").is_err());

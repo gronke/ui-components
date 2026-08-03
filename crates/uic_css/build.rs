@@ -1,4 +1,4 @@
-//! Vendors the packages declared in package.json — the compiled Bootstrap
+//! Vendors the packages declared in package.json: the compiled Bootstrap
 //! the tui.css generator filters.
 
 use std::path::PathBuf;

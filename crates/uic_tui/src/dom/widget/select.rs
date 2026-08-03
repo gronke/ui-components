@@ -20,7 +20,7 @@ pub(super) struct SelectAdapter {
     state: Box<ChoiceState<String>>,
     /// The option list, data resolved from `.options` property writes.
     options: Vec<SelectOption>,
-    /// The bound value — what Esc reverts browsing to.
+    /// The bound value: what Esc reverts browsing to.
     bound: String,
 }
 
@@ -33,7 +33,7 @@ impl SelectAdapter {
         }
     }
 
-    /// Restores the widget value from its bound property — rat's browsing
+    /// Restores the widget value from its bound property; rat's browsing
     /// mutates the value continuously, so Esc reverts like the browser's
     /// dropdown.
     fn revert(&mut self) {
@@ -123,7 +123,7 @@ impl WidgetAdapter for SelectAdapter {
     }
 
     fn intrinsic_width(&self) -> Option<u16> {
-        // The select hugs its closed label plus rat's three marker cells —
+        // The select hugs its closed label plus rat's three marker cells,
         // the catalog's fit-content.
         Some((self.closed_label().width() as u16).saturating_add(3))
     }
@@ -219,7 +219,7 @@ impl WidgetAdapter for SelectAdapter {
         match mouse.kind {
             MouseEventKind::Down(_) => {
                 // Picks resolve against the published row geometry instead
-                // of rat's mouse handling — see `place_cursor`.
+                // of rat's mouse handling; see `place_cursor`.
                 if let Some(row) = self
                     .state
                     .item_areas

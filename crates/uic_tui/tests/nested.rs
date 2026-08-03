@@ -228,7 +228,7 @@ fn unrendered_branches_are_unfocusable_by_construction() {
     let events = probe(&mut app, note, "value-changed");
 
     // Without show-timezone the date owns ONE focusable: a single Tab must
-    // land on the text root — the unrendered branch's widget node does not
+    // land on the text root: the unrendered branch's widget node does not
     // exist, so no guard is needed to skip it.
     screen(&mut app);
     key(&mut app, KeyCode::Tab);

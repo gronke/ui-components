@@ -5,10 +5,10 @@
 //!   served from the build-time bake.
 //! - `cargo run -p uic_web_demo --release` → serves everything embedded in
 //!   the binary (no filesystem).
-//! - `WEB_MODULES_EMBEDDED=1` forces embedded serving in any build — used for
+//! - `WEB_MODULES_EMBEDDED=1` forces embedded serving in any build; used for
 //!   deterministic end-to-end runs.
 //! - `UIC_WEB_DEMO_ADDR=host:port` moves the listener (default
-//!   `127.0.0.1:8080`) — e.g. onto the port a workspace proxy forwards.
+//!   `127.0.0.1:8080`), e.g. onto the port a workspace proxy forwards.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

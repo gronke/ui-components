@@ -1,5 +1,5 @@
 // Browser behavior of <input-number>; mirrors the Rust InputNumberLogic impl
-// in number.rs — keep both in sync.
+// in number.rs; keep both in sync.
 import type { InputNumber } from './input-number.js';
 
 // Port of the catalog's getFloat: comma or dot decimals, dots as thousand

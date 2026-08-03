@@ -1,7 +1,7 @@
 //! The state-sync tooling as a reusable artifact (ADR 0013): a tagged
 //! structured-clone codec, one string-payload wire seam (WebSocket,
 //! RTCDataChannel), root-component attachment, and the compact pairing
-//! that connects two browsers through mutually scanned QR codes — no
+//! that connects two browsers through mutually scanned QR codes, no
 //! signaling server.
 //!
 //! The shared pairing UI ships here too (ADR 0029): `pair-panel.ts`,
@@ -12,8 +12,8 @@
 //! `web_modules` build as an extra source root, or emit the compiled npm
 //! tree with [`npm_tree`] and install it like any package.
 //!
-//! [`pair`] carries the compact payload codec in Rust too — one byte
-//! contract, two languages — so a native peer (ADR 0028) exchanges the
+//! [`pair`] carries the compact payload codec in Rust too (one byte
+//! contract, two languages), so a native peer (ADR 0028) exchanges the
 //! same pairing codes as the browser. [`session`] is that peer's pairing
 //! lifecycle as a pure state machine (`web/session.ts` is the browser
 //! sibling, whose cross-tab job stays TS-only).
@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 
 /// The TypeScript sources (`codec.ts`, `wire.ts`, `sync.ts`, `pair.ts`,
-/// `session.ts`) — an extra root for a consumer's `web_modules` build.
+/// `session.ts`), an extra root for a consumer's `web_modules` build.
 pub fn web_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("web")
 }

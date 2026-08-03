@@ -1,5 +1,5 @@
 // Browser behavior of <nav-breadcrumb>; mirrors the Rust NavBreadcrumbLogic
-// impl in mod.rs — keep both in sync.
+// impl in mod.rs; keep both in sync.
 import type { NavBreadcrumb } from './nav-breadcrumb.js';
 
 type Crumb = { label: string; href: string; sep: string; plain: boolean };

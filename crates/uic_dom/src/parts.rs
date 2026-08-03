@@ -1,19 +1,19 @@
 //! The lit-parts engine: a template compiles once into a part plan, render
 //! targets instantiate the prototype by cloning, and updates patch only the
-//! bound parts — lit-html's architecture over the retained tree (ADR 0008).
+//! bound parts: lit-html's architecture over the retained tree (ADR 0008).
 //!
 //! The dialect's holes are NAMED (`${ident}`), so unlike lit no marker
 //! sentinels are injected before parsing: the raw source goes through
 //! html5ever as-is and the holes are self-marking. Compilation then walks
 //! the parsed prototype once: text holes split into comment-marker nodes
-//! (the part's stable anchor — real node identity replaces lit's start/end
+//! (the part's stable anchor; real node identity replaces lit's start/end
 //! marker pair), bound attributes classify by their lit prefix (`.` property,
 //! `?` boolean, `@` event; `<template if=${…}>` is the conditional) and are
 //! removed from the prototype, and attribute-name case is recovered from the
 //! source by index, exactly like lit's side array.
 //!
 //! The engine is value-agnostic: holes carry their raw expression text, and
-//! `commit` takes one [`PartValue`] per hole — resolving expressions against
+//! `commit` takes one [`PartValue`] per hole; resolving expressions against
 //! component state is the consumer's job. The tree owns what the tree can
 //! hold (child content, attributes, boolean attributes); property and event
 //! parts surface as data for the runtime glue.
@@ -60,15 +60,15 @@ enum SpecKind {
         strings: Vec<String>,
         holes: Vec<usize>,
     },
-    /// `?name=${x}` — present or absent.
+    /// `?name=${x}`: present or absent.
     BooleanAttribute { name: String, hole: usize },
-    /// `.name=${x}` — surfaced to the consumer, the tree holds no properties.
+    /// `.name=${x}`: surfaced to the consumer, the tree holds no properties.
     Property { name: String, hole: usize },
-    /// `@name=${handler}` — surfaced to the consumer at instantiation.
+    /// `@name=${handler}`: surfaced to the consumer at instantiation.
     Event { name: String, handler: String },
-    /// `<template if=${x}>` — the anchor is the template element itself.
+    /// `<template if=${x}>`: the anchor is the template element itself.
     Conditional { hole: usize, branch: usize },
-    /// `<template for=${each} as=item>` — the anchor is the template element;
+    /// `<template for=${each} as=item>`: the anchor is the template element;
     /// the body holes live in their own space, resolved per row by the
     /// caller and delivered as a [`PartValue::List`] (ADR 0001).
     Repeat {
@@ -253,7 +253,7 @@ impl CompiledTemplate {
         })
     }
 
-    /// Compiles the already-parsed template IR — the runtime path, where
+    /// Compiles the already-parsed template IR: the runtime path, where
     /// components carry their (chrome-spliced) `uic_template::Template`.
     /// No HTML parse runs and no case recovery is needed: the IR preserves
     /// authored names by construction. Semantics match [`Self::compile`]:
@@ -682,7 +682,7 @@ impl Compiler {
     }
 
     /// Splits a text node with holes into static text nodes and comment
-    /// markers — the markers are the child parts' stable anchors.
+    /// markers; the markers are the child parts' stable anchors.
     fn compile_text(
         &mut self,
         doc: &mut Document,
@@ -902,7 +902,7 @@ fn resolve_parts(
     parts
 }
 
-/// Removes every active nested branch below the given parts — the sibling
+/// Removes every active nested branch below the given parts: the sibling
 /// insertions their anchors accumulated, which the enclosing branch's node
 /// list does not cover.
 fn teardown_branches<T: Default>(doc: &mut Document<T>, parts: &mut [Part]) {

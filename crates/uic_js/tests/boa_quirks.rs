@@ -1,7 +1,7 @@
 //! Canary for the Boa 0.21 engine bug the runtime works around: a closure
 //! created inside a class constructor capturing a local lexical binding
 //! panics the VM (`PutLexicalValue`, empty bindings table).
-//! When this test starts failing, Boa fixed the bug — drop the module-level
+//! When this test starts failing, Boa fixed the bug: drop the module-level
 //! accessor installation in js/src/runtime.ts and this test together.
 
 use boa_engine::{Context, Source};
@@ -20,7 +20,7 @@ new A().x
 "#;
 
 // Same family, second shape: an arrow nested inside another arrow loses its
-// captured environment (`this` included) once the enclosing call returns —
+// captured environment (`this` included) once the enclosing call returns;
 // the deferred call throws. Template `@event` values must therefore be
 // method references (the EventPart host-binding supplies `this`, compiled
 // lit's own idiom), never inline closures over render locals.
@@ -60,7 +60,7 @@ fn ctor_loop_capture_still_panics_boa() {
 
 // The dialogs feature parks a Promise in one eval and resolves it in a
 // later one; the continuation must fire on the following job drain. This
-// canary pins that Boa's job queue survives across evals on one context —
+// canary pins that Boa's job queue survives across evals on one context;
 // if it starts failing, dialog promises (and anything else resolved by a
 // host eval) break with it.
 #[test]
@@ -91,7 +91,7 @@ fn promises_resolve_across_evals() {
 
 // The runtime's polyfill modules import each other in a cycle (element →
 // focus → events → element) with every cross-call deferred into function
-// bodies — ESM-legal, and Boa must serve it. This canary proves the module
+// bodies: ESM-legal, and Boa must serve it. This canary proves the module
 // loader handles the shape; if it starts failing, merge the cycling
 // modules back together.
 #[test]

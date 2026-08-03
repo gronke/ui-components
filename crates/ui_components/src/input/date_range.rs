@@ -1,9 +1,9 @@
-//! `<input-date-range>` — one bordered group around two `<input-date>`
+//! `<input-date-range>`: one bordered group around two `<input-date>`
 //! children, the catalog's `[ from | - | to | tz ▼ ]`.
 //!
 //! The composite listens to both children's `value-changed` events, keeps
 //! the ends ordered and derives the combined `value` in `will_update`, and
-//! reflects `complete` after the commit in `updated` — the ReactiveElement
+//! reflects `complete` after the commit in `updated`: the ReactiveElement
 //! flow, identical on both render targets. The group owns the timezone
 //! select; the children receive the picked zone as their default.
 

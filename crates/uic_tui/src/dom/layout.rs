@@ -1,6 +1,6 @@
 //! Layout from the retained DOM: taffy computes real CSS flexbox over
 //! terminal cells, reading classes and mounted widgets straight off the
-//! document nodes — no per-frame expansion tree in between.
+//! document nodes; no per-frame expansion tree in between.
 
 use ratatui::layout::Rect;
 use taffy::prelude::*;
@@ -29,7 +29,7 @@ pub(crate) enum LaidKind {
     /// An element node.
     Node(uic_dom::NodeId),
     /// A text node with its flow-prepared string: interior whitespace
-    /// collapsed, run-boundary spaces already decided — the paint renders
+    /// collapsed, run-boundary spaces already decided; the paint renders
     /// it verbatim.
     Text { node: uic_dom::NodeId, text: String },
     /// A synthesized flex row wrapping a run of inline boxes; styleless and
@@ -91,7 +91,7 @@ impl FlowItem<'_> {
 }
 
 enum Measured {
-    /// A text leaf; the flag carries `overflow-wrap: anywhere` — an
+    /// A text leaf; the flag carries `overflow-wrap: anywhere`: an
     /// unbreakable token may then break at any character, so min-content
     /// drops to one cell instead of the longest word (the height count and
     /// the paint already break oversized words).
@@ -202,7 +202,7 @@ fn build(
                 .map(|e| e.style.clone())
                 .unwrap_or_default();
             if computed.display == uic_css::Display::None {
-                // display:none removes the subtree from layout entirely —
+                // display:none removes the subtree from layout entirely:
                 // json-viewer's filtered rows, the ua sheet's [hidden].
                 return None;
             }
@@ -252,7 +252,7 @@ fn build(
 ///
 /// A flex or grid container blockifies: every item becomes a direct child,
 /// exactly the pre-inline behavior. A block container wraps runs of two or
-/// more consecutive inline-level items into an anonymous wrapping flex row —
+/// more consecutive inline-level items into an anonymous wrapping flex row:
 /// the inline formatting context, one box at a time. An inline container is
 /// itself the row, so its flow items attach directly.
 fn build_flow(
@@ -428,7 +428,7 @@ fn build_plain_item(
 
 /// Builds a run's boxes with inline whitespace processing: interior
 /// whitespace collapses, the run's edges trim like line ends, and interior
-/// boundaries keep a single space when the markup had one — whitespace-only
+/// boundaries keep a single space when the markup had one; whitespace-only
 /// nodes between items become exactly one separator.
 fn build_run_items(
     tree: &mut TaffyTree<Measured>,
@@ -441,7 +441,7 @@ fn build_run_items(
         return Vec::new();
     };
     let mut out = Vec::new();
-    // A per-owner constant — one lookup serves the whole run.
+    // A per-owner constant; one lookup serves the whole run.
     let break_anywhere = owner_breaks_anywhere(styles, owner);
     // The run start behaves like text after a space: leading whitespace
     // never renders at a line start.
@@ -490,7 +490,7 @@ fn build_run_items(
     out
 }
 
-/// The owner element's inherited `overflow-wrap: anywhere` — the flag its
+/// The owner element's inherited `overflow-wrap: anywhere`, the flag its
 /// text children measure under.
 fn owner_breaks_anywhere(styles: &StyleTable, owner: uic_dom::NodeId) -> bool {
     styles
@@ -527,7 +527,7 @@ fn build_text(
 
 /// A `::before`/`::after` box: the pseudo style sizes it, its `content`
 /// paints, and a right-angle `transform` picks the rotated glyph at
-/// synthesis — json-viewer's ▶ marker turning ▼ on expand.
+/// synthesis: json-viewer's ▶ marker turning ▼ on expand.
 fn build_generated(
     tree: &mut TaffyTree<Measured>,
     owner: uic_dom::NodeId,
@@ -555,8 +555,8 @@ fn build_generated(
 ///
 /// The section elements and `<tr>` are structural: the cells become the grid
 /// items, placed explicitly by row and column line so a short row never
-/// shifts later ones. `auto` tracks size to the largest cell across all rows
-/// — the alignment separate flex rows cannot express. A `table`-classed (or
+/// shifts later ones. `auto` tracks size to the largest cell across all rows,
+/// the alignment separate flex rows cannot express. A `table`-classed (or
 /// `w-100`) table fills its row with `minmax(auto, 1fr)` tracks, like the
 /// browser's `width: 100%` table.
 ///
@@ -677,7 +677,7 @@ pub(crate) fn effective_classes(doc: &DomDocument, node: uic_dom::NodeId) -> Vec
         .collect()
 }
 
-/// The named attribute of the nearest enclosing custom element — the
+/// The named attribute of the nearest enclosing custom element: the
 /// component's reflected state, the way `[seamless]`/`[error]` stylesheet
 /// selectors read it in the browser.
 pub(crate) fn component_attr(
@@ -719,7 +719,7 @@ fn widget_width(doc: &DomDocument, node: uic_dom::NodeId) -> Option<u16> {
     widget.adapter.intrinsic_width()
 }
 
-/// The computed style, translated onto taffy — margins, paddings and
+/// The computed style, translated onto taffy; margins, paddings and
 /// borders arrive cell-resolved from the cascade (ADR 0021).
 fn taffy_style(computed: &uic_css::ComputedStyle) -> Style {
     use uic_css::{Dimension as CssDimension, Display as CssDisplay, FlexDirection as CssFlexDir};
