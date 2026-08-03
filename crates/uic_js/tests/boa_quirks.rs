@@ -40,7 +40,7 @@ fn nested_arrow_capture_still_breaks_boa() {
     assert!(
         result.is_err(),
         "Boa now keeps nested-arrow captures alive after the enclosing call \
-         returns — inline closures work as template event values again; \
+         returns: inline closures work as template event values again; \
          relax the method-reference guidance and drop this canary"
     );
 }
@@ -53,7 +53,7 @@ fn ctor_loop_capture_still_panics_boa() {
     });
     assert!(
         result.is_err(),
-        "Boa no longer panics on constructor loop-capture — remove the \
+        "Boa no longer panics on constructor loop-capture: remove the \
          installAccessors workaround in js/src/runtime.ts and this canary"
     );
 }

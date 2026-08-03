@@ -15,10 +15,10 @@ export function iceConfig(): PairOptions {
             if (Array.isArray(parsed)) {
                 iceServers.push(...parsed);
             } else {
-                console.warn('[p2p] uic-ice ignored — expected a JSON array of RTCIceServer');
+                console.warn('[p2p] uic-ice ignored: expected a JSON array of RTCIceServer');
             }
         } catch (error) {
-            console.warn('[p2p] uic-ice ignored — not valid JSON:', error);
+            console.warn('[p2p] uic-ice ignored, not valid JSON:', error);
         }
     }
     return { iceServers };

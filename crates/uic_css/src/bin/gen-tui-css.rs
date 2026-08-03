@@ -76,7 +76,7 @@ fn main() {
     );
     let _ = writeln!(
         out,
-        "   bare-element base rules stay ua.css territory. Do not edit — rerun the generator. */"
+        "   bare-element base rules stay ua.css territory. Do not edit; rerun the generator. */"
     );
     out.push_str(&kept_text);
 

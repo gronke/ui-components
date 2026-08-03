@@ -211,7 +211,7 @@ impl DistBuild {
         }
         format!(
             "# {name}\n\n\
-            Web components generated from Rust definitions — plain lit ESM, no build step.\n\
+            Web components generated from Rust definitions: plain lit ESM, no build step.\n\
             Importing a module registers its element with `customElements`.\n\n\
             ```sh\nnpm install {name} lit\n```\n\n\
             ```js\n{imports}```\n\n\

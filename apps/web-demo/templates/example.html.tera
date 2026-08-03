@@ -30,7 +30,7 @@
 </aside>
 </div>
 {% if pool %}<section class="mt-4">
-<label class="form-label small text-body-secondary" for="word-pool">word pool — the page answers query-changed from these rows, one word per line</label>
+<label class="form-label small text-body-secondary" for="word-pool">word pool: the page answers query-changed from these rows, one word per line</label>
 <textarea id="word-pool" class="form-control font-monospace" rows="5" data-qa="word-pool"></textarea>
 </section>
 {% endif %}</div>

@@ -25,6 +25,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 # The ansi suite mounts catalog components (the input widgets, app-root); the
-# host itself is catalog-agnostic — the consumer links them.
+# host itself is catalog-agnostic; the consumer links them.
 ui_components_tui.workspace = true
 ui_components_demo.workspace = true

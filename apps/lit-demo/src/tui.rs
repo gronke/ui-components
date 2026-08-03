@@ -290,7 +290,7 @@ fn clipboard_tick(
         return false; // one question at a time
     }
     let mut prompt = uic_tui::dialog::Dialog::confirm(
-        "a different pairing link arrived — accept the new pairing?",
+        "a different pairing link arrived, accept the new pairing?",
     );
     prompt.ok_label = "accept".into();
     prompt.cancel_label = "keep waiting".into();
@@ -874,7 +874,7 @@ mod tests {
         let connected = PanelState {
             mode: PanelMode::Connected,
             link: String::new(),
-            status: "paired — one list, two ends".into(),
+            status: "paired: one list, two ends".into(),
             connected: Some(true),
             reset_label: "invite somebody else".into(),
             step: Step::Connect,

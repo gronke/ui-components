@@ -29,7 +29,7 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 
 /// The same plain message pair.ts rejects unreachable peers with.
-const UNREACHABLE: &str = "the peers could not reach each other — on one network, check \
+const UNREACHABLE: &str = "the peers could not reach each other; on one network, check \
      that devices may talk to each other; across networks this demo ships no TURN relay";
 
 type PairResult<T> = Result<T, String>;
@@ -158,7 +158,7 @@ impl Swap {
         }
         if peer.f == self.compact.f {
             return Err(
-                "uic-sync pair: that is this side's own payload — send it to the peer and open theirs"
+                "uic-sync pair: that is this side's own payload; send it to the peer and open theirs"
                     .into(),
             );
         }

@@ -64,13 +64,13 @@ const EXAMPLES: &[Example] = &[
         route: "demo",
         tag: "app-root",
         title: "The form",
-        blurb: "Every input in one component around one state object — commits trickle up, state trickles down, and browser tabs share it.",
+        blurb: "Every input in one component around one state object: commits trickle up, state trickles down, and browser tabs share it.",
         attrs: &[],
         props_json: r#"{"state": {"date": "2026-07-07 00:00:00", "start": "2026-07-07", "end": "2026-07-11"}}"#,
         option_props_json: "{}",
         cols: 72,
         rows: 58,
-        hint: "Click a field or Tab around — Enter commits, F4 or a click opens pickers, Esc leaves.",
+        hint: "Click a field or Tab around: Enter commits, F4 or a click opens pickers, Esc leaves.",
         channel: Some("uic-app-state"),
         pool: None,
     },
@@ -224,7 +224,7 @@ const EXAMPLES: &[Example] = &[
         route: "components/input-suggestion",
         tag: "input-suggestion",
         title: "Suggestion",
-        blurb: "Typeahead over rows the page answers from an editable word pool — both panes query the same source.",
+        blurb: "Typeahead over rows the page answers from an editable word pool; both panes query the same source.",
         attrs: &[
             ("label", "Word"),
             ("hint", "Typeahead: the pool below answers query-changed"),
@@ -305,7 +305,7 @@ const EXAMPLES: &[Example] = &[
         option_props_json: "{}",
         cols: 64,
         rows: 4,
-        hint: "A static trail — nothing to focus.",
+        hint: "A static trail, nothing to focus.",
         channel: None,
         pool: None,
     },
@@ -336,7 +336,7 @@ const FOREIGN_EXAMPLES: &[ForeignExample] = &[ForeignExample {
     name: "json-viewer",
     route: "examples/json-viewer",
     title: "Foreign element: json-viewer",
-    blurb: "A third-party npm lit element, byte-unmodified in both panes: the real lit in the browser, the browser's own engine in a worker for the terminal — its stylesheet parsed into the cascade.",
+    blurb: "A third-party npm lit element, byte-unmodified in both panes: the real lit in the browser, the browser's own engine in a worker for the terminal, its stylesheet parsed into the cascade.",
     package: "@alenaksu/json-viewer",
     range: "^2",
     tag: "json-viewer",
@@ -344,7 +344,7 @@ const FOREIGN_EXAMPLES: &[ForeignExample] = &[ForeignExample {
     props_json: r#"{"data": {"project": "gronke/ui-components", "renderers": 2, "panes": {"browser": "real lit", "terminal": "worker + mocked lit"}, "styled": true}}"#,
     cols: 72,
     rows: 18,
-    hint: "Arrows navigate, Right/Left expand and collapse, a click toggles — the component's own code.",
+    hint: "Arrows navigate, Right/Left expand and collapse, a click toggles; the component's own code.",
 }];
 
 /// The vendored package's ESM entry per its manifest: `exports` "." →
@@ -548,12 +548,12 @@ fn gallery_page() -> String {
         },
         {
             "title": "components",
-            "blurb": "One page per catalog component — the web component beside the same element in a terminal.",
+            "blurb": "One page per catalog component: the web component beside the same element in a terminal.",
             "cards": cards_for("components"),
         },
         {
             "title": "examples",
-            "blurb": "Maintained end-to-end examples — foreign npm elements in both panes, the terminal side on the browser's own engine in a worker.",
+            "blurb": "Maintained end-to-end examples: foreign npm elements in both panes, the terminal side on the browser's own engine in a worker.",
             "cards": cards_for("examples"),
         },
         {
@@ -563,7 +563,7 @@ fn gallery_page() -> String {
                 "lit-demo/p2p",
                 "todo-app",
                 "pair two browsers over WebRTC",
-                "The lit-todo app with symmetric link pairing: each side sends one link — QR, message or paste — and both connect, with no server carrying state or signaling.",
+                "The lit-todo app with symmetric link pairing: each side sends one link (QR, message or paste) and both connect, with no server carrying state or signaling.",
             )],
         },
     ]);

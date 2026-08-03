@@ -113,7 +113,7 @@ fn a_prompt_collects_text_and_y_is_just_a_letter() {
 #[test]
 fn the_prompt_paints_its_line_and_custom_labels_render() {
     let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
-    let mut dialog = Dialog::confirm("a different pairing link arrived — accept it?");
+    let mut dialog = Dialog::confirm("a different pairing link arrived, accept it?");
     dialog.ok_label = "accept".into();
     dialog.cancel_label = "keep waiting".into();
     terminal

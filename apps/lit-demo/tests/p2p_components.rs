@@ -310,7 +310,7 @@ fn the_acknowledge_step_shows_the_live_connecting_status() {
     host.set_prop(
         panel,
         "status",
-        "\"connecting 12s — send this reply back; you pair the moment they open it\"",
+        "\"connecting 12s: send this reply back; you pair the moment they open it\"",
     )
     .unwrap();
 

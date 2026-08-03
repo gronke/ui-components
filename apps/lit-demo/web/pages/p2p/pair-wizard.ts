@@ -54,11 +54,11 @@ type ConnectRole = 'opener' | 'inviter' | 'plain';
 function connectingStatus(role: ConnectRole, secs: number): string {
     if (role === 'opener') {
         return secs > SLOW_HINT_SECS
-            ? `Still connecting… ${secs}s — make sure they opened your reply link.`
-            : `Connecting… ${secs}s — send this reply back; you pair the moment they open it.`;
+            ? `Still connecting… ${secs}s: make sure they opened your reply link.`
+            : `Connecting… ${secs}s: send this reply back; you pair the moment they open it.`;
     }
     if (role === 'inviter') {
-        return `They opened your invite — connecting… ${secs}s.`;
+        return `They opened your invite, connecting… ${secs}s.`;
     }
     return `Connecting… ${secs}s.`;
 }
@@ -82,9 +82,9 @@ async function copied(text: string, what: string): Promise<string> {
     try {
         await navigator.clipboard.writeText(text);
         note(`${what} copied to the clipboard`);
-        return `${what} copied — send it over.`;
+        return `${what} copied, send it over.`;
     } catch {
-        return `${what} not copied (needs a secure context) — select and copy it by hand.`;
+        return `${what} not copied (needs a secure context); select and copy it by hand.`;
     }
 }
 
@@ -154,7 +154,7 @@ export class PairWizard extends LitElement {
         super();
         this.mode = 'idle';
         this.status =
-            'Share this list over WebRTC — no server carries the state. Each side sends one invite; open theirs, they open yours, done.';
+            'Share this list over WebRTC: no server carries the state. Each side sends one invite; open theirs, they open yours, done.';
         this.connected = null;
         this.scanning = false;
         this.starting = false;
@@ -195,7 +195,7 @@ export class PairWizard extends LitElement {
             // WebKit hides WebRTC from in-app browsers and non-HTTPS pages.
             this.mode = 'nortc';
             this.status =
-                'This browser view hides WebRTC — open the page in a regular browser over HTTPS (in-app browsers often offer "Open in Browser").';
+                'This browser view hides WebRTC; open the page in a regular browser over HTTPS (in-app browsers often offer "Open in Browser").';
             return;
         }
         const carried = location.hash.length > 1 ? location.hash : null;
@@ -219,13 +219,13 @@ export class PairWizard extends LitElement {
         const replyTo = linkReply(carried);
         sessions.offer(peer, replyTo, {
             handed: (status) => {
-                note('an open tab claimed the link payload —', status);
+                note('an open tab claimed the link payload:', status);
                 this.mode = 'handed';
                 this.takeDigest = replyTo;
                 this.status =
                     status === 'connected'
                         ? 'Already connected in your other tab.'
-                        : 'Handed to your open tab — the connection continues there.';
+                        : 'Handed to your open tab; the connection continues there.';
                 this.resetLabel = 'start a fresh pairing here';
                 if (replyTo) {
                     this.actionLabel = 'take the session over in this tab';
@@ -265,7 +265,7 @@ export class PairWizard extends LitElement {
         note('a reply arrived for an invite no open tab holds');
         this.mode = 'failed';
         this.status =
-            'This reply answers an invite this browser no longer holds — the tab that created it was closed or reloaded. Start a fresh pairing and send a new invite.';
+            'This reply answers an invite this browser no longer holds: the tab that created it was closed or reloaded. Start a fresh pairing and send a new invite.';
         this.resetLabel = 'start a fresh pairing';
     }
 
@@ -315,7 +315,7 @@ export class PairWizard extends LitElement {
             return;
         }
         this.side = side;
-        note('side ready — own payload:', side.payload);
+        note('side ready, own payload:', side.payload);
         // A link built in reply to an opened invite names it: the `.{digest}`
         // suffix routes the reply to the exact tab that invited (still one
         // URL-safe token; every parser cuts before the dot).
@@ -359,7 +359,7 @@ export class PairWizard extends LitElement {
             return;
         }
         if (side.spent()) {
-            this.status = 'This pairing already ran — start a new one below.';
+            this.status = 'This pairing already ran; start a new one below.';
             this.resetLabel = 'start a new pairing';
             return;
         }
@@ -412,7 +412,7 @@ export class PairWizard extends LitElement {
         if (this.pursuit?.fresh) {
             this.mode = 'failed';
             this.status =
-                "Couldn't confirm the connection — the other side may still show connected; start a fresh pairing on both and exchange new links.";
+                "Couldn't confirm the connection: the other side may still show connected; start a fresh pairing on both and exchange new links.";
             this.resetLabel = 'start a fresh pairing';
             return;
         }
@@ -422,7 +422,7 @@ export class PairWizard extends LitElement {
         // assignment here loses to the mint's own status a beat later.
         this.starting = false;
         this.carryStatus =
-            "That exchange can't resume — the peer's copy of your invite went stale; share this fresh invite instead.";
+            "That exchange can't resume: the peer's copy of your invite went stale; share this fresh invite instead.";
         void this.startSide(null);
     }
 
@@ -457,9 +457,9 @@ export class PairWizard extends LitElement {
         this.pursuit = null;
         this.connected = true;
         this.step = 3;
-        note('connected', greet ? '— this side greets with its state' : '— waiting for their greeting');
+        note('connected:', greet ? 'this side greets with its state' : 'waiting for their greeting');
         this.mode = 'connected';
-        this.status = 'Connected — one list, two browsers.';
+        this.status = 'Connected: one list, two browsers.';
         this.resetLabel = 'invite somebody else';
         wire.onClose(() => {
             // Only the CURRENT wire's death is a drop: a handover supersedes
@@ -471,7 +471,7 @@ export class PairWizard extends LitElement {
             this.connected = false;
             note('wire closed');
             this.mode = 'dropped';
-            this.status = 'Connection closed — invite somebody else.';
+            this.status = 'Connection closed, invite somebody else.';
         });
     }
 
@@ -483,7 +483,7 @@ export class PairWizard extends LitElement {
             return;
         }
         this.takingOver = true;
-        note('another tab requests this session — re-signaling through the wire');
+        note('another tab requests this session, re-signaling through the wire');
         this.ctrlWire.sendControl({ t: 'repair', payload });
         // A takeover that never completes unblocks the next attempt.
         setTimeout(() => {
@@ -500,7 +500,7 @@ export class PairWizard extends LitElement {
             return;
         }
         this.handingOver = true;
-        note('the other side moves to a new tab — re-pairing through the wire');
+        note('the other side moves to a new tab, re-pairing through the wire');
         let fresh: PairSwap;
         try {
             fresh = await swap(iceConfig());
@@ -517,10 +517,10 @@ export class PairWizard extends LitElement {
             this.side = fresh;
             this.connect(wire, true);
             previous?.close();
-            this.status = 'The other side moved to a new tab — reconnected.';
+            this.status = 'The other side moved to a new tab, reconnected.';
         } catch (error) {
             note('the re-pairing failed, the old wire stands:', error);
-            this.status = `The handover failed (${error}) — still on the previous connection.`;
+            this.status = `The handover failed (${error}), still on the previous connection.`;
         } finally {
             this.handingOver = false;
         }
@@ -534,7 +534,7 @@ export class PairWizard extends LitElement {
         }
         this.starting = true;
         this.actionLabel = '';
-        this.status = 'Taking the session over — re-signaling through your other tab…';
+        this.status = 'Taking the session over, re-signaling through your other tab…';
         let side: PairSwap;
         try {
             side = await swap(iceConfig());
@@ -555,7 +555,7 @@ export class PairWizard extends LitElement {
         } catch (error) {
             note('the takeover did not complete:', error);
             this.status =
-                'The takeover timed out — the other side may not support handover, or the tabs lost each other. The session stays in your other tab.';
+                'The takeover timed out: the other side may not support handover, or the tabs lost each other. The session stays in your other tab.';
             this.actionLabel = 'take the session over in this tab';
             this.starting = false;
             side.close();
@@ -577,7 +577,7 @@ export class PairWizard extends LitElement {
         this.ctrlWire = null;
         this.connected = null;
         this.mode = 'moved';
-        this.status = 'Session moved to your other tab — this one is done.';
+        this.status = 'Session moved to your other tab; this one is done.';
         this.actionLabel = '';
         this.resetLabel = 'start a fresh pairing here';
     }
@@ -603,7 +603,7 @@ export class PairWizard extends LitElement {
         this.connected = null;
         this.takeDigest = null;
         this.link = '';
-        note('disconnected by hand — minting a fresh invite');
+        note('disconnected by hand, minting a fresh invite');
         // startSide's guard latched on the first run; this is a deliberate
         // second one.
         this.starting = false;
@@ -623,7 +623,7 @@ export class PairWizard extends LitElement {
      * is the terminal's host dialog's twin). */
     private async confirmSwitch(raw: string): Promise<void> {
         const accept = await confirm(
-            'A different pairing link arrived — accept it and drop the current attempt?',
+            'A different pairing link arrived. Accept it and drop the current attempt?',
         );
         if (accept) {
             await this.switchTo(raw);
@@ -666,7 +666,7 @@ export class PairWizard extends LitElement {
             this.scanning = false;
             this.openedPeer(raw);
         } catch (error) {
-            this.status = `Camera unavailable (${error}) — paste their link instead.`;
+            this.status = `Camera unavailable (${error}); paste their link instead.`;
         } finally {
             this.scanning = false;
         }
@@ -700,7 +700,7 @@ export class PairWizard extends LitElement {
         } catch (error) {
             if (explicit) {
                 this.canPaste = false;
-                this.status = `Clipboard unavailable (${error}) — paste their link instead.`;
+                this.status = `Clipboard unavailable (${error}); paste their link instead.`;
             }
             return;
         }
@@ -735,7 +735,7 @@ export class PairWizard extends LitElement {
             return;
         }
         if (reply !== null && reply !== replyDigest(side.payload)) {
-            this.status = 'That link answers a different invite — ask them to open your current one.';
+            this.status = 'That link answers a different invite; ask them to open your current one.';
             return;
         }
         // The swap behind this side already ran (a prior connect consumed it)
@@ -743,7 +743,7 @@ export class PairWizard extends LitElement {
         // card, so renew a fresh invite and say why instead of dialing.
         if (side.spent()) {
             this.starting = false;
-            this.carryStatus = 'That pairing already ran — share this fresh invite to try again.';
+            this.carryStatus = 'That pairing already ran; share this fresh invite to try again.';
             void this.startSide(null);
             return;
         }

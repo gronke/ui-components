@@ -62,7 +62,7 @@ impl MapLoader {
                 .collect();
             provided.sort_unstable();
             JsNativeError::error().with_message(format!(
-                "unknown module specifier {specifier:?} — the mocked lit runtime provides: {}. \
+                "unknown module specifier {specifier:?}; the mocked lit runtime provides: {}. \
                  Extensions live in crates/uic_js/js/src/.",
                 provided.join(", ")
             ))

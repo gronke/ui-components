@@ -94,7 +94,7 @@ interface Compact {
 function requireRtc(): void {
     if (typeof RTCPeerConnection === 'undefined') {
         throw new Error(
-            'uic-sync pair: WebRTC is unavailable in this browser context — in-app browsers and non-HTTPS pages often hide it; open the page in a regular browser over HTTPS',
+            'uic-sync pair: WebRTC is unavailable in this browser context; in-app browsers and non-HTTPS pages often hide it; open the page in a regular browser over HTTPS',
         );
     }
 }
@@ -142,7 +142,7 @@ export async function swap(options?: PairOptions): Promise<PairSwap> {
             }
             if (compact.f === mine.f) {
                 throw new Error(
-                    'uic-sync pair: that is this side’s own payload — send it to the peer and open theirs',
+                    "uic-sync pair: that is this side's own payload; send it to the peer and open theirs",
                 );
             }
             // A second payload after the exchange would tear at the live
@@ -184,7 +184,7 @@ function gatheringComplete(pc: RTCPeerConnection): Promise<void> {
 }
 
 const UNREACHABLE =
-    'uic-sync pair: the peers could not reach each other — on one network, check that devices may talk to each other; across networks this demo ships no TURN relay';
+    'uic-sync pair: the peers could not reach each other; on one network, check that devices may talk to each other; across networks this demo ships no TURN relay';
 
 /** Resolves when the channel opens; rejects on a bounded timeout so a
  * forever-hanging "Connecting…" cannot happen. A transient `failed` is

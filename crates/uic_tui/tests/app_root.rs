@@ -144,7 +144,7 @@ fn external_equal_state_is_suppressed() {
     assert_eq!(
         events.borrow().len(),
         1,
-        "the deeply equal re-write is no change — the transport echo dies here"
+        "the deeply equal re-write is no change; the transport echo dies here"
     );
 }
 
@@ -165,7 +165,7 @@ fn sparse_state_leaves_child_defaults_and_stays_silent() {
     );
     assert!(
         events.borrow().is_empty(),
-        "missing members resolve to the children's own defaults — no boot writes"
+        "missing members resolve to the children's own defaults, no boot writes"
     );
 }
 

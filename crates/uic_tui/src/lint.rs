@@ -237,7 +237,7 @@ fn check_element(
         ),
         Some(Kind::BoundType) => push(
             format!(
-                "a bound type on a plain <{}> is not statically checkable — the \
+                "a bound type on a plain <{}> is not statically checkable: the \
                  terminal mounts widgets by element type (ADR 0026)",
                 el.tag
             ),
@@ -292,7 +292,7 @@ fn check_element(
         } else if name != "click" {
             push(
                 format!(
-                    "@{name} on <{}> never dispatches in the terminal — plain elements \
+                    "@{name} on <{}> never dispatches in the terminal: plain elements \
                      receive only @click (a web-only handler stays legal)",
                     el.tag
                 ),

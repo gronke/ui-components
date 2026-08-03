@@ -1,7 +1,7 @@
 {
     "name": "lit-todo",
     "short_name": "lit-todo",
-    "description": "A shared todo list, paired peer-to-peer over WebRTC — no server carries the state.",
+    "description": "A shared todo list, paired peer-to-peer over WebRTC; no server carries the state.",
     "start_url": ".",
     "scope": ".",
     "display": "standalone",

@@ -195,7 +195,7 @@ const RESET_TRY_AGAIN: &str = "try again";
 /// The honest verdict when a fresh-invite connect could not be confirmed. The
 /// browser wizard mirrors this line byte for byte (`pair-wizard.ts`), so one
 /// Rust anchor keeps the twin from drifting.
-const CONFIRM_FAILED_STATUS: &str = "couldn't confirm the connection — the other side may still show connected; start a fresh pairing on both and exchange new links";
+const CONFIRM_FAILED_STATUS: &str = "couldn't confirm the connection: the other side may still show connected; start a fresh pairing on both and exchange new links";
 
 /// The pairing session: create an invite, wait for the peer (pairing is a
 /// mutual exchange, ADR 0028), connect, stand ready to renew, and answer
@@ -344,7 +344,7 @@ impl Session {
                 let link = pair::invite_link(&self.page, &payload, None);
                 self.phase = Phase::Inviting;
                 let status = self.carry_status.take().unwrap_or_else(|| {
-                    "the card and the code carry the same invite — you connect when a peer answers"
+                    "the card and the code carry the same invite; you connect when a peer answers"
                         .into()
                 });
                 vec![self.present(PanelState {
@@ -363,7 +363,7 @@ impl Session {
         if self.is_pending(gen) {
             self.pending = None;
             return vec![self.present_status(format!(
-                "the handover failed to set up ({error}) — still on the old wire"
+                "the handover failed to set up ({error}), still on the old wire"
             ))];
         }
         if !self.is_current(gen) {
@@ -391,9 +391,8 @@ impl Session {
             if let Some((old_gen, _)) = old {
                 effects.push(Effect::Close { gen: old_gen });
             }
-            effects.push(
-                self.present_status("the other side moved to a new tab — reconnected".into()),
-            );
+            effects
+                .push(self.present_status("the other side moved to a new tab, reconnected".into()));
             return effects;
         }
         if !self.is_current(gen) {
@@ -404,7 +403,7 @@ impl Session {
         self.phase = Phase::Standing;
         vec![self.present(PanelState {
             mode: PanelMode::Connected,
-            status: "paired — one list, two ends".into(),
+            status: "paired: one list, two ends".into(),
             connected: Some(true),
             reset_label: RESET_INVITE_ANOTHER.into(),
             step: Step::Connect,
@@ -418,7 +417,7 @@ impl Session {
             return vec![
                 Effect::Close { gen },
                 self.present_status(format!(
-                    "the handover failed ({error}) — still on the old wire"
+                    "the handover failed ({error}), still on the old wire"
                 )),
             ];
         }
@@ -451,7 +450,7 @@ impl Session {
             }) => {
                 // The next plain invite carries the honest word.
                 self.carry_status = Some(
-                    "that exchange can't resume — the peer's copy of your invite went stale; share this fresh invite instead".into(),
+                    "that exchange can't resume: the peer's copy of your invite went stale; share this fresh invite instead".into(),
                 );
                 self.recycle()
             }
@@ -478,7 +477,7 @@ impl Session {
         self.current = None;
         vec![self.present(PanelState {
             mode: PanelMode::Dropped,
-            status: "connection closed — restart to pair again".into(),
+            status: "connection closed, restart to pair again".into(),
             connected: Some(false),
             reset_label: RESET_INVITE_ANOTHER.into(),
             ..PanelState::default()
@@ -526,7 +525,7 @@ impl Session {
                         }
                         Some(_) => {
                             return vec![self.present_status(
-                                "that link answers a different invite — ask them to open your current one"
+                                "that link answers a different invite; ask them to open your current one"
                                     .into(),
                             )];
                         }
@@ -586,14 +585,14 @@ impl Session {
     fn connecting_status(&self, secs: u64) -> String {
         match self.pursuit.as_ref().map(|pursuit| pursuit.case) {
             Some(PeerCase::ReplyToOurs) => {
-                format!("they opened your invite — connecting… {secs}s")
+                format!("they opened your invite, connecting… {secs}s")
             }
             _ if secs > SLOW_HINT_SECS => {
-                format!("still connecting {secs}s — make sure they opened your reply link")
+                format!("still connecting {secs}s: make sure they opened your reply link")
             }
             _ => {
                 format!(
-                    "connecting {secs}s — send this reply back; you pair the moment they open it"
+                    "connecting {secs}s: send this reply back; you pair the moment they open it"
                 )
             }
         }
@@ -621,7 +620,7 @@ impl Session {
         let gen = self.next_gen();
         self.pending = Some(Pending { gen, peer });
         vec![
-            self.present_status("the other side is moving to a new tab — re-pairing…".into()),
+            self.present_status("the other side is moving to a new tab, re-pairing…".into()),
             Effect::Mint { gen },
         ]
     }
@@ -938,7 +937,7 @@ mod tests {
         assert_eq!(view.link, "https://host/p2p/#own2");
         assert!(
             !effects.iter().any(|e| matches!(e, Effect::Connect { .. })),
-            "a plain invite waits for a peer — no auto-connect"
+            "a plain invite waits for a peer, no auto-connect"
         );
     }
 
