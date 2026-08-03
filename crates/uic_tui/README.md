@@ -3,7 +3,8 @@
 The terminal runtime: components mount as element nodes on a retained DOM (`uic_dom`), taffy computes layout over terminal cells, paint hosts rat-widget input primitives living in the node payloads, and keys and the pointer travel the tree.
 
 It runs the same `uic_core` definitions the browser renders through generated Lit, so a component's structure and lifecycle behave identically on both targets.
-The built-in widget kinds (date, text, number, textarea, select) live here; a component's own `data-tui` widget twins register through the `inventory` `WidgetRegistration` seam (ADR 0026), the analog of the element registry.
+The built-in widget kinds (date, text, number, textarea, select) live here.
+A component's own `data-tui` widget twins register through the `inventory` `WidgetRegistration` seam (ADR 0026), the analog of the element registry.
 
 ```rust
 ui_components_tui::link();

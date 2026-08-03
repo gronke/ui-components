@@ -1,6 +1,6 @@
 # uic_dom
 
-A retained DOM for the terminal runtime — LitElement's substrate, in Rust.
+A retained DOM for the terminal runtime: LitElement's substrate, in Rust.
 
 One arena-backed tree carries the web's element operations, spec-grade parsing through html5ever's `TreeSink`, and the WHATWG event-dispatch subset with capture/bubble propagation.
 This is the architecture lit-html itself uses in the browser: real HTML parsing, with the binding dialect riding through as plain attributes and text.

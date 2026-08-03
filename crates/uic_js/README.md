@@ -1,10 +1,14 @@
 # uic_js
 
-A Boa-embedded JS engine hosting real LitElement components on the terminal runtime — any npm lit element, byte-unmodified.
-Boa is the host for real terminals, where no JS engine exists; in the browser the same runtime modules run on the native engine in a worker against `uic_tui_web::DomSession` (ADR 0007), and the host operations behind both are one shared implementation (`uic_tui::dom::HostState`).
+A Boa-embedded JS engine hosting real LitElement components on the terminal runtime: any npm lit element, byte-unmodified.
+Boa is the host for real terminals, where no JS engine exists.
+In the browser the same runtime modules run on the native engine in a worker against `uic_tui_web::DomSession` (ADR 0007).
+The host operations behind both are one shared implementation (`uic_tui::dom::HostState`).
 
-Loading is generic: `JsHost::load_package(vendor_root, "@scope/name")` derives the package's ESM entry from its own manifest (`exports` ".", then `module`, then `main`), registers the whole dist tree under path-preserving specifiers, and evaluates the entry; `mount(tag, attrs)` takes any tag.
-Packages arrive through the same registry-read-only vendoring the rest of the repo uses (ADR 0004): `build.rs` vendors whatever `package.json` declares for the tests and examples, and the `third_party` example vendors any `name@range` at runtime.
+Loading is generic: `JsHost::load_package(vendor_root, "@scope/name")` derives the package's ESM entry from its own manifest (`exports` ".", then `module`, then `main`), registers the whole dist tree under path-preserving specifiers, and evaluates the entry.
+`mount(tag, attrs)` takes any tag.
+Packages arrive through the same registry-read-only vendoring the rest of the repo uses (ADR 0004).
+`build.rs` vendors whatever `package.json` declares for the tests and examples, and the `third_party` example vendors any `name@range` at runtime.
 
 ```sh
 cargo test -p uic_js
@@ -17,7 +21,7 @@ cargo test -p uic_js --release --test measure -- --ignored --nocapture
 
 ## The mocked lit, shaped like upstream's channels
 
-Components import a mocked `lit` — TypeScript modules under `js/src/`, compiled per module by the build script and served by the in-memory loader.
+Components import a mocked `lit`: TypeScript modules under `js/src/`, compiled per module by the build script and served by the in-memory loader.
 The tree mirrors who produces each feature upstream, and `lit` is pure re-exports:
 
 | Channel | Provides |
@@ -29,7 +33,8 @@ The tree mirrors who produces each feature upstream, and `lit` is pure re-export
 | `@lit-labs/*` | reserved for mocked labs features |
 
 Both import spellings resolve (`lit/directives/when.js` and `lit-html/directives/when.js`); every module also registers under its extension-less stem.
-A missing module reports itself: the error names the specifier beside everything the runtime provides — extending the surface is adding a file here.
+A missing module reports itself: the error names the specifier beside everything the runtime provides.
+Extending the surface is adding a file here.
 
 Behind the channels, `runtime.ts` is a pure re-export barrel over one module per polyfilled platform concept, each beside its own test suite:
 
@@ -47,48 +52,65 @@ Behind the channels, `runtime.ts` is a pure re-export barrel over one module per
 
 ## Directives
 
-Supported with full semantics: `classMap`, `map`, `when`, `repeat` (unkeyed — the subtree-swap commit rebuilds either way; focus survives by `data-path`), `ifDefined` (the attribute renders empty rather than absent under the serialize commit), `choose`, `join`, `range`, `keyed` (degrades to its value), `styleMap`.
+Supported with full semantics: `classMap`, `map`, `when`, `repeat` (unkeyed: the subtree-swap commit rebuilds either way; focus survives by `data-path`), `ifDefined` (the attribute renders empty rather than absent under the serialize commit), `choose`, `join`, `range`, `keyed` (degrades to its value), `styleMap`.
 Identities where the renderer's model makes memoization moot: `guard` (recomputes), `cache`, `live`.
-Not provided (async model, raw HTML injection): `until`, `asyncAppend`, `asyncReplace`, `ref`, `unsafeHTML`, `unsafeSVG` — importing one reports the gap.
+Not provided (async model, raw HTML injection): `until`, `asyncAppend`, `asyncReplace`, `ref`, `unsafeHTML`, `unsafeSVG`; importing one reports the gap.
 
 ## Runtime mechanics
 
-`LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument` — the existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
-A committed subtree upgrades the nested custom elements it names: components compose, and a parent's re-commit swaps its children in fresh, re-synced from their attributes (the serialize commit drops `.prop=` bindings, so composition data flows as attributes).
+`LitElement` installs per-property accessors that schedule microtask updates, `html` captures template strings and values, and `performUpdate` commits the rendered subtree through the `__uic_*` natives into the retained `uic_tui::dom::DomDocument`.
+The existing taffy layout and ratatui paint draw it unchanged (`uic_tui::dom::paint_document`).
+A committed subtree upgrades the nested custom elements it names, so components compose.
+A parent's re-commit swaps its children in fresh, re-synced from their attributes (the serialize commit drops `.prop=` bindings, so composition data flows as attributes).
 
-Plain `input`/`textarea`/`select` elements are first-class: the shared commit mounts each one's terminal widget by element type (ADR 0026; `data-tui` overrides), `.value=` on the browser's value-carrying elements serializes as the `value` attribute and syncs the widget echo-skipped — a component echoing back what the user just typed never moves the caret — and the focused widget survives the subtree swap keyed by the same `data-path` that keys focus survival (plus a one-slot stash for a nested input whose parent commit re-renders it a beat later).
-An uncancelled keydown then runs the focused widget as the browser's editing default action; a text change synthesizes a bubbling `input` event whose `target.value` reads the live text (the node facade's `value` accessor), so `preventDefault()` on keydown suppresses the editing exactly like in a browser.
+Plain `input`/`textarea`/`select` elements are first-class: the shared commit mounts each one's terminal widget by element type (ADR 0026; `data-tui` overrides).
+`.value=` on the browser's value-carrying elements serializes as the `value` attribute and syncs the widget echo-skipped, so a component echoing back what the user just typed never moves the caret.
+The focused widget survives the subtree swap keyed by the same `data-path` that keys focus survival, plus a one-slot stash for a nested input whose parent commit re-renders it a beat later.
+An uncancelled keydown then runs the focused widget as the browser's editing default action.
+A text change synthesizes a bubbling `input` event whose `target.value` reads the live text (the node facade's `value` accessor), so `preventDefault()` on keydown suppresses the editing exactly like in a browser.
 Text inputs are the first-class kinds; `.options` (select, date) is not serialized yet.
-A component can also mount a host-drawn widget of its own by rendering a `data-tui` marker its co-located Rust adapter registers for through the inventory registry (ADR 0026) — the lit-demo's `<qr-code>` draws a native QR that way, reading its payload off the `value` channel (ADR 0029).
+A component can also mount a host-drawn widget of its own by rendering a `data-tui` marker its co-located Rust adapter registers for through the inventory registry (ADR 0026).
+The lit-demo's `<qr-code>` draws a native QR that way, reading its payload off the `value` channel (ADR 0029).
 
-Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`dblclick`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint; focus survives each subtree swap by re-resolving its `data-path`.
-Synthesized events carry the modifier flags the host hands in — `JsHost::dispatch` takes the shared `uic_tui::KeyStroke` (the DOM key name plus all four flags; `dispatch_key`/`dispatch_key_shift` stay as shorthands) — and their `target` exposes `matches(selector)` and `closest(selector)`: the hit test lands on text nodes, so click discrimination walks up with closest.
-Template `@event` values want to be method references (`@click=${this.onPick}`) — the marker binding supplies the host `this`, compiled lit's own shape — with row context travelling as a `data-*` attribute read off `event.currentTarget`; an inline closure over render locals trips the second Boa 0.21 capture bug pinned in `tests/boa_quirks.rs`.
-There is no `dispatchEvent` under Boa, so a component signals intent OUT to the host through a property the host reads via `prop_json` and clears with `set_prop` — a shared component keeps a `command` property its handlers write, polled after each click (ADR 0029; `tests/pair_panel.rs`); a browser controller of the same component can also `addEventListener`, from a guarded `CustomEvent` the handler dispatches alongside.
+Events travel the other way: the host synthesizes bubbling `keydown`/`click`/`dblclick`/`focusin`/`focusout` DOM events (`__uicDeliver`), template `@event` bindings resolve through render-scoped listener markers with lit's host-`this` contract, and the DOM focus bridges into the paint.
+Focus survives each subtree swap by re-resolving its `data-path`.
+Synthesized events carry the modifier flags the host hands in: `JsHost::dispatch` takes the shared `uic_tui::KeyStroke` (the DOM key name plus all four flags; `dispatch_key`/`dispatch_key_shift` stay as shorthands).
+Their `target` exposes `matches(selector)` and `closest(selector)`: the hit test lands on text nodes, so click discrimination walks up with closest.
+Template `@event` values want to be method references (`@click=${this.onPick}`); the marker binding supplies the host `this`, compiled lit's own shape.
+Row context travels as a `data-*` attribute read off `event.currentTarget`; an inline closure over render locals trips the second Boa 0.21 capture bug pinned in `tests/boa_quirks.rs`.
+There is no `dispatchEvent` under Boa, so a component signals intent OUT to the host through a property the host reads via `prop_json` and clears with `set_prop`.
+A shared component keeps a `command` property its handlers write, polled after each click (ADR 0029; `tests/pair_panel.rs`).
+A browser controller of the same component can also `addEventListener`, from a guarded `CustomEvent` the handler dispatches alongside.
 
-A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance — no Bootstrap assumed, the element's own stylesheet drives colors, indentation and generated content (json-viewer's `.collapsable::before` marker renders as a generated box, ▶ turning ▼ through `transform: rotate(90deg)`).
-`overflow-wrap: anywhere` is honored: an unbreakable token — a long URL — wraps mid-word across lines instead of pinning its box one clipped line wide (min-content drops to one cell; `tests/overflow_wrap.rs`).
+A component's `static styles` reach the terminal too: `customElements.define` hands the collected css`` text to `uic_tui::dom::adopt_component_sheet`, and the cascade scopes it per instance.
+No Bootstrap is assumed: the element's own stylesheet drives colors, indentation and generated content (json-viewer's `.collapsable::before` marker renders as a generated box, ▶ turning ▼ through `transform: rotate(90deg)`).
+`overflow-wrap: anywhere` is honored: an unbreakable token (a long URL) wraps mid-word across lines instead of pinning its box one clipped line wide (min-content drops to one cell; `tests/overflow_wrap.rs`).
 
 ## Storage (feature `storage`)
 
 `localStorage` on the mocked DOM, behind the crate's first feature.
-`JsHost::new` installs an in-memory backend (process lifetime, sorted keys); `JsHost::with_storage(Box<dyn StorageBackend>)` takes any implementation of the six-method sync trait — Web Storage semantics: string keys and values, last write wins, `key(n)` enumerates sorted, `getItem` past the data is `null`.
-The `sqlite` feature (implies `storage`) adds `SqliteBackend`: one `kv` table at a path the app selects, `rusqlite` bundled — the lit-demo's `--backend` flag rides it.
+`JsHost::new` installs an in-memory backend (process lifetime, sorted keys); `JsHost::with_storage(Box<dyn StorageBackend>)` takes any implementation of the six-method sync trait.
+Web Storage semantics apply: string keys and values, last write wins, `key(n)` enumerates sorted, `getItem` past the data is `null`.
+The `sqlite` feature (implies `storage`) adds `SqliteBackend`: one `kv` table at a path the app selects, `rusqlite` bundled; the lit-demo's `--backend` flag rides it.
 Without the feature the runtime is unchanged and `typeof localStorage` stays `'undefined'`, so the guard idiom components already use for the browser's storage-less modes applies verbatim.
-A refused write throws like the browser's quota error; the backend lives in a thread-local beside the document state, so one host per thread — a second host on the same thread replaces both.
+A refused write throws like the browser's quota error; the backend lives in a thread-local beside the document state, so one host per thread (a second host on the same thread replaces both).
 
 ## Dialogs (feature `dialogs`)
 
 `alert`, `confirm` and `prompt` on the mocked DOM.
-The runtime creates a Promise per call, keeps the resolver in a JS-side map, and queues the question through one thin native; the host drains the queue (`JsHost::take_dialog_request`), presents the dialog however it likes — the lit-demo paints a centered overlay — and settles the promise with `JsHost::answer_dialog(id, json)` (alert `null`, confirm `true`/`false`, prompt a string or `null`).
+The runtime creates a Promise per call, keeps the resolver in a JS-side map, and queues the question through one thin native.
+The host drains the queue (`JsHost::take_dialog_request`), presents the dialog however it likes (the lit-demo paints a centered overlay), and settles the promise with `JsHost::answer_dialog(id, json)` (alert `null`, confirm `true`/`false`, prompt a string or `null`).
 The cross-host contract: in a real browser these globals are native and synchronous, so `await confirm(…)` is the one spelling with identical semantics in both hosts.
-There are no timers in the runtime — a dialog promise settles only through the host, and `tests/boa_quirks.rs` pins the cross-eval job-queue continuity this rides on.
+There are no timers in the runtime: a dialog promise settles only through the host, and `tests/boa_quirks.rs` pins the cross-eval job-queue continuity this rides on.
 Without the feature the globals stay undefined.
 
 ## The pinned test component
 
-`@alenaksu/json-viewer` is the crate's pinned integration fixture: the `json_viewer*` tests and examples prove the runtime against a real published element — its decorators, directives, roving-tabindex keyboard navigation and click-to-toggle drive the terminal, and the browser split view renders the same bytes against the real lit family for comparison.
+`@alenaksu/json-viewer` is the crate's pinned integration fixture: the `json_viewer*` tests and examples prove the runtime against a real published element.
+Its decorators, directives, roving-tabindex keyboard navigation and click-to-toggle drive the terminal, and the browser split view renders the same bytes against the real lit family for comparison.
 
-The render path is a deliberate simplification: a subtree swap (serialize, `parse_fragment`, `import_node`), not per-part diffing — instant at form scale, measurably slow on very wide documents; per-part commits are the recorded follow-up.
+The render path is a deliberate simplification: a subtree swap (serialize, `parse_fragment`, `import_node`), not per-part diffing.
+It is instant at form scale, measurably slow on very wide documents; per-part commits are the recorded follow-up.
 
-`tests/boa_quirks.rs` is the canary for a Boa 0.21 engine bug the runtime works around (a closure created inside a class constructor capturing a local lexical binding panics the VM); when it starts failing, Boa fixed the bug — drop the module-level accessor installation with it.
+`tests/boa_quirks.rs` is the canary for a Boa 0.21 engine bug the runtime works around (a closure created inside a class constructor capturing a local lexical binding panics the VM).
+When it starts failing, Boa fixed the bug; drop the module-level accessor installation with it.

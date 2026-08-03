@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Every record describes the status quo — a decision that still shapes the code today.
+Every record describes the status quo: a decision that still shapes the code today.
 Records that a later decision absorbed live on in git history; the gaps in the numbering are theirs.
 The overview tying the crates and the runtime together is [../architecture.md](../architecture.md).
 

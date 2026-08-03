@@ -11,7 +11,7 @@ The upstream conventions carry over:
 
 Input components compose through the shared contract instead of the catalog's mixin chain:
 
-1. `#[input_shared]` — an attribute macro above the derive — injects the contract properties (label, hint, error_message, disabled, name, required and the reflected state booleans error, suggested, seamless) and wires the shared chrome and stylesheet by appending a second `#[custom_element(...)]` attribute.
+1. `#[input_shared]`, an attribute macro above the derive, injects the contract properties (label, hint, error_message, disabled, name, required and the reflected state booleans error, suggested, seamless) and wires the shared chrome and stylesheet by appending a second `#[custom_element(...)]` attribute.
 2. The chrome template partial `input/_shared/chrome.html` holds the label/input-group/message markup with a `<slot/>` where the component's own input goes; `uic_template::splice` merges the trees at compile time (validation) and runtime.
 3. The shared stylesheet `input/_shared/input-default.scss` backs the stacked `el-input-default` host class, emitted once per style id.
 
@@ -26,14 +26,15 @@ The `.el-input-default` rules style the state booleans (`[error]` danger outline
 ### Deviations of the `input-number`/`input-textarea` ports
 
 - `value` on `input-number` is honestly number-typed (`Option<f64>`, `number | null`); the catalog declares String but stores a number.
-- `allow-null` defaults to false on both — a reflected boolean attribute cannot default to true (absence must mean the default in the attribute model); the catalog's number input defaults it to true.
+- `allow-null` defaults to false on both: a reflected boolean attribute cannot default to true (absence must mean the default in the attribute model); the catalog's number input defaults it to true.
 - The dead `separator` option and the private `__inputmode` are not ported; `inputmode` emits the standard `decimal`/`numeric` tokens instead of the catalog's invalid `number`.
 - The browser impl keeps the catalog's extra native `change` CustomEvent; the terminal relies on `value-changed`.
 - `input-textarea` duplicates the trim-on-change of `input-text` instead of inheriting it (the component model is flat), and its `seamless` handling comes from the shared contract instead of the catalog's `_option_seamless` shadow property.
 
 ### Deviations of the `input-select`/`input-timezone` ports
 
-- The catalog hardcodes a curated ~430-entry zone array; our targets each ask their platform — Rust iterates chrono-tz (597 zones, including legacy aliases like `US/Pacific`), the browser `Intl.supportedValuesOf('timeZone')` (the ICU set) — both pinning UTC first, the rest in the platform's order.
+- The catalog hardcodes a curated ~430-entry zone array; our targets each ask their platform: Rust iterates chrono-tz (597 zones, including legacy aliases like `US/Pacific`), the browser `Intl.supportedValuesOf('timeZone')` (the ICU set).
+  Both pin UTC first, the rest in the platform's order.
   The two lists differ slightly by design: the implementations are specialized per target but kept side by side (`timezone.rs` next to `timezone.impl.ts`) so they stay comparable.
 - `input-timezone` shares `select.html` and the `el-input-select` styles via the `style` override instead of subclassing (the component model is flat); the shared select computeds live once in `select.rs`/`select.impl.ts` and are delegated to.
 - The remaining select-family deviations (no `options` attribute, no object default, the popup semantics) are recorded in ADR 0005.
@@ -53,7 +54,7 @@ The `.el-input-default` rules style the state booleans (`[error]` danger outline
 ## Why
 
 One definition renders on two targets, and consumers keep the catalog's markup and events, so the ports must observe the upstream semantics precisely where behavior is contractual.
-Where a port deviates, the deviation is deliberate — type honesty, the attribute model, standard tokens, platform-owned data — and this record is where each one lives.
+Where a port deviates, the deviation is deliberate (type honesty, the attribute model, standard tokens, platform-owned data), and this record is where each one lives.
 An undocumented mismatch with the catalog is a bug; a documented one here is a decision.
 
 ## Consequences

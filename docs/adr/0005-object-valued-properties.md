@@ -3,7 +3,7 @@
 ## Decision
 
 Object-valued property types are a closed set, one deliberate `JsType`/`Value` variant per shape: `Zoned`, `Options`, `Object`, `Array`.
-Every member is property-only — the derive rejects `reflect`, `attribute` and `default` and emits `attribute: None`; the generated Lit declaration is `{ attribute: false }` with no converter, so the default `!==` change detection applies (the catalog's reference semantics).
+Every member is property-only: the derive rejects `reflect`, `attribute` and `default` and emits `attribute: None`; the generated Lit declaration is `{ attribute: false }` with no converter, so the default `!==` change detection applies (the catalog's reference semantics).
 Notify events fall back to the JS name (`date` → `date-changed`).
 
 - `Zoned` (`uic_core::Zoned`, a newtype over `chrono::DateTime<chrono_tz::Tz>`; browser type `Temporal.ZonedDateTime | null`): the Rust field must be `Option<Zoned>`, and equality is (instant, timezone id), so true no-op writes stay suppressed while a same-instant re-zoning still counts as a change.
@@ -13,7 +13,8 @@ Notify events fall back to the JS name (`date` → `date-changed`).
 
 ### Select options are data, not template structure
 
-Option lists never appear as `<option>` children in authored templates: a `<select .options=${…}>` takes no children — the web generator expands the binding into the `<option>` map inside the emitted html literal, and the terminal runtime feeds the resolved list to its dropdown widget (`data-tui="select"`, rat-widget `Choice`).
+Option lists never appear as `<option>` children in authored templates: a `<select .options=${…}>` takes no children.
+The web generator expands the binding into the `<option>` map inside the emitted html literal, and the terminal runtime feeds the resolved list to its dropdown widget (`data-tui="select"`, rat-widget `Choice`).
 The derive validates placement: `.options` bindings belong on `<select>` elements, on custom elements (which receive the list as a property), or on `data-tui` widgets, whose co-located adapters store the rows through `set_options` (ADR 0002).
 Label precedence follows the catalog's falsy `||` chains: an `input-front`-classed select renders `short || label || value` per option (the compact closed layer), every other select renders `label || value`; the terminal shows `short || label || value` in the closed line and full labels in the popup.
 `?selected` compares each option's value against the select's own `.value` binding expression, so the first render is correct before Lit assigns the value property; components bind a computed (`form_value`) that renders null as the empty string.
@@ -21,7 +22,8 @@ The `default`-controlled empty option is component logic (the `select_options` c
 
 ## Why
 
-The catalog's `date` property carries a `Temporal.ZonedDateTime` next to the `value` string, and its selects model options as an `options` property of `{value, short?, label?}` objects — the single `options.map(...)` lives inside the select base class render, never in consumer templates.
+The catalog's `date` property carries a `Temporal.ZonedDateTime` next to the `value` string, and its selects model options as an `options` property of `{value, short?, label?}` objects.
+The single `options.map(...)` lives inside the select base class render, never in consumer templates.
 Porting both needs object values that behave identically on the two targets, with the same change and notify semantics.
 A closed set of deliberate variants (rather than a generic TS-type escape hatch) keeps that invariant checkable; a new object shape gets its own variant with its own rules.
 The terminal widget equally consumes options as data: its rows are widget items, not layout blocks, so the option list rides a property write on both targets.

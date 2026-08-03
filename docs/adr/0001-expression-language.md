@@ -11,7 +11,7 @@ Holes in templates take exactly one of:
 
 Conditionals are `<template if=${name}>…</template>`; nesting expresses AND.
 The `|` character is reserved inside holes for future formatters and is rejected with a hint today.
-Anything richer — parsing, formatting, arithmetic, branching on values — must become a named computed property or handler on the component.
+Anything richer (parsing, formatting, arithmetic, branching on values) must become a named computed property or handler on the component.
 
 ### The one iteration form
 
@@ -50,7 +50,7 @@ ${rows.map((row) => html`<tr><td>${row.name}</td><td>${row.role}</td></tr>`)}
 ```
 
 A nested repeat's source carries a runtime-shape cast (`(card.rows as Record<string, unknown>[]).map(…)`), because a member of a row is `unknown` to the type system.
-The terminal executes iteration through the `Repeat` part of the parts engine (ADR 0008): the engine resolves nothing, `PartValue::List` carries the fully resolved body holes — one inner vector per row, in body-hole order — and `CompiledTemplate::repeats()` exposes the repeat tree so the runtime glue resolves each row's holes under a scope stack of loop variables layered over the store.
+The terminal executes iteration through the `Repeat` part of the parts engine (ADR 0008): the engine resolves nothing, `PartValue::List` carries the fully resolved body holes (one inner vector per row, in body-hole order), and `CompiledTemplate::repeats()` exposes the repeat tree so the runtime glue resolves each row's holes under a scope stack of loop variables layered over the store.
 Row instances rebuild whenever the resolved list changes, dirty-checked at the list level; keyed reconciliation stays a later optimization, and correctness does not depend on it.
 
 ## Why
