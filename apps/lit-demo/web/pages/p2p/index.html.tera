@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="./todo.css">
 <link rel="stylesheet" href="./p2p/p2p.css">
 {{ importmap | safe }}
-<script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
+<script type="module" src="./@gronke/lit-todo/todo-app.js"></script>
 <script type="module" src="./p2p/p2p.js"></script>
 <script type="module" src="./refocus.js"></script>
 </head>

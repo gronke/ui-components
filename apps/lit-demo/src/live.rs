@@ -1,5 +1,5 @@
 //! The live bridge — one state between the terminal and every client — and
-//! the web server around it: the Rust twin of `@schuhkarton/uic-sync`'s
+//! the web server around it: the Rust twin of `@gronke/uic-sync`'s
 //! `wire.ts` + `sync.ts` glue, per property over `STATE_FIELDS`, canonical
 //! snapshots deduped by byte equality (ADR 0013). It stays in the app
 //! because it drives the mounted component through `uic_js::JsHost`.

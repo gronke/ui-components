@@ -7,7 +7,7 @@ use std::path::Path;
 
 use uic_js::JsHost;
 
-const PACKAGE: &str = "@schuhkarton/lit-todo";
+const PACKAGE: &str = "@gronke/lit-todo";
 
 fn mounted_with(seed: Option<&str>) -> (JsHost, uic_dom::NodeId) {
     let mut host = JsHost::new().unwrap();

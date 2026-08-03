@@ -17,7 +17,7 @@ Pairing gathers candidates completely before encoding and carries their addresse
 When the peers cannot reach each other the pending wire rejects with a plain message once the connection reports failure — no forever-hanging "Connecting…".
 Demo-grade by scope: no reconnect, no arbiter beyond last-writer-wins, plain-JSON state on the terminal side.
 
-Consumers integrate one of two ways: hand `web_root()` to a `web_modules` build as an extra source root, or emit the compiled npm tree with `npm_tree(out, version)` and install `@schuhkarton/uic-sync` like any package.
+Consumers integrate one of two ways: hand `web_root()` to a `web_modules` build as an extra source root, or emit the compiled npm tree with `npm_tree(out, version)` and install `@gronke/uic-sync` like any package.
 The published tree has no dependencies; QR rendering stays with the consumer (the payloads are plain text).
 
 A native peer imports the Rust `pair` module: `Compact`, `encode_payload`/`decode_payload` (the declared binary layout in bare base64url), `parse_sdp`/`build_sdp` (the minimal data-channel SDP), `payload_role`, `link_payload`/`invite_link`, `reply_digest` and the `uicc1.` control-frame codec (`Ctrl`, `encode_ctrl`/`decode_ctrl`) — the same contracts `web/pair.ts` and `web/session.ts` run, cross-pinned so the bytes never drift.

@@ -48,7 +48,7 @@ mod tui;
 use live::{lan_ip, listen_addr, live_bridge, serve_live};
 use tui::{qr_pane, run, with_terminal, PanelDriver, StatusLine};
 
-const PACKAGE: &str = "@schuhkarton/lit-todo";
+const PACKAGE: &str = "@gronke/lit-todo";
 
 /// One Lit todo app, two hosts — no mode runs it in this terminal.
 #[derive(Parser)]
@@ -229,7 +229,7 @@ fn live(backend: &BackendArg) -> Result<(), Box<dyn std::error::Error>> {
 
 /// The published pairing page an invite link opens;
 /// `UIC_LIT_DEMO_P2P_PAGE` points it elsewhere (the dev server).
-const P2P_PAGE: &str = "https://schuhkarton.github.io/ui-components/lit-demo/p2p/";
+const P2P_PAGE: &str = "https://gronke.github.io/ui-components/lit-demo/p2p/";
 
 /// Where a p2p invite links, resolved before the screen is taken: an
 /// explicit `UIC_LIT_DEMO_P2P_PAGE` wins; `--serve` hosts the page here and
@@ -273,7 +273,7 @@ fn p2p(
     // panel (ADR 0029) stack in a column, the QR (ADR 0029) docks beside
     // them — responsive flexbox from the deck's own styles, no rect math.
     // The extra modules are off the todo-app entry graph, so they load
-    // explicitly, inside-out: the shared pairing UI from @schuhkarton/uic-sync
+    // explicitly, inside-out: the shared pairing UI from @gronke/uic-sync
     // (ADR 0029), then the todo-specific deck from the app package; the mount
     // upgrades the whole composition.
     let mut host = JsHost::with_storage(storage_backend(backend)?)?;
@@ -286,10 +286,10 @@ fn p2p(
     ] {
         let src = std::fs::read_to_string(
             Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
-                .join("@schuhkarton/uic-sync")
+                .join("@gronke/uic-sync")
                 .join(module),
         )?;
-        host.load_module(&format!("@schuhkarton/uic-sync/{module}"), &src)?;
+        host.load_module(&format!("@gronke/uic-sync/{module}"), &src)?;
     }
     let deck = std::fs::read_to_string(
         Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))

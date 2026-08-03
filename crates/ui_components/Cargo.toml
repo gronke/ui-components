@@ -4,6 +4,7 @@ description = "The component catalog: one Rust definition per custom element"
 version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 

@@ -26,7 +26,7 @@ The components' `static styles` are the terminal-only layer — real lit never a
 
 ## One tree, two hosts
 
-`build.rs` compiles `web/src/*.ts` once into an npm-shaped package (`$OUT_DIR/npm/@schuhkarton/lit-todo`):
+`build.rs` compiles `web/src/*.ts` once into an npm-shaped package (`$OUT_DIR/npm/@gronke/lit-todo`):
 
 - the terminal host loads it like any installed package (`uic_js::JsHost::load_package`) and runs it against the mocked lit;
 - the browser build takes the same tree as a source root beside the Tera-rendered page, with the real lit family vendored from `web/package.json` — vendoring is not transitive, so the manifest names lit's own channels too.
@@ -36,7 +36,7 @@ Module names must not shadow the terminal runtime's specifiers — never name ap
 
 ## Two sync harnesses around the same app
 
-The app itself knows nothing about either; the glue rides `@schuhkarton/uic-sync` (ADR 0013), baked beside the app's tree.
+The app itself knows nothing about either; the glue rides `@gronke/uic-sync` (ADR 0013), baked beside the app's tree.
 On connect the lexical greet winner replaces the other side's rows and both ends then persist the winner — the pairing decides, storage remembers.
 
 **`live` — the terminal is the server.** Every browser mirrors the terminal's state over `/ws`: type in one place and the letters land everywhere, including the terminal running the process.
@@ -56,7 +56,7 @@ An invite is one link — the payload IS the fragment (`#<payload>`, bare base64
 Pairing is symmetric underneath (ADR 0028): both sides create WebRTC offers and each synthesizes the peer's answer locally with fingerprint-derived DTLS roles, so nobody has to be "first"; a link opened in a browser that already has a waiting tab hands the connection over via BroadcastChannel — a same-browser handover, not a server.
 A session lives in its tab: a return link carries a digest of the invite it answers, so the handover routes each reply to the exact tab that invited — several tabs can hold pairings with different recipients at once — and a reply to a tab that was closed or reloaded says so plainly (WebRTC state cannot outlive its page) instead of hanging.
 A session can still move: opening a reply link beside a standing session offers to take it over, and the takeover re-signals a fresh pairing through the session's own wire (ADR 0032) — the new tab connects, the old one retires with a note, and the remote side (browser or terminal alike) re-pairs without noticing more than a blink.
-The cross-tab machinery — which tab owns a session, claim routing, the takeover handshake, the `uicc1.` control plane — is `@schuhkarton/uic-sync`'s `session.js`, framework-free and ready to become a package of its own.
+The cross-tab machinery — which tab owns a session, claim routing, the takeover handshake, the `uicc1.` control plane — is `@gronke/uic-sync`'s `session.js`, framework-free and ready to become a package of its own.
 Opening a peer takes any form: the paste box parses tokens and full links alike, and camera scanning appears where `BarcodeDetector` exists (secure contexts).
 The page passes a public STUN server to the pairing (the library default is none); the repo ships no TURN relay, and unreachable peers fail with a message instead of hanging.
 One localStorage knob tunes a browser: `uic-ice` (a JSON `RTCIceServer` array appended to the STUN default — a TURN server with credentials reaches across hostile NATs; coturn mints long-lived credentials from its static secret with username = a future unix timestamp and credential = base64 of HMAC-SHA1(secret, username)).

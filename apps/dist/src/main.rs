@@ -9,10 +9,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dist/npm");
     let dist = uic_codegen_web::DistBuild::new(
         out,
-        "@schuhkarton/ui-components",
+        "@gronke/ui-components",
         env!("CARGO_PKG_VERSION"),
     )
-    .repository("https://github.com/schuhkarton/ui-components")
+    .repository(env!("CARGO_PKG_REPOSITORY"))
     .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
     .run()?;
     println!("npm package tree: {}", dist.root.display());

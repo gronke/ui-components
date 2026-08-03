@@ -21,7 +21,7 @@ Consumers integrate one of two ways:
 build(&BuildOptions { roots: &[web, uic_worker::web_root()], .. })
 
 // Or as a publish-ready npm tree, installable like any package:
-uic_worker::npm_tree(&out, version)?; // @schuhkarton/uic-worker
+uic_worker::npm_tree(&out, version)?; // @gronke/uic-worker
 ```
 
 The worker expects the catalog wasm bundle served as `/tui` and the runtime module tree as

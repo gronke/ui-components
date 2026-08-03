@@ -10,7 +10,7 @@ use uic_tui::ratatui::Terminal;
 fn data() -> String {
     serde_json::json!({
         "active": true,
-        "name": "Schuhkarton",
+        "name": "ui-components",
         "tags": { "first": "a", "second": "b" },
         "total": 12.5,
     })
@@ -54,7 +54,7 @@ fn json_viewer_renders_a_collapsed_tree() {
     // Top-level keys paint; the nested object shows its collapsed preview.
     assert!(screen.contains("name:"), "keys should render:\n{screen}");
     assert!(
-        screen.contains("Schuhkarton"),
+        screen.contains("ui-components"),
         "primitive values should render:\n{screen}"
     );
     assert!(

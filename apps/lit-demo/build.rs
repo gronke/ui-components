@@ -9,7 +9,7 @@ use serde_json::json;
 use web_modules::build::{build, BuildOptions};
 use web_modules::vendor::specs_from_package_json;
 
-const PACKAGE: &str = "@schuhkarton/lit-todo";
+const PACKAGE: &str = "@gronke/lit-todo";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -24,7 +24,7 @@ fn main() {
     // The sync tooling's tree lands beside the app's: the pages import both
     // under their package names from the shared npm root.
     uic_sync::npm_tree(
-        &npm.join("@schuhkarton/uic-sync"),
+        &npm.join("@gronke/uic-sync"),
         env!("CARGO_PKG_VERSION"),
     )
     .expect("bake the sync tooling tree");
@@ -48,7 +48,7 @@ fn main() {
     .expect("build the lit-todo frontend");
 }
 
-/// The compiled `@schuhkarton/lit-todo` tree: each `web/src/*.ts` compiles
+/// The compiled `@gronke/lit-todo` tree: each `web/src/*.ts` compiles
 /// beside a generated manifest, and both hosts consume the result —
 /// `JsHost::load_package` natively, the browser build as a source root.
 fn npm_tree(src: &Path, out: &Path) {

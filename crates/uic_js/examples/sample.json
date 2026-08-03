@@ -12,7 +12,7 @@
         "keys": "ArrowUp ArrowDown ArrowRight ArrowLeft Home End",
         "pointer": "click toggles"
     },
-    "project": "schuhkarton/ui-components",
+    "project": "gronke/ui-components",
     "renderers": 2,
     "styled": null
 }

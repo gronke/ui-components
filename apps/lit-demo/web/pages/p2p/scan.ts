@@ -1,7 +1,7 @@
 // The camera QR scan: a BarcodeDetector loop over a getUserMedia stream.
 // Browser-only by nature; the caller checks `'BarcodeDetector' in window`
 // before offering the button.
-import { linkPayload, payloadRole } from '../@schuhkarton/uic-sync/pair.js';
+import { linkPayload, payloadRole } from '../@gronke/uic-sync/pair.js';
 
 /** The corner of the BarcodeDetector API the scan uses — the platform type
  * is not in TS's DOM lib yet. */

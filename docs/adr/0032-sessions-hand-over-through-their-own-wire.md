@@ -7,7 +7,7 @@ Opening a reply link while the session stands offers a choice in the new tab: st
 Taking over, the new tab mints a fresh swap; its payload travels new tab → owning tab (`BroadcastChannel`) → remote peer (`uicc1.` control frames on the established data channel); the remote answers with a fresh swap of its own; the connection re-forms in the new tab; the old tab retires with "session moved to your other tab".
 The old wire closes only after the new one opened, so a failed handover loses nothing.
 
-The cross-tab organization lives in `@schuhkarton/uic-sync`'s `session.js` — framework-free, `BroadcastChannel` the only platform API, ready to graduate into a package of its own:
+The cross-tab organization lives in `@gronke/uic-sync`'s `session.js` — framework-free, `BroadcastChannel` the only platform API, ready to graduate into a package of its own:
 
 - `ControlWire` wraps a live wire with the control plane: `uicc1.`-prefixed frames (canonical-codec JSON) filter off *before* the state consumer — the sync `attach`'s decode throws on non-JSON, so the app attaches to the wrapper.
   Exactly one underlying message listener fans out internally, because some transports keep a single `onmessage` slot.

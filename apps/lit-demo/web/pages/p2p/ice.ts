@@ -4,7 +4,7 @@
 // localStorage appends any further RTCIceServer list — a TURN relay with
 // credentials makes hostile NATs reachable without putting a server in
 // the repo.
-import type { PairOptions } from '../@schuhkarton/uic-sync/pair.js';
+import type { PairOptions } from '../@gronke/uic-sync/pair.js';
 
 export function iceConfig(): PairOptions {
     const iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];

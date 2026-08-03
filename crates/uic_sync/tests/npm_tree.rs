@@ -36,7 +36,7 @@ fn the_npm_tree_is_publish_ready() {
     // The manifest names every module and enters through sync.
     let package = fs::read_to_string(out.join("package.json")).expect("read package.json");
     let manifest: serde_json::Value = serde_json::from_str(&package).expect("manifest is JSON");
-    assert_eq!(manifest["name"], "@schuhkarton/uic-sync");
+    assert_eq!(manifest["name"], "@gronke/uic-sync");
     assert_eq!(manifest["version"], "0.0.0-test");
     assert_eq!(manifest["exports"]["."], "./sync.js");
     assert!(manifest.get("dependencies").is_none());

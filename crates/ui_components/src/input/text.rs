@@ -1,4 +1,4 @@
-//! `<input-text>` — plain text input with the Schuhkarton input chrome.
+//! `<input-text>` — plain text input with the shared input chrome.
 //! Commits on change: trimmed, empty becoming null when `allow-null` is set.
 
 use uic_core::{input_shared, Ctx, CustomElement, UiEvent, Value};

@@ -1,8 +1,8 @@
 //! Emits the LitElement-variant TypeScript class for one component:
 //! plain class, `static properties`, light DOM, `el-<name>` host class,
-//! notify pass in `update()` — the shape of the org's hand-written
-//! components (see web_modules' lit-element example and the Schuhkarton
-//! catalog), with delegating members into the co-located impl partial.
+//! notify pass in `update()` — the shape of upstream hand-written
+//! components (see web_modules' lit-element example), with delegating
+//! members into the co-located impl partial.
 
 use uic_core::{ComponentDef, CustomElementRegistry, DefaultValue, JsType, Notify, PropertyMeta};
 use uic_template::{AttrPart, Attribute, Element, Expr, Node};

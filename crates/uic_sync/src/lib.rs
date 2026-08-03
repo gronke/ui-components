@@ -6,7 +6,7 @@
 //!
 //! The shared pairing UI ships here too (ADR 0029): `pair-panel.ts`,
 //! `qr-code.ts` and `status-navbar.ts` are the one component set both hosts
-//! render, loaded from `@schuhkarton/uic-sync` beside the wire they drive.
+//! render, loaded from `@gronke/uic-sync` beside the wire they drive.
 //!
 //! Consumers integrate one of two ways: hand [`web_root`] to a
 //! `web_modules` build as an extra source root, or emit the compiled npm
@@ -31,14 +31,14 @@ pub fn web_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("web")
 }
 
-/// Emits the publish-ready `@schuhkarton/uic-sync` npm tree: the compiled
+/// Emits the publish-ready `@gronke/uic-sync` npm tree: the compiled
 /// modules plus a `package.json`. Returns the emitted module names.
 pub fn npm_tree(out: &Path, version: &str) -> Result<Vec<String>, String> {
     let root = web_root();
     uic_npm::emit_tree(
         &uic_npm::TreeSpec {
             web_root: &root,
-            name: "@schuhkarton/uic-sync",
+            name: "@gronke/uic-sync",
             version,
             description: "One wire for component state: structured-clone snapshots over WebSocket or WebRTC, plus serverless QR pairing",
             exports: json!({

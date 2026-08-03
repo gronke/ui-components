@@ -4,6 +4,7 @@ description = "Retained DOM for the terminal runtime: arena tree, web element op
 version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 

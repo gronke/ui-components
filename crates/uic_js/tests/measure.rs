@@ -45,7 +45,7 @@ fn magnitudes() {
 
     let small = serde_json::json!({
         "active": true,
-        "name": "Schuhkarton",
+        "name": "ui-components",
         "tags": { "first": "a", "second": "b" },
     })
     .to_string();

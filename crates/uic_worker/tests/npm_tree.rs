@@ -21,7 +21,7 @@ fn the_npm_tree_is_publish_ready() {
     // The manifest names every module and enters through the client.
     let package = fs::read_to_string(out.join("package.json")).expect("read package.json");
     let manifest: serde_json::Value = serde_json::from_str(&package).expect("manifest is JSON");
-    assert_eq!(manifest["name"], "@schuhkarton/uic-worker");
+    assert_eq!(manifest["name"], "@gronke/uic-worker");
     assert_eq!(manifest["version"], "0.0.0-test");
     assert_eq!(manifest["exports"]["."], "./client.js");
     assert!(manifest.get("dependencies").is_none());

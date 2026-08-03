@@ -3,9 +3,9 @@
 // no `/live` route, no connection attempt. The server greets with the
 // canonical state, so this side waits (greet stays false).
 
-import { STATE_FIELDS } from './@schuhkarton/lit-todo/todo-app.js';
-import { attach } from './@schuhkarton/uic-sync/sync.js';
-import { WebSocketWire } from './@schuhkarton/uic-sync/wire.js';
+import { STATE_FIELDS } from './@gronke/lit-todo/todo-app.js';
+import { attach } from './@gronke/uic-sync/sync.js';
+import { WebSocketWire } from './@gronke/uic-sync/wire.js';
 
 async function connect(): Promise<void> {
     const probe = await fetch('live').catch(() => null);

@@ -10,7 +10,7 @@ use uic_tui::ratatui::Terminal;
 fn data() -> String {
     serde_json::json!({
         "active": true,
-        "name": "Schuhkarton",
+        "name": "ui-components",
         "tags": { "first": "a", "second": "b" },
     })
     .to_string()

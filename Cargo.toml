@@ -27,6 +27,7 @@ members = [
 version = "0.1.0"
 authors = ["Stefan Grönke <stefan@gronke.net>"]
 license = "MIT"
+repository = "https://github.com/gronke/ui-components"
 edition = "2021"
 # MSRV matches web_modules, which tracks oxc.
 rust-version = "1.95"

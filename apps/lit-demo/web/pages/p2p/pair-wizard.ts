@@ -4,7 +4,7 @@
 // so the render below is a plain pass-through — no rename layer;
 // the cross-tab organization — which tab holds a session, how an opened
 // link reaches it, how a session hands over to another tab — lives in
-// @schuhkarton/uic-sync's session module (ADR 0032). Pairing is a mutual
+// @gronke/uic-sync's session module (ADR 0032). Pairing is a mutual
 // exchange with no third party (ADR 0028): each side sends its invite and
 // opens the other's. The UI itself is the shared <pair-panel> (ADR 0029).
 // Browser-only by nature (WebRTC), so it never runs under the mocked
@@ -24,17 +24,17 @@ import {
     linkReply,
     replyDigest,
     swap,
-} from '../@schuhkarton/uic-sync/pair.js';
-import type { PairSwap } from '../@schuhkarton/uic-sync/pair.js';
+} from '../@gronke/uic-sync/pair.js';
+import type { PairSwap } from '../@gronke/uic-sync/pair.js';
 import {
     ControlWire,
     TabSessions,
     TakeoverPoint,
     TAKEOVER_TIMEOUT_MS,
-} from '../@schuhkarton/uic-sync/session.js';
-import type { Wire } from '../@schuhkarton/uic-sync/wire.js';
-import '../@schuhkarton/uic-sync/pair-panel.js';
-import type { PanelMode } from '../@schuhkarton/uic-sync/pair-panel.js';
+} from '../@gronke/uic-sync/session.js';
+import type { Wire } from '../@gronke/uic-sync/wire.js';
+import '../@gronke/uic-sync/pair-panel.js';
+import type { PanelMode } from '../@gronke/uic-sync/pair-panel.js';
 import { iceConfig } from './ice.js';
 import { scanFor } from './scan.js';
 

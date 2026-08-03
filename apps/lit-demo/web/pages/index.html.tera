@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="./todo.css">
 <link rel="stylesheet" href="./page.css">
 {{ importmap | safe }}
-<script type="module" src="./@schuhkarton/lit-todo/todo-app.js"></script>
+<script type="module" src="./@gronke/lit-todo/todo-app.js"></script>
 <script type="module" src="./live.js"></script>
 <script type="module" src="./refocus.js"></script>
 </head>

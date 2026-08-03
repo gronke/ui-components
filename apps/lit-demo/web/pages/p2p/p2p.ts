@@ -5,14 +5,14 @@
 // so only the live wire mirrors the app. The navbar's disconnect closes on
 // purpose — back to a fresh pairing screen, no reload.
 import './pair-wizard.js';
-import '../@schuhkarton/uic-sync/status-navbar.js';
-import { STATE_FIELDS } from '../@schuhkarton/lit-todo/todo-app.js';
-import { attach } from '../@schuhkarton/uic-sync/sync.js';
-import type { Attachment } from '../@schuhkarton/uic-sync/sync.js';
-import type { Wire } from '../@schuhkarton/uic-sync/wire.js';
-import type { PanelMode } from '../@schuhkarton/uic-sync/pair-panel.js';
+import '../@gronke/uic-sync/status-navbar.js';
+import { STATE_FIELDS } from '../@gronke/lit-todo/todo-app.js';
+import { attach } from '../@gronke/uic-sync/sync.js';
+import type { Attachment } from '../@gronke/uic-sync/sync.js';
+import type { Wire } from '../@gronke/uic-sync/wire.js';
+import type { PanelMode } from '../@gronke/uic-sync/pair-panel.js';
 import type { PairWizard } from './pair-wizard.js';
-import type { StatusNavbar } from '../@schuhkarton/uic-sync/status-navbar.js';
+import type { StatusNavbar } from '../@gronke/uic-sync/status-navbar.js';
 
 let attachment: Attachment | null = null;
 

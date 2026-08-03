@@ -769,7 +769,7 @@ mod tests {
     }
 
     // Load a baked module under its package specifier — the moved pairing UI
-    // resolves from @schuhkarton/uic-sync (ADR 0029), the deck from the app.
+    // resolves from @gronke/uic-sync (ADR 0029), the deck from the app.
     fn load_module_from(host: &mut JsHost, package: &str, file: &str) {
         let src = std::fs::read_to_string(
             std::path::Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))
@@ -794,7 +794,7 @@ mod tests {
             "pair-panel.js",
             "status-navbar.js",
         ] {
-            load_module_from(&mut host, "@schuhkarton/uic-sync", module);
+            load_module_from(&mut host, "@gronke/uic-sync", module);
         }
         load_module_from(&mut host, crate::PACKAGE, "p2p-deck.js");
         host.mount("p2p-deck", &[]).unwrap();
@@ -1011,7 +1011,7 @@ mod tests {
         )
         .unwrap();
         for module in ["theme.js", "qr-code.js", "pair-panel.js"] {
-            load_module_from(&mut host, "@schuhkarton/uic-sync", module);
+            load_module_from(&mut host, "@gronke/uic-sync", module);
         }
         let panel = host.mount("pair-panel", &[]).unwrap();
 

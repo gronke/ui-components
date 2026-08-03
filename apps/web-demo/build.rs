@@ -341,7 +341,7 @@ const FOREIGN_EXAMPLES: &[ForeignExample] = &[ForeignExample {
     range: "^2",
     tag: "json-viewer",
     attrs: &[],
-    props_json: r#"{"data": {"project": "schuhkarton/ui-components", "renderers": 2, "panes": {"browser": "real lit", "terminal": "worker + mocked lit"}, "styled": true}}"#,
+    props_json: r#"{"data": {"project": "gronke/ui-components", "renderers": 2, "panes": {"browser": "real lit", "terminal": "worker + mocked lit"}, "styled": true}}"#,
     cols: 72,
     rows: 18,
     hint: "Arrows navigate, Right/Left expand and collapse, a click toggles — the component's own code.",

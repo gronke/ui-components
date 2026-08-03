@@ -2,7 +2,7 @@
 
 ## Decision
 
-The pairing UI is one shared component set — `<pair-panel>`, `<qr-code>` and the terminal's `<p2p-deck>`, baked into `@schuhkarton/lit-todo` and loaded by both hosts; only the transport differs per host, the browser's `pair-wizard` owning the swap and the camera, the terminal's native Rust peer driving the same elements from the demo binary (ADR 0028).
+The pairing UI is one shared component set — `<pair-panel>`, `<qr-code>` and the terminal's `<p2p-deck>`, baked into `@gronke/lit-todo` and loaded by both hosts; only the transport differs per host, the browser's `pair-wizard` owning the swap and the camera, the terminal's native Rust peer driving the same elements from the demo binary (ADR 0028).
 
 `<pair-panel>` is presentation only: the card, the connection badge, the status line, the invite body, the peer-paste box and the buttons, driven entirely by properties (`mode`, `link`, `status`, `connected`, `resetLabel`, `actionLabel`, `canScan`, `canPaste`, `peer`, `command`, `step`).
 The exported `PanelMode` union is the mode contract — `idle`, `invite`, `connected`, `dropped`, `failed`, `handed`, `moved`, `nortc` — of which the native session machine produces the first five (Rust twin: `uic_sync::session::PanelMode`), the browser wizard adding the takeover roles and the no-WebRTC dead end.

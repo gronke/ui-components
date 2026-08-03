@@ -10,8 +10,8 @@ use std::path::Path;
 use uic_dom::NodeId;
 use uic_js::JsHost;
 
-const PACKAGE: &str = "@schuhkarton/lit-todo";
-const SYNC: &str = "@schuhkarton/uic-sync";
+const PACKAGE: &str = "@gronke/lit-todo";
+const SYNC: &str = "@gronke/uic-sync";
 
 fn npm_root() -> &'static Path {
     Path::new(env!("UIC_LIT_DEMO_NPM_ROOT"))

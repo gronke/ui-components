@@ -1,5 +1,5 @@
 //! The shared `<pair-panel>` (ADR 0029) under the scripted host — the REAL
-//! component, compiled from `@schuhkarton/uic-sync`'s web root. The panel used
+//! component, compiled from `@gronke/uic-sync`'s web root. The panel used
 //! to live in the demo app, out of `uic_js`'s reach, so this test could only
 //! stub it; now it ships in `uic_sync`, and the scripted-host library hosts
 //! the shipped pairing UI directly, no demo package in between.
@@ -13,14 +13,14 @@ use uic_js::JsHost;
 
 /// Compiles a `uic_sync` web module (TypeScript) and registers it under its
 /// package specifier, so `pair-panel`'s `./theme.js` and `./qr-code.js`
-/// resolve within `@schuhkarton/uic-sync`.
+/// resolve within `@gronke/uic-sync`.
 fn load(host: &mut JsHost, name: &str) {
     let file = format!("{name}.ts");
     let src = std::fs::read_to_string(uic_sync::web_root().join(&file))
         .unwrap_or_else(|err| panic!("read {file}: {err}"));
     let js = web_modules::typescript::compile_str(&src, Path::new(&file))
         .unwrap_or_else(|err| panic!("compile {file}: {err}"));
-    host.load_module(&format!("@schuhkarton/uic-sync/{name}.js"), &js)
+    host.load_module(&format!("@gronke/uic-sync/{name}.js"), &js)
         .unwrap_or_else(|err| panic!("load {name}: {err}"));
 }
 

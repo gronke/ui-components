@@ -3,7 +3,7 @@
 ## Decision
 
 App state travels as an envelope-less full-state snapshot per message: every change sends the whole state, the last writer wins, and byte-equal canonical text is the dedupe identity.
-`crates/uic_sync` ships the tooling as `@schuhkarton/uic-sync` in the twin-entry crate shape of the worker host (ADR 0007): `web_root()` hands the TypeScript sources to a consumer's `web_modules` build as an extra source root, `npm_tree()` emits the compiled publish-ready npm tree, dependency-free on the published side.
+`crates/uic_sync` ships the tooling as `@gronke/uic-sync` in the twin-entry crate shape of the worker host (ADR 0007): `web_root()` hands the TypeScript sources to a consumer's `web_modules` build as an extra source root, `npm_tree()` emits the compiled publish-ready npm tree, dependency-free on the published side.
 
 Five modules carry it, entered through `sync`:
 

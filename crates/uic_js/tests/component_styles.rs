@@ -12,7 +12,7 @@ use uic_tui::ratatui::Terminal;
 fn data() -> String {
     serde_json::json!({
         "active": true,
-        "name": "Schuhkarton",
+        "name": "ui-components",
         "tags": { "first": "a", "second": "b" },
     })
     .to_string()
@@ -84,7 +84,7 @@ fn the_component_stylesheet_styles_the_terminal() {
         Some(Color::Rgb(0x6f, 0xb3, 0xd2)),
         "key color from the component palette"
     );
-    let (value_x, value_y) = locate(&terminal, "\"Schuhkarton\"");
+    let (value_x, value_y) = locate(&terminal, "\"ui-components\"");
     assert_eq!(
         foreground(&terminal, value_x, value_y),
         Some(Color::Rgb(0xa3, 0xee, 0xa0)),

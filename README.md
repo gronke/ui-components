@@ -11,7 +11,7 @@ It also works the other way around: [`apps/lit-demo`](apps/lit-demo/README.md) i
 The stack stays purist on both sides: light-DOM Lit over web standards in the browser; a retained DOM, real CSS (flexbox, the cascade, custom properties) and ratatui in the terminal; platform primitives over services — state travels one wire seam (ADR 0013), and two devices pair over WebRTC with no server between them (ADR 0028).
 
 Component registration mirrors `customElements.define` through the `inventory` crate; properties follow the catalog's `LitNotify` vocabulary (`notify` → `<name>-changed` events).
-The crate map and runtime overview live in [docs/architecture.md](docs/architecture.md), the decisions in [docs/adr](docs/adr); the plan and milestones in [issue #1](https://github.com/schuhkarton/ui-components/issues/1).
+The crate map and runtime overview live in [docs/architecture.md](docs/architecture.md), the decisions in [docs/adr](docs/adr).
 
 ## See it running
 

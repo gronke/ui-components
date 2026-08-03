@@ -18,14 +18,14 @@ pub fn web_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("web")
 }
 
-/// Emits the publish-ready `@schuhkarton/uic-worker` npm tree: the compiled
+/// Emits the publish-ready `@gronke/uic-worker` npm tree: the compiled
 /// worker and client plus a `package.json`. Returns the emitted module names.
 pub fn npm_tree(out: &Path, version: &str) -> Result<Vec<String>, String> {
     let root = web_root();
     uic_npm::emit_tree(
         &uic_npm::TreeSpec {
             web_root: &root,
-            name: "@schuhkarton/uic-worker",
+            name: "@gronke/uic-worker",
             version,
             description: "The browser worker host for foreign lit elements on the ui-components terminal runtime",
             exports: json!({

@@ -2,8 +2,8 @@
 //! TypeScript. [`emit_tree`] compiles every `*.ts` under a source root to
 //! `*.js` and writes a dependency-free, publish-ready `package.json`.
 //!
-//! Three trees ride it — `@schuhkarton/uic-sync`, `@schuhkarton/uic-worker`
-//! and the lit-demo's `@schuhkarton/lit-todo` — differing only in name,
+//! Three trees ride it — `@gronke/uic-sync`, `@gronke/uic-worker`
+//! and the lit-demo's `@gronke/lit-todo` — differing only in name,
 //! description, exports and (the app alone) peer dependencies; the emitted
 //! bytes are unchanged from the hand-written copies this replaced.
 

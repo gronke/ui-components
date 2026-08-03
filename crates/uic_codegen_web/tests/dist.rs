@@ -9,8 +9,8 @@ fn dist() -> (Vec<&'static str>, PathBuf) {
     ui_components::link();
     ui_components_demo::link();
     let out = std::env::temp_dir().join(format!("uic-dist-{}", std::process::id()));
-    let root = DistBuild::new(&out, "@schuhkarton/ui-components", "0.1.0")
-        .repository("https://github.com/schuhkarton/ui-components")
+    let root = DistBuild::new(&out, "@gronke/ui-components", "0.1.0")
+        .repository("https://github.com/gronke/ui-components")
         .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
         .run()
         .expect("dist build succeeds");
@@ -106,7 +106,7 @@ fn emits_the_npm_tree() {
 
     let package: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root.join("package.json")).unwrap()).unwrap();
-    assert_eq!(package["name"], "@schuhkarton/ui-components");
+    assert_eq!(package["name"], "@gronke/ui-components");
     assert_eq!(package["type"], "module");
     assert_eq!(package["peerDependencies"]["lit"], "^3");
     assert_eq!(package["peerDependencies"]["temporal-polyfill"], "^0.3");
@@ -127,14 +127,14 @@ fn emits_the_npm_tree() {
     assert_eq!(package["publishConfig"]["access"], "public");
     assert_eq!(
         package["repository"]["url"],
-        "git+https://github.com/schuhkarton/ui-components.git"
+        "git+https://github.com/gronke/ui-components.git"
     );
     assert_eq!(
         package["bugs"],
-        "https://github.com/schuhkarton/ui-components/issues"
+        "https://github.com/gronke/ui-components/issues"
     );
 
     let readme = fs::read_to_string(root.join("README.md")).unwrap();
-    assert!(readme.contains("# @schuhkarton/ui-components"));
-    assert!(readme.contains("import '@schuhkarton/ui-components/input-date.js';"));
+    assert!(readme.contains("# @gronke/ui-components"));
+    assert!(readme.contains("import '@gronke/ui-components/input-date.js';"));
 }
