@@ -8,7 +8,7 @@
 
 use uic_core::Value;
 use uic_tui::crossterm::event::Event;
-use uic_tui::ratatui::layout::Rect;
+use uic_tui::ratatui::layout::{Alignment, Rect};
 use uic_tui::ratatui::style::Style;
 use uic_tui::ratatui::text::{Line, Span};
 use uic_tui::ratatui::widgets::Clear;
@@ -22,12 +22,24 @@ uic_core::inventory::submit! {
     }
 }
 
-#[derive(Default)]
 struct IconAdapter {
     /// The icon name pushed in via the `.value` binding.
     name: String,
+    /// The at-rest horizontal alignment, pushed each frame (`text-center` /
+    /// `text-end`); the browser flows the inline icon at `text-align`.
+    align: Alignment,
     /// The cells of the last paint, for the host's hit-testing.
     area: Rect,
+}
+
+impl Default for IconAdapter {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            align: Alignment::Left,
+            area: Rect::default(),
+        }
+    }
 }
 
 impl IconAdapter {
@@ -38,6 +50,10 @@ impl IconAdapter {
 
 impl WidgetAdapter for IconAdapter {
     fn set_focus(&mut self, _focused: bool) {}
+
+    fn set_align(&mut self, align: Alignment) {
+        self.align = align;
+    }
 
     fn area(&self) -> Rect {
         self.area
@@ -84,12 +100,18 @@ impl WidgetAdapter for IconAdapter {
         frame.render_widget(Clear, rect);
         // Keep the icon square: a Braille cell is 2×4 subpixels, so the box's
         // subpixel extent is width*2 × height*4; render the largest square that
-        // fits, centered.
+        // fits.
         let sub = (rect.width as u32 * 2).min(rect.height as u32 * 4).max(4);
         let cols = ((sub / 2) as u16).max(1);
         let rows = ((sub / 4) as u16).max(1);
-        let ox = rect.x + (rect.width - cols) / 2;
-        let oy = rect.y + (rect.height - rows) / 2;
+        // Place it horizontally like the browser flows the inline icon at
+        // `text-align` (left by default); keep it vertically centered in the box.
+        let ox = match self.align {
+            Alignment::Center => rect.x + rect.width.saturating_sub(cols) / 2,
+            Alignment::Right => rect.x + rect.width.saturating_sub(cols),
+            Alignment::Left => rect.x,
+        };
+        let oy = rect.y + rect.height.saturating_sub(rows) / 2;
         let style = dim.unwrap_or_default();
         for (i, line) in uic_icons::raster::braille(&self.name, cols, rows)
             .into_iter()
@@ -121,5 +143,13 @@ mod tests {
         assert_eq!(adapter.name, "visibility");
         adapter.sync(&Value::Null);
         assert_eq!(adapter.name, "");
+    }
+
+    #[test]
+    fn alignment_defaults_to_left_and_is_pushed_per_frame() {
+        let mut adapter = IconAdapter::default();
+        assert_eq!(adapter.align, Alignment::Left, "match the browser default");
+        adapter.set_align(Alignment::Center);
+        assert_eq!(adapter.align, Alignment::Center);
     }
 }

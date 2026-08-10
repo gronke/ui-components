@@ -193,6 +193,7 @@ fn paint_widget(
     };
     widget.adapter.set_focus(focused && !disabled);
     widget.adapter.set_readonly(readonly);
+    widget.adapter.set_align(align.unwrap_or(Alignment::Left));
     let dim = disabled.then(|| Style::new().dim());
     widget.adapter.paint(frame, rect, dim);
     // rat has no notion of placeholders or text alignment; both are paint
