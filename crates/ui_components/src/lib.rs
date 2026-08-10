@@ -5,11 +5,13 @@
 //! for behavior the browser cannot derive, its web partial (`date.impl.ts`).
 
 pub mod connect;
+pub mod icon;
 pub mod input;
 pub mod nav_breadcrumb;
 pub mod nav_tabs;
 pub mod tree;
 
+pub use icon::UicIcon;
 pub use input::InputDate;
 pub use nav_breadcrumb::NavBreadcrumb;
 pub use nav_tabs::NavTabs;

@@ -1,0 +1,20 @@
+[package]
+name = "uic_icons"
+description = "Material Symbols icons for the catalog: one vendored SVG source rendered as a web sprite and rasterized for the terminal"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+# The terminal rasterizer: build.rs pre-renders each SVG to an alpha mask and
+# the `raster` module downsamples them to Braille cells at runtime. Off by
+# default, so web-only builds never compile the SVG rasterizer (a
+# build-dependency — it never ships in the runtime or wasm binary either way).
+raster = ["dep:resvg"]
+
+[build-dependencies]
+resvg = { version = "0.45", optional = true }

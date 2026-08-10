@@ -28,6 +28,8 @@ ui_components.workspace = true
 # The demo composition <app-root> the gallery's form example renders.
 ui_components_demo.workspace = true
 uic_codegen_web.workspace = true
+# The <uic-icon> web SVG map, injected as the `uic-icons.ts` extra module.
+uic_icons.workspace = true
 # The registry feeds the example manifest (notify pairs, option properties).
 uic_core.workspace = true
 # The worker host's TypeScript sources join the build as an extra root, and

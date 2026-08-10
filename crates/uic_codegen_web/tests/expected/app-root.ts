@@ -14,6 +14,7 @@ import './input-text.js';
 import './input-textarea.js';
 import './input-timezone.js';
 import './nav-tabs.js';
+import './uic-icon.js';
 
 export class AppRoot extends LitElement {
   static tagName = 'app-root';
@@ -182,6 +183,8 @@ export class AppRoot extends LitElement {
       ${this.showAbout ? html`
         
         <div data-qa="app-about">
+          
+          <p class="mb-3"><uic-icon name="key" data-qa="about-icon" style="font-size: 3rem"></uic-icon></p>
           <p class="mb-3">Every component on the Form tab is defined once in Rust and rendered twice: as a LitElement custom element in the browser and as a widget tree in the terminal pane beside it.</p>
           <p class="mb-3">The form binds each control to one shared state object; commits notify upward, values flow back down, and any transport that carries the state snapshot keeps both targets in step.</p>
           <p class="mb-0">The templates speak a closed grammar, option lists travel as data, and connectors answer the word typeahead through one query interface per target.</p>

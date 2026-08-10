@@ -14,3 +14,5 @@ uic_core.workspace = true
 uic_tui.workspace = true
 # The twins back this catalog's definitions; link() chains its registrations.
 ui_components.workspace = true
+# The <uic-icon> twin rasterizes the shared SVGs to Braille cells.
+uic_icons = { workspace = true, features = ["raster"] }
