@@ -22,7 +22,7 @@ mod text;
 mod textarea;
 
 use crossterm::event::{Event, MouseEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Style;
 use ratatui::Frame;
 use uic_core::{SelectOption, Value};
@@ -244,6 +244,12 @@ pub trait WidgetAdapter {
     /// Editable widgets (a secret that also sets a new value) gate their edit
     /// path on it; most widgets ignore it.
     fn set_readonly(&mut self, _readonly: bool) {}
+
+    /// Pushes the at-rest text alignment each frame, like `set_focus`. A
+    /// value-painting widget that places its own content (`<uic-icon>`'s
+    /// bitmap) honors it, matching the browser's `text-align`; widgets that
+    /// let rat park their content, and the generic alignment pass, ignore it.
+    fn set_align(&mut self, _align: Alignment) {}
 
     /// The screen cells the widget covered in the last paint, for pointer
     /// hit-testing.
