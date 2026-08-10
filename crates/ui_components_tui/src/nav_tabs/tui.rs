@@ -152,8 +152,13 @@ impl WidgetAdapter for TabBarAdapter {
                     .iter()
                     .map(|option| option.short_label().to_string()),
             )
-            .select_style(Style::new().reversed())
-            .focus_style(Style::new().fg(Color::Black).bg(Color::LightBlue));
+            // Both stay readable in either terminal theme. `reversed()`
+            // inverts to dark-on-dark in a light theme, and `LightBlue` maps
+            // here to a dark navy (a text-emphasis color, not a background) —
+            // so the selected tab wears an explicit white like the web's
+            // active tab, and the focused tab a blue like a primary button.
+            .select_style(Style::new().fg(Color::Black).bg(Color::White))
+            .focus_style(Style::new().fg(Color::White).bg(Color::Blue));
         if let Some(style) = dim {
             tabbed = tabbed.style(style);
         }
