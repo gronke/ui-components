@@ -25,6 +25,7 @@ fn generate(test: &str) -> PathBuf {
             "input-date",
             "input-date-range",
             "input-number",
+            "input-secret",
             "input-select",
             "input-suggestion",
             "input-text",
@@ -168,6 +169,13 @@ fn generated_number_class_matches_the_snapshot() {
     let root = generate("snapshot-number");
     let generated = fs::read_to_string(root.join("components/input-number.ts")).unwrap();
     assert_matches_snapshot(&generated, "input-number.ts");
+}
+
+#[test]
+fn generated_secret_class_matches_the_snapshot() {
+    let root = generate("snapshot-secret");
+    let generated = fs::read_to_string(root.join("components/input-secret.ts")).unwrap();
+    assert_matches_snapshot(&generated, "input-secret.ts");
 }
 
 #[test]

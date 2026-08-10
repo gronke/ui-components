@@ -129,6 +129,17 @@ impl AppRootLogic for AppRoot {
         member(store, "word", "".into())
     }
 
+    /// The secret behind the editable input-secret child: masked, revealed on
+    /// demand, and committed like any other member. A demo token stands in as
+    /// the child's missing-member default.
+    fn token(&self, store: &PropertyStore) -> Value {
+        member(
+            store,
+            "token",
+            "tok_9f8e7d6c5b4a3f2e1d0c8b7a6f5e4d3c".into(),
+        )
+    }
+
     /// The missing member stays empty; the bar's fallback-to-first shows
     /// the Form tab, and the value-changed echo of a mount-time push would
     /// otherwise write `tab` into every boot state.
@@ -211,6 +222,10 @@ impl AppRootLogic for AppRoot {
 
     fn on_word(&mut self, ctx: &mut Ctx, event: &UiEvent) {
         set_member(ctx, "word", detail(event));
+    }
+
+    fn on_token(&mut self, ctx: &mut Ctx, event: &UiEvent) {
+        set_member(ctx, "token", detail(event));
     }
 
     fn on_tab(&mut self, ctx: &mut Ctx, event: &UiEvent) {

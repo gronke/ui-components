@@ -21,6 +21,7 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0005](0005-object-valued-properties.md) | Object-valued properties are a closed set |
 | [0014](0014-data-connectors.md) | Async data sources are connectors behind one query interface |
 | [0017](0017-nav-tabs-and-the-card.md) | Structural HTML maps to the terminal: the tab bar, the card, tables and the breadcrumb |
+| [0034](0034-secret-input.md) | input-secret is a display-only masked field, masked in both targets |
 
 ## Terminal hosts and widgets
 

@@ -82,11 +82,20 @@
             hint="Typeahead over the demo word pool"
             placeholder="start typing"
             allow-null
-            class="mb-0 d-block"
+            class="mb-4 d-block"
             .value=${word}
             .suggestions=${word_suggestions}
             @value-changed=${on_word}
             @query-changed=${on_word_query}></input-suggestion>
+          <!-- Editable: reveal to read the current value, Enter (terminal) or a
+               click (browser) to edit, and a commit sets a new one. -->
+          <input-secret
+            label="API token"
+            hint="Reveal to read it; edit to set a new one"
+            editable
+            class="mb-0 d-block w-100"
+            .value=${token}
+            @value-changed=${on_token}></input-secret>
         </div>
       </template>
       <template if=${show_about}>

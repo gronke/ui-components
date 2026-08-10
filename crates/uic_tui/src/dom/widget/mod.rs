@@ -240,6 +240,11 @@ pub enum OverlayOutcome {
 pub trait WidgetAdapter {
     fn set_focus(&mut self, focused: bool);
 
+    /// Pushes the element's `readonly` state each frame, like `set_focus`.
+    /// Editable widgets (a secret that also sets a new value) gate their edit
+    /// path on it; most widgets ignore it.
+    fn set_readonly(&mut self, _readonly: bool) {}
+
     /// The screen cells the widget covered in the last paint, for pointer
     /// hit-testing.
     fn area(&self) -> Rect;
@@ -311,6 +316,13 @@ pub trait WidgetAdapter {
 
     /// True when F4/Down may open an overlay (calendar, option list).
     fn opens_overlay(&self) -> bool {
+        false
+    }
+
+    /// True when Enter should open this widget's overlay instead of
+    /// committing — an editable secret enters its masked-edit overlay on
+    /// Enter. Most widgets commit on Enter, so the default is false.
+    fn enter_opens_overlay(&self) -> bool {
         false
     }
 
