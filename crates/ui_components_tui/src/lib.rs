@@ -9,6 +9,8 @@
 // need to be compiled, so lib includes them by path as private modules.
 #[path = "nav_tabs/tui.rs"]
 mod nav_tabs_tui;
+#[path = "input/secret/tui.rs"]
+mod secret_tui;
 #[path = "input/suggestion/tui.rs"]
 mod suggestion_tui;
 

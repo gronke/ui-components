@@ -7,6 +7,7 @@ import * as impl from './app-root.impl.js';
 import './input-date.js';
 import './input-date-range.js';
 import './input-number.js';
+import './input-secret.js';
 import './input-select.js';
 import './input-suggestion.js';
 import './input-text.js';
@@ -94,6 +95,10 @@ export class AppRoot extends LitElement {
     return impl.tabOptions(this);
   }
 
+  private get token() {
+    return impl.token(this);
+  }
+
   private get word() {
     return impl.word(this);
   }
@@ -134,6 +139,10 @@ export class AppRoot extends LitElement {
     impl.onTab(this, e);
   }
 
+  private onToken(e: Event): void {
+    impl.onToken(this, e);
+  }
+
   private onWord(e: Event): void {
     impl.onWord(this, e);
   }
@@ -165,7 +174,9 @@ export class AppRoot extends LitElement {
           <input-select label="Time zone" hint="Empty commits null once a default is set" default="Pick a zone" data-qa="select-demo" class="mb-4 d-block" .value=${this.pick} .options=${this.pickOptions} @value-changed=${this.onPick}></input-select>
           <input-textarea label="Comment" hint="Grows with its content up to max-lines" max-lines="6" placeholder="multi-line text" class="mb-4 d-block" .value=${this.essay} @value-changed=${this.onEssay}></input-textarea>
           <input-timezone label="Default time zone" hint="The browser zone list; empty commits null" default class="mb-4 d-block" .value=${this.zone} @value-changed=${this.onZone}></input-timezone>
-          <input-suggestion label="Word" hint="Typeahead over the demo word pool" placeholder="start typing" allow-null class="mb-0 d-block" .value=${this.word} .suggestions=${this.wordSuggestions} @value-changed=${this.onWord} @query-changed=${this.onWordQuery}></input-suggestion>
+          <input-suggestion label="Word" hint="Typeahead over the demo word pool" placeholder="start typing" allow-null class="mb-4 d-block" .value=${this.word} .suggestions=${this.wordSuggestions} @value-changed=${this.onWord} @query-changed=${this.onWordQuery}></input-suggestion>
+          
+          <input-secret label="API token" hint="Reveal to read it; edit to set a new one" editable class="mb-0 d-block w-100" .value=${this.token} @value-changed=${this.onToken}></input-secret>
         </div>
       ` : nothing}
       ${this.showAbout ? html`

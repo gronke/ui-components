@@ -171,9 +171,10 @@ fn paint_widget(
     // Everything the paint needs from the immutable side reads before the
     // mutable widget borrow: attributes carry what the old pipeline
     // resolved from expressions.
-    let (disabled, placeholder, classes) = match doc.element(node) {
+    let (disabled, readonly, placeholder, classes) = match doc.element(node) {
         Some(el) => (
             el.attr("disabled").is_some(),
+            el.attr("readonly").is_some(),
             el.attr("placeholder").map(str::to_string),
             effective_classes(doc, node),
         ),
@@ -191,6 +192,7 @@ fn paint_widget(
         return;
     };
     widget.adapter.set_focus(focused && !disabled);
+    widget.adapter.set_readonly(readonly);
     let dim = disabled.then(|| Style::new().dim());
     widget.adapter.paint(frame, rect, dim);
     // rat has no notion of placeholders or text alignment; both are paint

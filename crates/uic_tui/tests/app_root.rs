@@ -105,7 +105,7 @@ fn select_pick_lands_in_state() {
 
     // Document order: the tab bar, date, its embedded timezone select,
     // range start and end, note, amount; the seventh Tab reaches the pick
-    // select.
+    // select (the editable secret sits last, after the word input).
     for _ in 0..7 {
         key(&mut app, KeyCode::Tab);
     }
@@ -128,6 +128,44 @@ fn select_pick_lands_in_state() {
     assert_eq!(
         state.get("pick"),
         Some(&Value::Str("Pacific/Auckland".into()))
+    );
+}
+
+#[test]
+fn the_secret_edits_through_the_overlay_and_lands_in_state() {
+    let mut app = app();
+    let el = app.mount("app-root").expect("mount");
+    let events = probe(&mut app, el, "state-changed");
+
+    // The editable API token is the last field: date, its timezone select,
+    // range start and end, note, amount, pick, comment, timezone, word, then
+    // the secret — the eleventh Tab reaches it.
+    for _ in 0..11 {
+        key(&mut app, KeyCode::Tab);
+    }
+    // Enter opens the masked edit overlay (it does not commit here, the way it
+    // would on an ordinary field); the screen shows the edit hint.
+    key(&mut app, KeyCode::Enter);
+    let editing = screen(&mut app);
+    assert!(
+        editing.contains("Enter: save"),
+        "Enter opened the edit overlay:\n{editing}"
+    );
+    // Type into it and Enter commits the new secret into the shared state.
+    type_str(&mut app, "xyz");
+    key(&mut app, KeyCode::Enter);
+
+    let events = events.borrow();
+    let state = events
+        .last()
+        .expect("the token commit")
+        .value
+        .as_object()
+        .expect("object state");
+    let token = state.get("token").and_then(Value::as_str).unwrap_or("");
+    assert!(
+        token.contains("xyz") && token != "tok_9f8e7d6c5b4a3f2e1d0c8b7a6f5e4d3c",
+        "the typed text committed into the token: {token:?}"
     );
 }
 

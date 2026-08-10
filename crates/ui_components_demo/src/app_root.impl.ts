@@ -79,6 +79,12 @@ export function word(el: AppRoot): unknown {
   return member(el, 'word', '');
 }
 
+// The secret behind the editable input-secret child: masked, revealed on
+// demand, committed like any member. Keep in sync with token() in app_root.rs.
+export function token(el: AppRoot): unknown {
+  return member(el, 'token', 'tok_9f8e7d6c5b4a3f2e1d0c8b7a6f5e4d3c');
+}
+
 // The missing member stays empty; the bar's fallback-to-first shows the
 // Form tab, and the value-changed echo of a boot push would otherwise
 // write `tab` into every boot state.
@@ -167,6 +173,10 @@ export function onZone(el: AppRoot, e: Event): void {
 
 export function onWord(el: AppRoot, e: Event): void {
   setMember(el, 'word', e);
+}
+
+export function onToken(el: AppRoot, e: Event): void {
+  setMember(el, 'token', e);
 }
 
 export function onTab(el: AppRoot, e: Event): void {

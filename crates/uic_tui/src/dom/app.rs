@@ -296,10 +296,14 @@ impl<B: Backend> App<B> {
                         return Control::Continue;
                     }
                     KeyCode::Enter => {
-                        // A textarea takes the newline; it commits on focus
-                        // leave (Tab), like `@change` on blur in the browser.
+                        // A textarea takes the newline; a field that opens its
+                        // overlay on Enter (an editable secret's masked edit)
+                        // opens instead of committing; everything else commits
+                        // on focus leave (Tab), like `@change` on blur.
                         if self.focused_multiline() {
                             self.forward_to_focused(event);
+                        } else if self.focused_enter_opens_overlay() {
+                            self.open_popup();
                         } else {
                             self.commit_focused();
                         }
@@ -442,6 +446,13 @@ impl<B: Backend> App<B> {
     fn focused_opens_overlay(&self) -> bool {
         self.focused_widget()
             .is_some_and(|widget| widget.adapter.opens_overlay())
+    }
+
+    /// True when Enter should open the focused widget's overlay rather than
+    /// commit (an editable secret's masked edit).
+    fn focused_enter_opens_overlay(&self) -> bool {
+        self.focused_widget()
+            .is_some_and(|widget| widget.adapter.enter_opens_overlay())
     }
 
     /// Forwards the event to the focused widget's own handling; true when
