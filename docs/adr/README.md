@@ -22,6 +22,7 @@ The overview tying the crates and the runtime together is [../architecture.md](.
 | [0014](0014-data-connectors.md) | Async data sources are connectors behind one query interface |
 | [0017](0017-nav-tabs-and-the-card.md) | Structural HTML maps to the terminal: the tab bar, the card, tables and the breadcrumb |
 | [0034](0034-secret-input.md) | input-secret is a display-only masked field, masked in both targets |
+| [0035](0035-icons.md) | icons are one vendored SVG source, rendered per target |
 
 ## Terminal hosts and widgets
 

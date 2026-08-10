@@ -7,6 +7,8 @@
 
 // The twins register through `inventory` at their mirrored paths; they only
 // need to be compiled, so lib includes them by path as private modules.
+#[path = "icon/tui.rs"]
+mod icon_tui;
 #[path = "nav_tabs/tui.rs"]
 mod nav_tabs_tui;
 #[path = "input/secret/tui.rs"]

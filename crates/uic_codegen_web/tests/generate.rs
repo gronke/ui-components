@@ -16,6 +16,7 @@ fn generate(test: &str) -> PathBuf {
     let root = WebCodegen::new(&out)
         .manifest(true)
         .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
+        .extra_module("uic-icons.ts", uic_icons::WEB_TS)
         .run()
         .expect("codegen succeeds");
     assert_eq!(
@@ -33,6 +34,7 @@ fn generate(test: &str) -> PathBuf {
             "input-timezone",
             "nav-breadcrumb",
             "nav-tabs",
+            "uic-icon",
             "uic-tree"
         ]
     );
@@ -97,6 +99,9 @@ fn emits_the_full_generated_root() {
         "components/nav-tabs.ts",
         "components/nav-tabs.impl.ts",
         "components/_nav-tabs.scss",
+        "components/uic-icon.ts",
+        "components/uic-icon.impl.ts",
+        "components/_uic-icon.scss",
         "components/uic-tree.ts",
         "components/uic-tree.impl.ts",
         "components/_uic-tree.scss",
@@ -104,6 +109,7 @@ fn emits_the_full_generated_root() {
         "components/uic-runtime.ts",
         "components/uic-impl-helpers.ts",
         "components/uic-connectors.ts",
+        "components/uic-icons.ts",
         "elements.scss",
         "custom-elements.json",
     ] {
@@ -176,6 +182,13 @@ fn generated_secret_class_matches_the_snapshot() {
     let root = generate("snapshot-secret");
     let generated = fs::read_to_string(root.join("components/input-secret.ts")).unwrap();
     assert_matches_snapshot(&generated, "input-secret.ts");
+}
+
+#[test]
+fn generated_icon_class_matches_the_snapshot() {
+    let root = generate("snapshot-icon");
+    let generated = fs::read_to_string(root.join("components/uic-icon.ts")).unwrap();
+    assert_matches_snapshot(&generated, "uic-icon.ts");
 }
 
 #[test]

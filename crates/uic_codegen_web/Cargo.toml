@@ -24,6 +24,8 @@ web_modules = { workspace = true, features = ["typescript", "dts", "scss"], opti
 ui_components.workspace = true
 # The demo composition <app-root> the generate/parity/dist tests exercise.
 ui_components_demo.workspace = true
+# The <uic-icon> web SVG map, injected as the `uic-icons.ts` extra module.
+uic_icons.workspace = true
 # oxc smoke test: the emitted TypeScript must transpile.
 web_modules = { workspace = true, features = ["typescript"] }
 # The parity fixtures convert states through the shared JSON layer.
