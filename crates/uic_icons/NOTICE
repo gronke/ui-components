@@ -1,9 +1,17 @@
-The SVGs under `svg/` are Material Symbols by Google, from the
-`@material-symbols/svg-400` npm package (the "outlined" weight-400 set).
+The SVGs under `svg/` are Material Symbols by Google (the "outlined",
+weight-400 set), vendored from the `@material-symbols/svg-400` npm package.
 
-  Material Symbols — https://github.com/google/material-design-icons
+  Material Symbols
+  Copyright Google LLC
+  Source:      https://github.com/google/material-design-icons
+  Repackaged:  https://github.com/marella/material-symbols
   Licensed under the Apache License, Version 2.0.
-  https://www.apache.org/licenses/LICENSE-2.0
 
-They are vendored verbatim as the single source of truth for both render
-targets: the browser sprite / inline map and the terminal rasterizer.
+A copy of the Apache License, Version 2.0 accompanies these files in
+./LICENSE-APACHE (canonical text at https://www.apache.org/licenses/LICENSE-2.0).
+
+The SVGs are vendored verbatim. Everything else in this crate — the build that
+assembles them into a web sprite / inline map and rasterizes them to Braille
+masks for the terminal, and that generated output — is the catalog's own work
+under the repository's MIT license (../../LICENSE). The crate's `license` field
+records the combination as `MIT AND Apache-2.0`.

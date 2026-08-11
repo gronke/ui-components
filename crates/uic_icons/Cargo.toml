@@ -3,7 +3,9 @@ name = "uic_icons"
 description = "Material Symbols icons for the catalog: one vendored SVG source rendered as a web sprite and rasterized for the terminal"
 version.workspace = true
 authors.workspace = true
-license.workspace = true
+# MIT for this crate's own code; Apache-2.0 for the vendored Material Symbols
+# SVGs under `svg/` (see NOTICE and LICENSE-APACHE). Not the workspace default.
+license = "MIT AND Apache-2.0"
 repository.workspace = true
 edition.workspace = true
 rust-version.workspace = true
