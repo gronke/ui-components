@@ -18,3 +18,9 @@ Colour is applied at paint (the theme foreground, `currentColor`'s terminal anal
 - A legible rasterized icon needs a few cells and up (Braille packs 2×4 subpixels per cell); at one or two cells any icon is a blob, by nature of the medium. `<uic-icon>` is for icons with room; small inline affordances (input-secret's reveal/copy) stay text/glyph in the terminal, and their web-only icon buttons ship `hidden` so the dual-target `<uic-icon>` never renders in the terminal there.
 - The published package gains the vendored SVGs and the generated `uic-icons.ts` map (wired via `WebCodegen::extra_module`); a consumer of a component that embeds `<uic-icon>` includes that map, as it already includes the shared stylesheet.
 - The icon set grows by committing another SVG under `uic_icons/svg/`; the sprite, the web map, and the masks regenerate from it.
+
+## Licensing
+
+The catalog is MIT, but the vendored SVGs are third-party: Material Symbols by Google, licensed Apache-2.0.
+`uic_icons` therefore declares `license = "MIT AND Apache-2.0"`, ships the Apache-2.0 text in `crates/uic_icons/LICENSE-APACHE`, and records the source and copyright in `crates/uic_icons/NOTICE`.
+The generated sprite, web SVG map, and Braille masks are derived forms of those SVGs, so a package that embeds `<uic-icon>` redistributes the icons under Apache-2.0 and carries that attribution with it.
