@@ -25,11 +25,11 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: gronke/rust-ci/.github/actions/install-toolchain@v0.0.5
+        uses: gronke/rust-ci/.github/actions/install-toolchain@v1.4.2
 
       # Same cache family the warmup saves from main, so releases start warm.
       - name: Rust cache
-        uses: gronke/rust-ci/.github/actions/rust-cache@v0.0.5
+        uses: gronke/rust-ci/.github/actions/rust-cache@v1.4.2
         with:
           prefix: qa-1
           cache-target: "true"
