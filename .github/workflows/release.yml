@@ -1,13 +1,12 @@
 name: Release
 
-# Builds the npm tree with the pure-Rust toolchain and rehearses the publish.
-# The real `npm publish` stays gated off until the registry decision lands
-# (ADR 0004); flipping it on needs the NPM_TOKEN secret.
-# workflow_dispatch runs are rehearsals against the current main.
+# A manual rehearsal of the npm publish against the current main. The real
+# `npm publish` stays gated off until the registry decision lands (ADR 0004);
+# flipping it on needs the NPM_TOKEN secret. Release-time distribution — the
+# tarball attached to a published GitHub Release — lives in release-asset.yml,
+# so this no longer runs on tag pushes.
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 env:
