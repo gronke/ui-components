@@ -5994,6 +5994,7 @@ version = "0.1.0"
 dependencies = [
  "ui_components",
  "uic_codegen_web",
+ "uic_icons",
  "uic_sync",
  "uic_worker",
 ]
