@@ -8,11 +8,12 @@ The whole tree is produced by the pure-Rust toolchain (`web_modules` typescript/
 The publish view is the catalog: components with `dist = false` stay out (the demo composition `app-root`, ADR 0013).
 The same command emits the worker host tree beside it (`dist/npm-worker`, `@gronke/uic-worker`, ADR 0007) and the sync tooling tree (`dist/npm-sync`, `@gronke/uic-sync`, ADR 0013).
 
-`release.yml` runs on `v*` tags and on `workflow_dispatch` (dispatch runs are rehearsals against the current main): it builds the trees via `cargo run -p uic_dist`, checks the tag against the package version, and rehearses the component tree with `npm publish --dry-run`.
-The real publish step is present but commented out until the registry decision (public npmjs vs GitHub Packages) lands; flipping it on needs the `NPM_TOKEN` secret.
-The npm CLI in that workflow is the single npm-tooling step in the repo; builds and vendoring stay pure Rust (`web_modules`/npm-utils, which are deliberately read-only against the registry).
+Until the registry decision (public npmjs vs GitHub Packages) lands, distribution is a **GitHub Release asset**: `release-asset.yml` runs on a published Release, builds the trees via `cargo run -p uic_dist`, checks the release tag against the package version, rehearses `npm publish --dry-run`, then `npm pack`s the component tree and attaches the `.tgz` to the Release.
+A consumer vendors that asset directly — web_modules resolves a `.tgz` URL as a tarball source — without a registry.
+`release.yml` remains a manual `workflow_dispatch` rehearsal against the current main (build the trees, `npm publish --dry-run`); the real `npm publish` is present but commented out and needs the `NPM_TOKEN` secret when the registry decision lands.
+The npm CLI in those workflows is the single npm-tooling step in the repo; builds and vendoring stay pure Rust (`web_modules`/npm-utils, which are deliberately read-only against the registry).
 The tree ships `publishConfig.access: public` (scoped packages default to restricted) and `repository`/`homepage`/`bugs` for the registry page.
-The release flow is: version-bump PR on `workspace.package.version` → merge → tag `vX.Y.Z` → workflow.
+The release flow is: version-bump PR on `workspace.package.version` → merge → cut a GitHub Release `vX.Y.Z` in the UI → `release-asset.yml` attaches the tarball.
 
 ## Why
 

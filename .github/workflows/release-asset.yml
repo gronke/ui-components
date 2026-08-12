@@ -1,0 +1,69 @@
+name: Release asset
+
+# On a published GitHub Release, build the npm tree, pack it, and attach the
+# tarball as a release asset. That tarball is the distribution consumers vendor
+# (web_modules' tarball source) without an npm registry (ADR 0004). The Release
+# tag is the version; dist/npm/package.json must match it.
+
+on:
+  release:
+    types: [published]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  npm-asset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: gronke/rust-ci/.github/actions/install-toolchain@v1.4.2
+
+      # Same cache family the warmup saves from main, so releases start warm.
+      - name: Rust cache
+        uses: gronke/rust-ci/.github/actions/rust-cache@v1.4.2
+        with:
+          prefix: qa-1
+          cache-target: "true"
+          lockfiles: "**/Cargo.toml"
+
+      - name: Build the npm tree
+        run: cargo run -p uic_dist
+
+      - name: Check the release tag matches the package version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(jq -r .version dist/npm/package.json)
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "release tag ${TAG} does not match package version v${version}" >&2
+            exit 1
+          fi
+
+      - name: Set up npm
+        uses: actions/setup-node@v6
+        with:
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish rehearsal (dry run)
+        run: npm publish --dry-run
+        working-directory: dist/npm
+
+      - name: Pack the component tree
+        id: pack
+        working-directory: dist/npm
+        run: echo "tgz=$(npm pack | tail -1)" >> "$GITHUB_OUTPUT"
+
+      # Attach to the just-published release; --clobber makes a re-run idempotent.
+      - name: Attach the tarball to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          TGZ: ${{ steps.pack.outputs.tgz }}
+        run: gh release upload "${TAG}" "dist/npm/${TGZ}" --clobber
