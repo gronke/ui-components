@@ -11,6 +11,9 @@ rust-version.workspace = true
 
 [dependencies]
 ui_components.workspace = true
+# The icon component's impl imports the generated ICON_SVGS map; the dist must
+# emit it too, or `<uic-icon>`/`<input-secret>` load a dangling `./uic-icons.js`.
+uic_icons.workspace = true
 uic_codegen_web = { workspace = true, features = ["dist"] }
 uic_worker.workspace = true
 uic_sync.workspace = true

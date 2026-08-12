@@ -12,6 +12,7 @@ fn dist() -> (Vec<&'static str>, PathBuf) {
     let root = DistBuild::new(&out, "@gronke/ui-components", "0.1.0")
         .repository("https://github.com/gronke/ui-components")
         .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
+        .extra_module("uic-icons.ts", uic_icons::WEB_TS)
         .run()
         .expect("dist build succeeds");
     // The publish view: catalog components ship, the demo composition stays
@@ -51,6 +52,8 @@ fn emits_the_npm_tree() {
         "components/uic-impl-helpers.d.ts",
         "components/uic-connectors.js",
         "components/uic-connectors.d.ts",
+        "components/uic-icons.js",
+        "components/uic-icons.d.ts",
         "elements.css",
         "custom-elements.json",
         "package.json",
@@ -121,6 +124,20 @@ fn emits_the_npm_tree() {
     );
     let connectors_dts = fs::read_to_string(root.join("components/uic-connectors.d.ts")).unwrap();
     assert!(connectors_dts.contains("QuerySource"));
+
+    // The icon map ships as its own export, and the icon impl imports it: a
+    // published `<uic-icon>` (and `<input-secret>`, which renders one) resolves
+    // `./uic-icons.js` rather than loading a dangling module.
+    assert_eq!(
+        package["exports"]["./uic-icons.js"]["default"],
+        "./components/uic-icons.js"
+    );
+    let icon_impl = fs::read_to_string(root.join("components/uic-icon.impl.js")).unwrap();
+    assert!(
+        icon_impl.contains("./uic-icons.js"),
+        "uic-icon.impl.js imports the generated ICON_SVGS map"
+    );
+
     assert_eq!(package["customElements"], "custom-elements.json");
 
     // Publish metadata (the release workflow rehearses `npm publish`).

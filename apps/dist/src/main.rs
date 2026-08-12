@@ -11,6 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         uic_codegen_web::DistBuild::new(out, "@gronke/ui-components", env!("CARGO_PKG_VERSION"))
             .repository(env!("CARGO_PKG_REPOSITORY"))
             .extra_module("uic-connectors.ts", ui_components::connect::WEB_TS)
+            .extra_module("uic-icons.ts", uic_icons::WEB_TS)
             .run()?;
     println!("npm package tree: {}", dist.root.display());
     for tag in dist.components {
